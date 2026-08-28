@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+dist/
+build/
+out/
+
+# Turborepo
+.turbo/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# OS
+.DS_Store
+
+# Prisma
+apps/backend/prisma/*.db
+
+# Flutter
+apps/mobile-member/**/build/
+apps/mobile-member/.dart_tool/
+apps/mobile-member/.flutter-plugins
+apps/mobile-member/.flutter-plugins-dependencies
+apps/mobile-admin/**/build/
+apps/mobile-admin/.dart_tool/
+apps/mobile-admin/.flutter-plugins
+apps/mobile-admin/.flutter-plugins-dependencies
+**/ios/Pods/
+**/*.g.dart
+**/*.freezed.dart
