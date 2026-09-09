@@ -10,6 +10,7 @@ out/
 
 # Turborepo
 .turbo/
+*.tsbuildinfo
 
 # Env
 .env

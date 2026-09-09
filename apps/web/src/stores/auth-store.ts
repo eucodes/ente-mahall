@@ -1,12 +1,6 @@
-import type { UserRole } from "@ente-mahall/shared-types";
+import type { AuthUser } from "@ente-mahall/contracts";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-
-interface AuthUser {
-  id: string;
-  mahallId: string;
-  role: UserRole;
-}
 
 interface AuthState {
   accessToken: string | null;
