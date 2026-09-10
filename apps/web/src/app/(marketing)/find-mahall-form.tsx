@@ -13,6 +13,9 @@ export function FindMahallForm() {
     e.preventDefault();
     if (!slug.trim()) return;
     const protocol = window.location.protocol;
+    // Crosses to a different subdomain — Next's router can't navigate there,
+    // so a full page load via window.location is required, not a lint issue.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = `${protocol}//${slug.trim().toLowerCase()}.${ROOT_DOMAIN}`;
   };
 

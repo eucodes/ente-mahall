@@ -1,3 +1,4 @@
+import 'package:ente_mahall_core/ente_mahall_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -25,7 +26,26 @@ class _PlaceholderHome extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Ente Mahall')),
-      body: const Center(child: Text('Member app — screens land in follow-up prompts.')),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Member app — screens land in follow-up prompts.'),
+            const SizedBox(height: 16),
+            // Reference pattern for future screens: always use showAppSnackBar /
+            // showAppConfirmDialog / showAppAlertDialog from ente_mahall_core,
+            // never a bare ScaffoldMessenger/showDialog call.
+            FilledButton(
+              onPressed: () => showAppSnackBar(
+                context,
+                message: 'This is the shared message style',
+                type: AppSnackBarType.success,
+              ),
+              child: const Text('Preview message style'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
