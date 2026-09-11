@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Badge, Card, CardContent, CardHeader, CardTitle, EmptyState, Pagination } from "@mahalle/ui";
+import { Badge, Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader, Pagination } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
 import { getAnnouncements, type Announcement } from "@/lib/business-resources";
@@ -28,19 +27,18 @@ export default async function AnnouncementsPage({
   const result = await getAnnouncements(slug, page, PAGE_SIZE);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-6 py-16">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Announcements &middot; {membership.tenant.name}</h1>
-        <Link href={`/${slug}`} className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          &larr; Back
-        </Link>
-      </div>
+    <>
+      <PageHeader title="Announcements" description="Public notices from the Mahalle." />
 
       {result === null ? (
-        <EmptyState
-          title="You don't have permission to view announcements"
-          description={`Your role (${membership.role.name}) doesn't include announcements.view.`}
-        />
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              title="You don't have permission to view announcements"
+              description={`Your role (${membership.role.name}) doesn't include announcements.view.`}
+            />
+          </CardContent>
+        </Card>
       ) : (
         <Card>
           <CardHeader>
@@ -87,6 +85,6 @@ export default async function AnnouncementsPage({
           </CardContent>
         </Card>
       )}
-    </main>
+    </>
   );
 }

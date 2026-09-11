@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
-import { Alert, AlertDescription, AlertTitle, Card, CardContent, CardHeader, CardTitle } from "@mahalle/ui";
+import { Badge, Card, CardContent, CardHeader, CardTitle, ShieldCheck } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { LoginForm } from "@/features/auth/login-form";
+import { AuthShell } from "@/components/auth-shell";
 
 export default async function ControlLoginPage() {
   const user = await getSession();
@@ -10,11 +11,16 @@ export default async function ControlLoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 px-6 py-16">
-      <Alert variant="warning">
-        <AlertTitle>Platform control plane</AlertTitle>
-        <AlertDescription>This area is for platform staff only. All access is audited.</AlertDescription>
-      </Alert>
+    <AuthShell
+      accent="destructive"
+      panelBadge={
+        <Badge variant="secondary" className="gap-1.5 bg-white/15 text-primary-foreground">
+          <ShieldCheck className="h-3.5 w-3.5" /> Platform staff only
+        </Badge>
+      }
+      panelTitle="Platform control plane"
+      panelDescription="This area is for platform staff only. Every action taken here is recorded to the platform-wide audit log."
+    >
       <Card>
         <CardHeader>
           <CardTitle>Log in</CardTitle>
@@ -23,6 +29,6 @@ export default async function ControlLoginPage() {
           <LoginForm redirectTo="/" />
         </CardContent>
       </Card>
-    </main>
+    </AuthShell>
   );
 }

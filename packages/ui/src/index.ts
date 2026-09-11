@@ -18,3 +18,6 @@ export * from "./components/toast";
 export * from "./components/use-toast";
 export * from "./components/states";
 export * from "./components/icons";
+export * from "./components/shell";
+export * from "./components/page-header";
+export * from "./components/stat-card";

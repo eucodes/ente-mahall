@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, EmptyState, Pagination } from "@mahalle/ui";
+import { Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader, Pagination } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
 import { getMembers } from "@/lib/members";
@@ -40,23 +39,24 @@ export default async function TenantMembersPage({
   const families = familiesResult?.items ?? [];
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-6 py-16">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Members &middot; {membership.tenant.name}</h1>
-        <Link href={`/${slug}`} className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          &larr; Back
-        </Link>
-      </div>
+    <>
+      <PageHeader title="Members" description="The Mahalle's member directory." />
 
       {result === null ? (
-        <EmptyState
-          title="You don't have permission to view members"
-          description={`Your role (${membership.role.name}) doesn't include members.view.`}
-        />
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              title="You don't have permission to view members"
+              description={`Your role (${membership.role.name}) doesn't include members.view.`}
+            />
+          </CardContent>
+        </Card>
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>{result.total} member{result.total === 1 ? "" : "s"}</CardTitle>
+            <CardTitle>
+              {result.total} member{result.total === 1 ? "" : "s"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {result.members.length === 0 && page === 1 && (
@@ -74,6 +74,6 @@ export default async function TenantMembersPage({
           </CardContent>
         </Card>
       )}
-    </main>
+    </>
   );
 }

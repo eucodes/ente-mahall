@@ -11,7 +11,7 @@ export default async function TenantLoginPage({ params }: { params: Promise<{ te
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6 py-16">
+    <div className="mx-auto max-w-sm py-8">
       <Card>
         <CardHeader>
           <CardTitle className="capitalize">{slug} Mahalle</CardTitle>
@@ -21,6 +21,6 @@ export default async function TenantLoginPage({ params }: { params: Promise<{ te
           <MemberOtpLoginForm tenantSlug={slug} redirectTo="/dashboard" />
         </CardContent>
       </Card>
-    </main>
+    </div>
   );
 }

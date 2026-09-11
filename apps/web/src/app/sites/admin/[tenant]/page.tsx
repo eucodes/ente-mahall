@@ -1,21 +1,33 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@mahalle/ui";
+import {
+  ArrowRight,
+  Calendar,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  ListChecks,
+  Megaphone,
+  PageHeader,
+  ShieldCheck,
+  UsersRound,
+  Users
+} from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
-import { LogoutButton } from "@/features/auth/logout-button";
 
 const SECTIONS = [
-  { title: "Members", description: "The Mahalle's member directory.", href: "members", permission: "members.*" },
-  { title: "Families", description: "Household units within the Mahalle.", href: "families", permission: "families.*" },
-  { title: "Events", description: "Scheduled Mahalle events.", href: "events", permission: "events.*" },
+  { title: "Members", description: "The Mahalle's member directory.", href: "members", icon: Users },
+  { title: "Families", description: "Household units within the Mahalle.", href: "families", icon: UsersRound },
+  { title: "Events", description: "Scheduled Mahalle events.", href: "events", icon: Calendar },
   {
     title: "Announcements",
     description: "Public notices from the Mahalle.",
     href: "announcements",
-    permission: "announcements.*"
+    icon: Megaphone
   },
-  { title: "Programs", description: "Ongoing Mahalle initiatives.", href: "programs", permission: "programs.*" }
+  { title: "Programs", description: "Ongoing Mahalle initiatives.", href: "programs", icon: ListChecks }
 ] as const;
 
 export default async function TenantAdminHomePage({ params }: { params: Promise<{ tenant: string }> }) {
@@ -27,57 +39,52 @@ export default async function TenantAdminHomePage({ params }: { params: Promise<
 
   const membership = await getMyTenantMembership(slug);
   if (!membership) {
-    // Real isolation: a signed-in user with no membership here gets nothing,
-    // not even a hint that the tenant exists.
     redirect("/");
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-16">
-      <div className="flex items-center justify-between">
-        <Badge variant="secondary">
-          admin &middot; {membership.tenant.name}
-        </Badge>
-        <LogoutButton redirectTo="/login" />
-      </div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{membership.tenant.name}</h1>
-        <Link href="/" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          &larr; All Mahalles
-        </Link>
-      </div>
-      <p className="text-sm text-muted-foreground">Your role: {membership.role.name}</p>
+    <>
+      <PageHeader title={membership.tenant.name} description={`Your role: ${membership.role.name}`} />
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {SECTIONS.map((section) => (
-          <Card key={section.href}>
+          <Link key={section.href} href={`/${slug}/${section.href}`} className="group">
+            <Card className="h-full transition-shadow group-hover:shadow-md">
+              <CardHeader>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <section.icon className="h-5 w-5" />
+                </div>
+                <CardTitle className="text-base">{section.title}</CardTitle>
+                <p className="text-sm text-muted-foreground">{section.description}</p>
+              </CardHeader>
+              <CardContent>
+                <span className="inline-flex items-center gap-1 text-sm font-medium text-primary">
+                  Manage <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+
+        <Link href={`/${slug}/admins`} className="group">
+          <Card className="h-full transition-shadow group-hover:shadow-md">
             <CardHeader>
-              <CardTitle className="text-base">{section.title}</CardTitle>
-              <CardDescription>{section.description}</CardDescription>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <CardTitle className="text-base">Administrators</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Add, re-role, or remove the people who help run this Mahalle.
+              </p>
             </CardHeader>
             <CardContent>
-              <Button asChild size="sm">
-                <Link href={`/${slug}/${section.href}`}>Manage</Link>
-              </Button>
+              <span className="inline-flex items-center gap-1 text-sm font-medium text-primary">
+                Manage <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              </span>
             </CardContent>
           </Card>
-        ))}
+        </Link>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Administrators</CardTitle>
-          <CardDescription>
-            Add, re-role, or remove the people who help run this Mahalle — enforced with real
-            permission and role-rank escalation checks, not just membership.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild size="sm">
-            <Link href={`/${slug}/admins`}>Manage administrators</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    </main>
+    </>
   );
 }

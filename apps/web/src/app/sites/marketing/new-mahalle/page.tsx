@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@maha
 import { adminHost } from "@/lib/env";
 import { getSession } from "@/lib/session";
 import { CreateTenantForm } from "@/features/tenants/create-tenant-form";
+import { AuthShell } from "@/components/auth-shell";
 
 export default async function NewMahallePage() {
   const user = await getSession();
@@ -11,7 +12,10 @@ export default async function NewMahallePage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6 py-16">
+    <AuthShell
+      panelTitle="Your Mahalle, its own private workspace"
+      panelDescription="Members, families, events, announcements, and programs — isolated from every other Mahalle on the platform, and yours to run."
+    >
       <Card>
         <CardHeader>
           <CardTitle>Create your Mahalle</CardTitle>
@@ -21,6 +25,6 @@ export default async function NewMahallePage() {
           <CreateTenantForm />
         </CardContent>
       </Card>
-    </main>
+    </AuthShell>
   );
 }

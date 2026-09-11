@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { LoginForm } from "@/features/auth/login-form";
+import { AuthShell } from "@/components/auth-shell";
 
 export default async function AdminLoginPage() {
   const user = await getSession();
@@ -11,10 +12,13 @@ export default async function AdminLoginPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6 py-16">
+    <AuthShell
+      panelTitle="Everything your Mahalle needs, in one place"
+      panelDescription="Members, families, events, announcements, and programs — manage it all from a single admin account."
+    >
       <Card>
         <CardHeader>
-          <CardTitle>Mahalle Admin</CardTitle>
+          <CardTitle>Welcome back</CardTitle>
           <CardDescription>Log in with your Mahalle account.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -27,6 +31,6 @@ export default async function AdminLoginPage() {
           </p>
         </CardContent>
       </Card>
-    </main>
+    </AuthShell>
   );
 }

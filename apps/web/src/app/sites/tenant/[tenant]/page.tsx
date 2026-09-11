@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@mahalle/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, PageHeader } from "@mahalle/ui";
 import { getMemberSession } from "@/lib/member-session";
 import { getPublicTenant } from "@/lib/tenants";
 
@@ -12,20 +11,12 @@ export default async function TenantPublicSitePage({
   const { tenant: slug } = await params;
   const [tenant, member] = await Promise.all([getPublicTenant(slug), getMemberSession(slug)]);
 
-  if (!tenant) {
-    notFound();
-  }
-
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-16">
-      <Badge className="w-fit" variant="secondary">
-        {slug}.example.com &middot; public Mahalle site
-      </Badge>
-      <h1 className="text-2xl font-semibold">{tenant.name}</h1>
-      <p className="text-muted-foreground">
-        Public information, announcements, events, and programs for this Mahalle will
-        render here in Phase 7. Members log in from this same host with their phone number.
-      </p>
+    <>
+      <PageHeader
+        title={tenant?.name ?? slug}
+        description="Public information, announcements, events, and programs for this Mahalle will render here in Phase 7. Members log in from this same host with their phone number."
+      />
       <Card>
         <CardHeader>
           <CardTitle>Member area</CardTitle>
@@ -48,6 +39,6 @@ export default async function TenantPublicSitePage({
           )}
         </CardContent>
       </Card>
-    </main>
+    </>
   );
 }

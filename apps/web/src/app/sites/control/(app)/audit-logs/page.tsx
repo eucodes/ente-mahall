@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   Badge,
@@ -7,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
   EmptyState,
+  PageHeader,
   Pagination,
   Table,
   TableBody,
@@ -40,16 +40,11 @@ export default async function AuditLogsPage({
   const { entries, total } = await getAuditLogs(page, PAGE_SIZE);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-6 py-16">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Audit logs</h1>
-        <Link href="/" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
-          &larr; Platform overview
-        </Link>
-      </div>
+    <>
+      <PageHeader title="Audit logs" description="Every security-relevant event, platform-wide." />
       <Card>
         <CardHeader>
-          <CardTitle>Every security-relevant event, platform-wide</CardTitle>
+          <CardTitle>{total} entr{total === 1 ? "y" : "ies"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {entries.length === 0 ? (
@@ -85,6 +80,6 @@ export default async function AuditLogsPage({
           )}
         </CardContent>
       </Card>
-    </main>
+    </>
   );
 }

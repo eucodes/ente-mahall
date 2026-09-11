@@ -1,16 +1,20 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import {
   Alert,
   AlertDescription,
   AlertTitle,
   Badge,
+  Building,
   Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
   EmptyState,
+  PageHeader,
+  ScrollText,
+  StatCard,
   Table,
   TableBody,
   TableCell,
@@ -18,10 +22,8 @@ import {
   TableHeader,
   TableRow
 } from "@mahalle/ui";
-import { ROOT_DOMAIN } from "@/lib/env";
 import { getSession } from "@/lib/session";
 import { getAllTenants, getPlatformSession } from "@/lib/platform";
-import { LogoutButton } from "@/features/auth/logout-button";
 
 export default async function ControlPlaneHomePage() {
   const user = await getSession();
@@ -33,32 +35,29 @@ export default async function ControlPlaneHomePage() {
 
   if (!platformSession) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-16">
-        <div className="flex items-center justify-between">
-          <Badge variant="destructive">control.{ROOT_DOMAIN} &middot; platform control plane</Badge>
-          <LogoutButton redirectTo="/login" />
-        </div>
-        <EmptyState
-          title="Access denied"
-          description={`${user.email} does not have a PlatformMembership. This is a completely separate authorization system from tenant roles — being an OWNER or ADMIN of any Mahalle grants no access here.`}
-        />
-      </main>
+      <Card>
+        <CardContent className="p-0">
+          <EmptyState
+            title="Access denied"
+            description={`${user.email} does not have a PlatformMembership. This is a completely separate authorization system from tenant roles — being an OWNER or ADMIN of any Mahalle grants no access here.`}
+          />
+        </CardContent>
+      </Card>
     );
   }
 
   const tenants = await getAllTenants();
+  const activeCount = tenants.filter((t) => t.isActive).length;
+  const totalMembers = tenants.reduce((sum, t) => sum + t.memberCount, 0);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-6 py-16">
-      <div className="flex items-center justify-between">
-        <Badge variant="destructive">control.{ROOT_DOMAIN} &middot; platform control plane</Badge>
-        <LogoutButton redirectTo="/login" />
-      </div>
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Platform overview</h1>
-        <span className="text-sm text-muted-foreground">Signed in as {user.email} &middot; {platformSession.role}</span>
-      </div>
-      <Alert variant="warning">
+    <>
+      <PageHeader
+        title="Platform overview"
+        description={`Signed in as ${user.email} · ${platformSession.role}`}
+      />
+
+      <Alert variant="warning" className="mb-6">
         <AlertTitle>Highest-privilege application</AlertTitle>
         <AlertDescription>
           MFA, step-up auth, and stricter session policies for sensitive actions (delete
@@ -67,11 +66,19 @@ export default async function ControlPlaneHomePage() {
         </AlertDescription>
       </Alert>
 
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <StatCard label="Mahalles" value={tenants.length} icon={<Building className="h-5 w-5" />} />
+        <StatCard label="Active" value={activeCount} hint={`${tenants.length - activeCount} inactive`} />
+        <StatCard label="Total members" value={totalMembers} />
+      </div>
+
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle>All Mahalles ({tenants.length})</CardTitle>
+          <CardTitle>All Mahalles</CardTitle>
           <Button asChild size="sm" variant="outline">
-            <Link href="/audit-logs">View audit logs</Link>
+            <Link href="/audit-logs">
+              <ScrollText className="h-4 w-4" /> View audit logs
+            </Link>
           </Button>
         </CardHeader>
         <CardContent>
@@ -105,6 +112,6 @@ export default async function ControlPlaneHomePage() {
           )}
         </CardContent>
       </Card>
-    </main>
+    </>
   );
 }
