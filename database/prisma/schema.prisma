@@ -1,0 +1,338 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+/// A single platform-wide identity. The same User can hold a TenantMembership
+/// in many tenants and, separately, a PlatformMembership on the control plane.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenantMemberships   TenantMembership[]
+  platformMembership  PlatformMembership?
+  refreshTokens       RefreshToken[]
+  auditLogsAsActor    AuditLog[]           @relation("AuditLogActor")
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy
+// ---------------------------------------------------------------------------
+
+/// One Mahalle. All tenant-owned data hangs off this via tenantId.
+model Tenant {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberships   TenantMembership[]
+  roles         Role[]
+  auditLogs     AuditLog[]
+  members       Member[]
+  memberOtps    MemberOtp[]
+  families      Family[]
+  events        Event[]
+  announcements Announcement[]
+  programs      Program[]
+
+  @@index([isActive])
+  @@map("tenants")
+}
+
+/// Links a User to a Tenant with a Role. This is the row every authorization
+/// check ultimately resolves through: user -> membership -> role -> permissions.
+model TenantMembership {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  roleId    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+  @@index([tenantId, isActive])
+  @@map("tenant_memberships")
+}
+
+// ---------------------------------------------------------------------------
+// RBAC
+// ---------------------------------------------------------------------------
+
+/// Roles are scoped to a tenant so each Mahalle can eventually customize its
+/// own role set. Seed data creates the standard OWNER/ADMIN/MODERATOR/EDITOR/
+/// STAFF/MEMBER roles per tenant.
+model Role {
+  id        String   @id @default(cuid())
+  tenantId  String
+  key       String
+  name      String
+  isSystem  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  memberships TenantMembership[]
+  permissions RolePermission[]
+
+  @@unique([tenantId, key])
+  @@map("roles")
+}
+
+/// Canonical, platform-wide permission catalogue (e.g. "members.view").
+/// Kept in sync with packages/types PERMISSIONS at seed time.
+model Permission {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  category  String
+  createdAt DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// ---------------------------------------------------------------------------
+// Platform control plane
+// ---------------------------------------------------------------------------
+
+/// Grants a User access to control.example.com. Deliberately separate from
+/// TenantMembership/Role so platform authorization never shares a code path
+/// with tenant authorization.
+model PlatformMembership {
+  id        String       @id @default(cuid())
+  userId    String       @unique
+  role      PlatformRole
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("platform_memberships")
+}
+
+enum PlatformRole {
+  SUPER_ADMIN
+  PLATFORM_STAFF
+  PLATFORM_SUPPORT
+}
+
+// ---------------------------------------------------------------------------
+// Mahalle business data
+// ---------------------------------------------------------------------------
+
+/// A person in a Mahalle's member directory. Deliberately separate from
+/// `User` — most members will never have a platform login at all; this is
+/// the Mahalle's own record-keeping, not an account. Strictly tenant-owned:
+/// every read/write goes through TenantContextGuard + members.* permissions,
+/// and every query is scoped by tenantId (see apps/api's MembersService).
+model Member {
+  id        String   @id @default(cuid())
+  tenantId  String
+  familyId  String?
+  fullName  String
+  email     String?
+  phone     String?
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // A family being deleted shouldn't delete its members — just unlink them.
+  family Family?     @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  otps   MemberOtp[]
+
+  // A member logs into their own Mahalle's site with phone + OTP (see
+  // MemberOtp) — the phone number is how they're found, so it must be
+  // unique within the tenant. Nullable because not every directory entry
+  // represents someone who will ever log in.
+  @@unique([tenantId, phone])
+  @@index([tenantId, isActive])
+  @@index([familyId])
+  @@map("members")
+}
+
+/// A one-time password issued for a Member's phone-based login. Only the
+/// hash is stored — same rationale as RefreshToken. Short-lived and
+/// single-use: `consumedAt` is set the moment a code verifies successfully,
+/// and a stale/expired row is simply ignored by OtpService, never revived.
+model MemberOtp {
+  id         String    @id @default(cuid())
+  tenantId   String
+  memberId   String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, consumedAt])
+  @@map("member_otps")
+}
+
+/// A household unit within a Mahalle. Same tenant-isolation pattern as Member.
+model Family {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  address   String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members Member[]
+
+  @@index([tenantId, isActive])
+  @@map("families")
+}
+
+/// A scheduled Mahalle event. Same tenant-isolation pattern as Member.
+model Event {
+  id          String    @id @default(cuid())
+  tenantId    String
+  title       String
+  description String?
+  location    String?
+  startsAt    DateTime
+  endsAt      DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, isActive])
+  @@index([tenantId, startsAt])
+  @@map("events")
+}
+
+/// A public notice from a Mahalle. Same tenant-isolation pattern as Member.
+model Announcement {
+  id          String    @id @default(cuid())
+  tenantId    String
+  title       String
+  body        String
+  publishedAt DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, isActive])
+  @@map("announcements")
+}
+
+/// An ongoing Mahalle program/initiative. Same tenant-isolation pattern as Member.
+model Program {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, isActive])
+  @@map("programs")
+}
+
+// ---------------------------------------------------------------------------
+// Authentication
+// ---------------------------------------------------------------------------
+
+/// A single refresh-token session. The token itself is never stored — only a
+/// hash of it — so a leaked database dump doesn't hand out valid sessions.
+/// Rotated on every use (`replacedById`) so a stolen-and-reused old token is
+/// detectable and the whole chain can be revoked.
+model RefreshToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  replacedById String?  @unique
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy  RefreshToken? @relation("RefreshTokenChain", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces    RefreshToken? @relation("RefreshTokenChain")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+/// Append-only. Nothing in the application ever updates or deletes a row here.
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String?
+  tenantId     String?
+  action       String
+  targetType   String?
+  targetId     String?
+  metadata     Json?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  actor  User?   @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([actorUserId])
+  @@index([action])
+  @@map("audit_logs")
+}

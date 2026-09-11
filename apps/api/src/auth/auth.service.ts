@@ -1,107 +1,106 @@
-import { createHash, randomBytes } from 'node:crypto';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
-import { UserRole } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
-import { PrismaService } from '../prisma/prisma.service.js';
-import type { JwtAccessPayload } from './jwt-payload.js';
+import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
+import bcrypt from "bcryptjs";
+import { UsersService } from "../users/users.service";
+import { AuditService } from "../audit/audit.service";
+import { LoginLockoutService } from "./login-lockout.service";
+import { TokenService, type IssuedTokens } from "./token.service";
+import type { RegisterDto } from "./dto/register.dto";
+import type { LoginDto } from "./dto/login.dto";
 
-const REFRESH_TOKEN_BYTES = 48;
+const BCRYPT_COST = 12;
+
+export interface RequestContext {
+  ipAddress?: string;
+  userAgent?: string;
+}
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly jwt: JwtService,
-    private readonly config: ConfigService,
+    private readonly usersService: UsersService,
+    private readonly tokenService: TokenService,
+    private readonly lockoutService: LoginLockoutService,
+    private readonly auditService: AuditService
   ) {}
 
-  /** Tenant login — used from {slug}.example.com and {slug}.example.com/admin. */
-  async login(mahallSlug: string, email: string, password: string) {
-    const mahall = await this.prisma.mahall.findUnique({ where: { slug: mahallSlug } });
-    if (!mahall) throw new UnauthorizedException('Invalid credentials');
-
-    const user = await this.prisma.user.findUnique({
-      where: { mahallId_email: { mahallId: mahall.id, email } },
-    });
-    if (!user || !user.isActive) throw new UnauthorizedException('Invalid credentials');
-
-    const passwordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!passwordValid) throw new UnauthorizedException('Invalid credentials');
-
-    return this.issueTokens(user.id, mahall.id, user.role);
-  }
-
-  /** Platform login — used from admin.example.com only. Not scoped to any Mahall. */
-  async loginSuperAdmin(email: string, password: string) {
-    const user = await this.prisma.user.findFirst({
-      where: { email, mahallId: null, role: UserRole.SUPER_ADMIN },
-    });
-    if (!user || !user.isActive) throw new UnauthorizedException('Invalid credentials');
-
-    const passwordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!passwordValid) throw new UnauthorizedException('Invalid credentials');
-
-    return this.issueTokens(user.id, null, user.role);
-  }
-
-  async refresh(rawToken: string) {
-    const tokenHash = this.hashToken(rawToken);
-    const stored = await this.prisma.refreshToken.findFirst({
-      where: { tokenHash, revokedAt: null },
-      include: { user: true },
-    });
-    if (!stored || stored.expiresAt < new Date()) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+  async register(dto: RegisterDto, context: RequestContext) {
+    const existing = await this.usersService.findByEmail(dto.email);
+    if (existing) {
+      // Deliberately vague — do not reveal that this email is already registered.
+      throw new ConflictException("Unable to register with the provided details");
     }
 
-    // Rotate: revoke the used token and issue a fresh pair.
-    await this.prisma.refreshToken.update({
-      where: { id: stored.id },
-      data: { revokedAt: new Date() },
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_COST);
+    const user = await this.usersService.create({
+      email: dto.email,
+      passwordHash,
+      fullName: dto.fullName
     });
 
-    return this.issueTokens(stored.user.id, stored.user.mahallId, stored.user.role);
-  }
-
-  async logout(rawToken: string) {
-    const tokenHash = this.hashToken(rawToken);
-    await this.prisma.refreshToken.updateMany({
-      where: { tokenHash, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-  }
-
-  private async issueTokens(userId: string, mahallId: string | null, role: JwtAccessPayload['role']) {
-    const payload: JwtAccessPayload = { sub: userId, mahallId, role };
-    const accessToken = await this.jwt.signAsync(payload);
-
-    const refreshToken = randomBytes(REFRESH_TOKEN_BYTES).toString('hex');
-    const refreshTtlMs = this.parseTtlMs(this.config.getOrThrow<string>('JWT_REFRESH_TTL'));
-
-    await this.prisma.refreshToken.create({
-      data: {
-        userId,
-        tokenHash: this.hashToken(refreshToken),
-        expiresAt: new Date(Date.now() + refreshTtlMs),
-      },
+    await this.auditService.record({
+      actorUserId: user.id,
+      action: "auth.register",
+      targetType: "User",
+      targetId: user.id,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
     });
 
-    return { accessToken, refreshToken, user: { id: userId, mahallId, role } };
+    const tokens = await this.tokenService.issueTokens(user.id, user.email, context);
+    return { user: this.usersService.toSafeUser(user), tokens };
   }
 
-  private hashToken(token: string): string {
-    // Refresh tokens are high-entropy random values, not user passwords — a fast
-    // deterministic hash is fine here and lets us look them up by equality.
-    return createHash('sha256').update(token).digest('hex');
+  async login(dto: LoginDto, context: RequestContext) {
+    if (await this.lockoutService.isLocked(dto.email)) {
+      await this.auditService.record({
+        action: "auth.login.locked",
+        metadata: { email: dto.email },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent
+      });
+      throw new UnauthorizedException("Too many failed attempts. Try again later.");
+    }
+
+    const user = await this.usersService.findByEmail(dto.email);
+    const passwordMatches = user ? await bcrypt.compare(dto.password, user.passwordHash) : false;
+
+    if (!user || !passwordMatches || !user.isActive) {
+      await this.lockoutService.recordFailure(dto.email);
+      await this.auditService.record({
+        actorUserId: user?.id,
+        action: "auth.login.failed",
+        metadata: { email: dto.email },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent
+      });
+      throw new UnauthorizedException("Invalid email or password");
+    }
+
+    await this.lockoutService.reset(dto.email);
+    await this.auditService.record({
+      actorUserId: user.id,
+      action: "auth.login.success",
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+
+    const tokens = await this.tokenService.issueTokens(user.id, user.email, context);
+    return { user: this.usersService.toSafeUser(user), tokens };
   }
 
-  private parseTtlMs(ttl: string): number {
-    const match = /^(\d+)([smhd])$/.exec(ttl);
-    if (!match) throw new Error(`Invalid TTL format: ${ttl}`);
-    const value = Number(match[1]);
-    const unitMs = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[match[2] as 's' | 'm' | 'h' | 'd'];
-    return value * unitMs;
+  async refresh(refreshToken: string, context: RequestContext): Promise<IssuedTokens> {
+    return this.tokenService.rotateRefreshToken(refreshToken, context);
+  }
+
+  async logout(refreshToken: string | undefined, actorUserId: string | undefined, context: RequestContext) {
+    if (refreshToken) {
+      await this.tokenService.revokeRefreshToken(refreshToken);
+    }
+    await this.auditService.record({
+      actorUserId,
+      action: "auth.logout",
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
   }
 }

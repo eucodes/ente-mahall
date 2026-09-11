@@ -1,11 +1,14 @@
 packages:
-  - "apps/web"
-  - "apps/api"
+  - "apps/*"
   - "packages/*"
+  - "database"
+
 allowBuilds:
+  '@nestjs/core': true
   '@prisma/client': true
   '@prisma/engines': true
-  bcrypt: true
+  '@swc/core': true
   esbuild: true
   prisma: true
-  unrs-resolver: true
+  sharp: false
+  unrs-resolver: false

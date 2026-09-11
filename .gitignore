@@ -31,17 +31,27 @@ pnpm-debug.log*
 .DS_Store
 
 # Prisma
-apps/backend/prisma/*.db
+database/prisma/*.db
+database/prisma/migrations/dev/
 
 # Flutter
-apps/mobile-member/**/build/
-apps/mobile-member/.dart_tool/
-apps/mobile-member/.flutter-plugins
-apps/mobile-member/.flutter-plugins-dependencies
-apps/mobile-admin/**/build/
-apps/mobile-admin/.dart_tool/
-apps/mobile-admin/.flutter-plugins
-apps/mobile-admin/.flutter-plugins-dependencies
+mobile/client/**/build/
+mobile/client/.dart_tool/
+mobile/client/.flutter-plugins
+mobile/client/.flutter-plugins-dependencies
+mobile/admin/**/build/
+mobile/admin/.dart_tool/
+mobile/admin/.flutter-plugins
+mobile/admin/.flutter-plugins-dependencies
+mobile/core/**/build/
+mobile/core/.dart_tool/
 **/ios/Pods/
 **/*.g.dart
 **/*.freezed.dart
+
+# Coverage
+coverage/
+
+
+.claude
+.claude/

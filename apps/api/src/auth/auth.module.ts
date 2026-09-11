@@ -1,27 +1,17 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { JwtModule, type JwtModuleOptions } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport';
-import { AuthController } from './auth.controller.js';
-import { AuthService } from './auth.service.js';
-import { JwtAccessStrategy } from './strategies/jwt-access.strategy.js';
+import { Module } from "@nestjs/common";
+import { JwtModule } from "@nestjs/jwt";
+import { PassportModule } from "@nestjs/passport";
+import { UsersModule } from "../users/users.module";
+import { AuthController } from "./auth.controller";
+import { AuthService } from "./auth.service";
+import { TokenService } from "./token.service";
+import { LoginLockoutService } from "./login-lockout.service";
+import { JwtAccessStrategy } from "./strategies/jwt-access.strategy";
 
 @Module({
-  imports: [
-    PassportModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.getOrThrow<string>('JWT_ACCESS_SECRET'),
-        // `ms`-style string (e.g. "15m"); @nestjs/jwt's types don't export the
-        // `StringValue` brand so a plain string needs this cast.
-        signOptions: { expiresIn: config.getOrThrow<string>('JWT_ACCESS_TTL') } as JwtModuleOptions['signOptions'],
-      }),
-    }),
-  ],
+  imports: [UsersModule, PassportModule, JwtModule.register({})],
   controllers: [AuthController],
-  providers: [AuthService, JwtAccessStrategy],
-  exports: [AuthService],
+  providers: [AuthService, TokenService, LoginLockoutService, JwtAccessStrategy],
+  exports: [AuthService, TokenService]
 })
 export class AuthModule {}

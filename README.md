@@ -1,76 +1,96 @@
-# Ente Mahall
+# Mahalle SaaS
 
-Multi-tenant SaaS platform for Mahalls (Mosques and Mahall Committees) — one deployment, many
-tenants, each on its own subdomain. Working name — the project will be renamed.
+A production-oriented, multi-tenant SaaS platform for Mahalle management, built as a
+modular monolith: one Next.js frontend, one NestJS API, one PostgreSQL database,
+serving every Mahalle as an isolated tenant.
 
-See [DECISIONS.md](./DECISIONS.md) for why the stack and architecture look the way they do,
-especially the "Tenant routing" and "Shared contracts" sections before touching `apps/web/src/proxy.ts`
-or `packages/contracts`.
+See [docs/](docs/) for the full architecture, database model, authentication and
+authorization design, tenant-resolution strategy, UI system, and security model.
 
-## Domains
+## Stack
 
-| Host | Serves |
-| --- | --- |
-| `example.com` / `www.example.com` | Public marketing site |
-| `admin.example.com` | Super Admin panel — manages all Mahalls, plans, subscriptions |
-| `{slug}.example.com` | One Mahall's member-facing app |
-| `{slug}.example.com/admin` | That Mahall's own admin panel |
-| `api.example.com` | The one NestJS API, used by web and both Flutter apps |
+- **Web:** Next.js (App Router) + React + TypeScript + Tailwind CSS
+- **API:** NestJS + TypeScript, modular monolith (no microservices)
+- **Database:** PostgreSQL + Prisma
+- **Cache:** Redis
+- **Monorepo:** pnpm workspaces + Turborepo
+- **Mobile (future):** Flutter, consuming the same NestJS API
 
-One Next.js app serves every web surface above via hostname-based routing (`apps/web/src/proxy.ts`).
-One NestJS app serves the API; tenant isolation is enforced there via the JWT's `mahallId` claim,
-not by the subdomain a request arrived on.
+## Requirements
 
-## Structure
+- Node.js >= 20
+- pnpm (`corepack enable` will pick up the pinned version automatically)
+- Docker (for local Postgres + Redis)
 
-- `apps/web` — Next.js 16, all of the web surfaces above
-- `apps/api` — NestJS 12 API (Prisma schema lives at `apps/api/prisma`)
-- `mobile/client` — Flutter app for Mahall members and the public
-- `mobile/admin` — Flutter app for administrators, committee members, and staff
-- `mobile/core` — Dart package shared by both Flutter apps
-- `packages/contracts` — Zod schemas (types + validation), shared by `apps/web` and `apps/api`
+This project uses **pnpm exclusively**. Do not use npm, yarn, or bun.
 
 ## Getting started
 
-### Prerequisites
-
-- Node.js 20+
-- Flutter SDK
-- Docker (for local Postgres/Redis)
-- `pnpm` — not required globally; use `npx pnpm <command>`, or install once to a user prefix:
-  ```bash
-  npm install -g pnpm --prefix ~/.local/pnpm-global
-  export PATH="$HOME/.local/pnpm-global/bin:$PATH"   # add to your shell profile
-  ```
-
-### Setup
-
 ```bash
-docker compose -f docker/docker-compose.yml up -d   # Postgres + Redis
-cp apps/api/.env.example apps/api/.env
-cp apps/web/.env.example apps/web/.env.local
+# 1. Install dependencies
 pnpm install
-pnpm --filter api exec prisma migrate dev --name init
-pnpm dev                                             # web + api, via Turborepo
+
+# 2. Copy environment variables and adjust as needed
+cp .env.example .env
+
+# 3. Start Postgres + Redis
+docker compose -f docker/docker-compose.yml up -d
+
+# 4. Apply the database schema and seed demo data
+pnpm db:migrate
+pnpm db:seed
+
+# 5. Run everything (web + api) in dev mode
+pnpm dev
 ```
 
-`pnpm dev` builds `packages/contracts` first (both apps import its compiled output, not source —
-see DECISIONS.md) and then runs web + api together.
+Web runs at `http://localhost:3000`, API at `http://localhost:4000`. To log
+in and have that session work across the admin/control/tenant hostnames too,
+you'll need a few `/etc/hosts` entries first — see
+[apps/web/README.md](apps/web/README.md) (plain `*.localhost` doesn't work
+for this; browsers reject cross-subdomain session cookies scoped to it).
 
-### Local subdomains
+## Monorepo layout
 
-Both `.env` files default `ROOT_DOMAIN` to `localhost`, so subdomain routing works immediately at:
+```
+apps/
+  web/            Next.js — all frontend surfaces (marketing, tenant, admin, control)
+  api/             NestJS — the single backend API
+packages/
+  ui/              Shared design system (Button, Dialog, Toast, DataTable, ...)
+  types/           Shared TypeScript types/enums (roles, permissions, entities)
+  validation/      Shared Zod schemas
+  api-client/      Typed fetch wrapper consumed by web (and future Flutter/other clients)
+  config/          Shared tsconfig, eslint, and Tailwind presets
+database/
+  prisma/          Prisma schema, migrations, seed script
+docker/
+  docker-compose.yml   Local Postgres + Redis
+mobile/            Reserved for Flutter apps (Phase 9)
+docs/              Architecture and process documentation
+```
 
-- `http://localhost:3000` — marketing site
-- `http://admin.localhost:3000` — Super Admin login
-- `http://{any-slug}.localhost:3000` — a tenant app (404s until that Mahall exists in the DB)
-
-Every modern browser and Node resolve `*.localhost` to `127.0.0.1` automatically — no `/etc/hosts`
-edits needed.
-
-Flutter apps are run independently:
+## Common commands
 
 ```bash
-cd mobile/client && flutter run
-cd mobile/admin && flutter run
+pnpm dev          # run all apps in dev mode
+pnpm build        # build all apps/packages
+pnpm lint         # lint all workspaces
+pnpm typecheck    # typecheck all workspaces
+pnpm test         # run all test suites
+pnpm db:migrate   # apply Prisma migrations (dev)
+pnpm db:seed      # seed demo data
+pnpm db:studio    # open Prisma Studio
 ```
+
+## Implementation phases
+
+This project is built in phases; see [docs/architecture.md](docs/architecture.md#implementation-phases)
+for the full list. **Phases 1–7 are complete** — members, families, events,
+announcements, and programs all exist as tenant-scoped, permission-gated
+modules with object-level isolation tests and admin UI. See
+[docs/authorization.md](docs/authorization.md) for the full, tested
+enforcement chain (membership, permissions, role-rank escalation prevention,
+object-level isolation, platform/tenant separation). Phase 9 (Flutter)
+hasn't started — a deliberate, discussed decision to keep improving the
+web/API first.

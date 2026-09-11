@@ -1,22 +1,52 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module.js';
+import "reflect-metadata";
+import { NestFactory } from "@nestjs/core";
+import { ConfigService } from "@nestjs/config";
+import { ValidationPipe } from "@nestjs/common";
+import helmet from "helmet";
+import cookieParser from "cookie-parser";
+import { AppModule } from "./app.module";
+import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
+import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
+import { createCorsOriginValidator } from "./config/cors";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const config = app.get(ConfigService);
 
-  // The web app calls this API from every tenant subdomain, admin.<root>, and
-  // the marketing root — an allowlist of fixed origins doesn't work here, so
-  // origin is validated against the same ROOT_DOMAIN the web app's proxy uses.
-  const rootDomain = process.env.ROOT_DOMAIN ?? 'localhost';
+  app.use(
+    helmet({
+      // This API is deliberately called cross-origin by every subdomain
+      // (admin., control., every tenant) — Helmet's default same-origin CORP
+      // would have the browser silently discard those responses even though
+      // CORS explicitly allowed them. CORS (above) remains the real
+      // authorization boundary for who can read a response with credentials.
+      crossOriginResourcePolicy: { policy: "cross-origin" }
+    })
+  );
+  app.use(cookieParser(config.getOrThrow<string>("sessionSecret")));
   app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin) return callback(null, true); // same-origin / non-browser clients (Flutter)
-      const { hostname } = new URL(origin);
-      const allowed = hostname === rootDomain || hostname.endsWith(`.${rootDomain}`);
-      callback(allowed ? null : new Error('Not allowed by CORS'), allowed);
-    },
+    origin: createCorsOriginValidator(
+      config.getOrThrow<string>("cookieDomain"),
+      config.get<string[]>("corsOrigins") ?? []
+    ),
+    credentials: true
   });
 
-  await app.listen(process.env.PORT ?? 3001);
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true
+    })
+  );
+  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalInterceptors(new ResponseInterceptor());
+
+  app.setGlobalPrefix("api/v1", { exclude: ["health"] });
+
+  const port = config.get<number>("port") ?? 4000;
+  await app.listen(port);
+  console.log(`API listening on http://localhost:${port}`);
 }
-await bootstrap();
+
+bootstrap();

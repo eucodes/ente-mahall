@@ -1,27 +1,85 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
-import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
-import { Roles } from '../auth/decorators/roles.decorator.js';
-import { JwtAccessGuard } from '../auth/guards/jwt-access.guard.js';
-import { RolesGuard } from '../auth/guards/roles.guard.js';
-import type { JwtAccessPayload } from '../auth/jwt-payload.js';
-import { requireMahallId } from '../auth/require-mahall-id.js';
-import { CreateMemberDto } from './dto/member.dto.js';
-import { MembersService } from './members.service.js';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
+import type { Request } from "express";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { TenantContextGuard } from "../tenants/guards/tenant-context.guard";
+import { PermissionGuard } from "../tenants/guards/permission.guard";
+import { RequirePermission } from "../common/decorators/require-permission.decorator";
+import { CurrentMembership } from "../tenants/decorators/current-membership.decorator";
+import type { MembershipWithRole } from "../memberships/memberships.service";
+import { PaginationQueryDto } from "../common/dto/pagination-query.dto";
+import { MembersService } from "./members.service";
+import { CreateMemberDto } from "./dto/create-member.dto";
+import { UpdateMemberDto } from "./dto/update-member.dto";
 
-@Controller('members')
-@UseGuards(JwtAccessGuard, RolesGuard)
+function requestContext(req: Request) {
+  return { ipAddress: req.ip, userAgent: req.headers["user-agent"] };
+}
+
+@Controller("tenants/:slug/members")
+@UseGuards(JwtAuthGuard, TenantContextGuard, PermissionGuard)
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}
 
   @Get()
-  findAll(@CurrentUser() user: JwtAccessPayload) {
-    return this.membersService.findAllForMahall(requireMahallId(user));
+  @RequirePermission("members.view")
+  async list(@CurrentMembership() membership: MembershipWithRole, @Query() query: PaginationQueryDto) {
+    const { members, total } = await this.membersService.list(membership.tenantId, query.page, query.pageSize);
+    return { members, meta: { page: query.page, pageSize: query.pageSize, total } };
+  }
+
+  @Get(":memberId")
+  @RequirePermission("members.view")
+  async findOne(@CurrentMembership() membership: MembershipWithRole, @Param("memberId") memberId: string) {
+    const member = await this.membersService.findOne(membership.tenantId, memberId);
+    return { member };
   }
 
   @Post()
-  @Roles(UserRole.MAHALL_ADMIN, UserRole.STAFF)
-  create(@CurrentUser() user: JwtAccessPayload, @Body() dto: CreateMemberDto) {
-    return this.membersService.create(requireMahallId(user), dto);
+  @RequirePermission("members.create")
+  async create(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Body() dto: CreateMemberDto,
+    @Req() req: Request
+  ) {
+    const member = await this.membersService.create(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      dto,
+      requestContext(req)
+    );
+    return { member };
+  }
+
+  @Patch(":memberId")
+  @RequirePermission("members.update")
+  @HttpCode(HttpStatus.OK)
+  async update(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("memberId") memberId: string,
+    @Body() dto: UpdateMemberDto,
+    @Req() req: Request
+  ) {
+    const member = await this.membersService.update(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      memberId,
+      dto,
+      requestContext(req)
+    );
+    return { member };
+  }
+
+  @Delete(":memberId")
+  @RequirePermission("members.delete")
+  @HttpCode(HttpStatus.OK)
+  async remove(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("memberId") memberId: string,
+    @Req() req: Request
+  ) {
+    await this.membersService.remove(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      memberId,
+      requestContext(req)
+    );
+    return { success: true };
   }
 }

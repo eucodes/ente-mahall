@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# @mahalle/web
 
-## Getting Started
+Next.js frontend for the Mahalle SaaS platform. Serves four hostnames from one app:
 
-First, run the development server:
+| Host | Route group | Purpose |
+| --- | --- | --- |
+| `example.com` | `sites/marketing` | Public marketing site |
+| `admin.example.com` | `sites/admin` | Mahalle administration |
+| `control.example.com` | `sites/control` | Platform control plane |
+| `<slug>.example.com` | `sites/tenant/[tenant]` | Tenant public site + `/dashboard` |
+
+[`src/middleware.ts`](src/middleware.ts) resolves the host and rewrites into the
+matching route group. This is routing only — it never makes an authorization
+decision; the API independently re-resolves tenant/role/permission on every
+request.
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm --filter @mahalle/web dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+To exercise the different hosts locally, add these to `/etc/hosts` (all pointing
+at `127.0.0.1`). Plain `*.localhost` won't work — browsers reject a session
+cookie scoped with `Domain=.localhost` — so this uses the reserved `.test`
+TLD instead (see [docs/dev-setup.md](../../docs/dev-setup.md)):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+127.0.0.1 mahalle.test
+127.0.0.1 admin.mahalle.test
+127.0.0.1 control.mahalle.test
+127.0.0.1 demo.mahalle.test
+127.0.0.1 api.mahalle.test
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Then visit `http://mahalle.test:3000`, `http://admin.mahalle.test:3000`,
+`http://control.mahalle.test:3000`, and `http://demo.mahalle.test:3000`. One
+login on any of these works on all of them.
 
-## Learn More
+## Design system
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All UI primitives come from [`@mahalle/ui`](../../packages/ui) — no page builds
+its own button/dialog/toast. Never use `alert()`/`confirm()`/`prompt()`; use
+`useToast()` and `<ConfirmDialog />` instead.
