@@ -1,19 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Button, FormField, Input } from "@mahalle/ui";
+import { Building, Button, FormField, Input } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
-import { adminHost, ROOT_DOMAIN } from "@/lib/env";
-
-function slugify(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
+import { adminHost } from "@/lib/env";
+import { slugify, SlugField } from "./slug-field";
 
 interface CreateTenantResponse {
   tenant: { slug: string };
@@ -23,6 +14,7 @@ export function CreateTenantForm() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
+  const [slugTaken, setSlugTaken] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -51,27 +43,31 @@ export function CreateTenantForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       <FormField label="Mahalle name" htmlFor="tenant-name" required>
-        <Input id="tenant-name" required value={name} onChange={(e) => handleNameChange(e.target.value)} />
-      </FormField>
-      <FormField
-        label="Mahalle URL"
-        htmlFor="tenant-slug"
-        required
-        hint={`This will be reachable at ${slug || "your-mahalle"}.${ROOT_DOMAIN}`}
-        error={error ?? undefined}
-      >
         <Input
-          id="tenant-slug"
+          id="tenant-name"
           required
-          invalid={Boolean(error)}
-          value={slug}
-          onChange={(e) => {
-            setSlugEdited(true);
-            setSlug(slugify(e.target.value));
-          }}
+          autoFocus
+          leadingIcon={<Building />}
+          placeholder="Al Noor Mahalle"
+          value={name}
+          onChange={(e) => handleNameChange(e.target.value)}
         />
       </FormField>
-      <Button type="submit" className="w-full" isLoading={isSubmitting}>
+      <SlugField
+        id="tenant-slug"
+        value={slug}
+        onChange={(value) => {
+          setSlugEdited(true);
+          setSlug(value);
+        }}
+        onAvailabilityChange={(a) => setSlugTaken(a === "taken")}
+      />
+      {error && (
+        <p role="alert" className="text-xs font-medium text-destructive">
+          {error}
+        </p>
+      )}
+      <Button type="submit" className="w-full" size="lg" isLoading={isSubmitting} disabled={slugTaken}>
         Create Mahalle
       </Button>
     </form>

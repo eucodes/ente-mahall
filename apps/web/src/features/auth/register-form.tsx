@@ -2,9 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, FormField, Input, useToast } from "@mahalle/ui";
+import { Button, FormField, Input, Mail, PasswordInput, PasswordStrengthMeter, User, useToast } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
-import type { User } from "@mahalle/types";
+import type { User as UserModel } from "@mahalle/types";
 
 export interface RegisterFormProps {
   redirectTo: string;
@@ -24,7 +24,7 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
     setError(null);
     setIsSubmitting(true);
     try {
-      await apiClient.post<{ user: User }>("/auth/register", { email, password, fullName });
+      await apiClient.post<{ user: UserModel }>("/auth/register", { email, password, fullName });
       toast({ title: "Account created", description: "Welcome to Mahalle.", variant: "success" });
       router.push(redirectTo);
       router.refresh();
@@ -39,7 +39,16 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       <FormField label="Full name" htmlFor="register-name" required>
-        <Input id="register-name" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        <Input
+          id="register-name"
+          autoComplete="name"
+          autoFocus
+          required
+          leadingIcon={<User />}
+          placeholder="Aisha Rahman"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+        />
       </FormField>
       <FormField label="Email" htmlFor="register-email" required>
         <Input
@@ -47,6 +56,8 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
           type="email"
           autoComplete="email"
           required
+          leadingIcon={<Mail />}
+          placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -55,20 +66,23 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
         label="Password"
         htmlFor="register-password"
         required
-        hint="At least 10 characters, with an uppercase letter, a lowercase letter, and a number."
+        hint={!password ? "At least 10 characters, with an uppercase letter, a lowercase letter, and a number." : undefined}
         error={error ?? undefined}
       >
-        <Input
-          id="register-password"
-          type="password"
-          autoComplete="new-password"
-          required
-          invalid={Boolean(error)}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div className="space-y-2">
+          <PasswordInput
+            id="register-password"
+            autoComplete="new-password"
+            required
+            invalid={Boolean(error)}
+            placeholder="Create a password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <PasswordStrengthMeter value={password} />
+        </div>
       </FormField>
-      <Button type="submit" className="w-full" isLoading={isSubmitting}>
+      <Button type="submit" className="w-full" size="lg" isLoading={isSubmitting}>
         Create account
       </Button>
     </form>

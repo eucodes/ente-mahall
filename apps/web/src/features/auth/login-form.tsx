@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, FormField, Input, useToast } from "@mahalle/ui";
+import { Button, FormField, Input, Mail, PasswordInput, useToast } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { User } from "@mahalle/types";
 
@@ -43,23 +43,26 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           id="login-email"
           type="email"
           autoComplete="email"
+          autoFocus
           required
+          leadingIcon={<Mail />}
+          placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
       </FormField>
       <FormField label="Password" htmlFor="login-password" required error={error ?? undefined}>
-        <Input
+        <PasswordInput
           id="login-password"
-          type="password"
           autoComplete="current-password"
           required
           invalid={Boolean(error)}
+          placeholder="••••••••"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
       </FormField>
-      <Button type="submit" className="w-full" isLoading={isSubmitting}>
+      <Button type="submit" className="w-full" size="lg" isLoading={isSubmitting}>
         Log in
       </Button>
     </form>

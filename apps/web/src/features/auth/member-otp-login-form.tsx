@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, FormField, Input, useToast } from "@mahalle/ui";
+import { Button, FormField, Input, Phone, useToast } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 
 export interface MemberOtpLoginFormProps {
@@ -14,6 +14,8 @@ export interface MemberOtpLoginFormProps {
 
 type Step = "phone" | "code";
 
+const RESEND_COOLDOWN_SECONDS = 30;
+
 export function MemberOtpLoginForm({ tenantSlug, redirectTo }: MemberOtpLoginFormProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -22,21 +24,33 @@ export function MemberOtpLoginForm({ tenantSlug, redirectTo }: MemberOtpLoginFor
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
-  async function handleRequestOtp(event: FormEvent) {
-    event.preventDefault();
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  async function requestOtp() {
     setError(null);
     setIsSubmitting(true);
     try {
       await apiClient.post(`/tenants/${encodeURIComponent(tenantSlug)}/member-auth/otp/request`, { phone });
       toast({ title: "Code sent", description: "Enter the code sent to your phone." });
       setStep("code");
+      setCooldown(RESEND_COOLDOWN_SECONDS);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
       setError(message);
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleRequestOtp(event: FormEvent) {
+    event.preventDefault();
+    await requestOtp();
   }
 
   async function handleVerifyOtp(event: FormEvent) {
@@ -72,12 +86,14 @@ export function MemberOtpLoginForm({ tenantSlug, redirectTo }: MemberOtpLoginFor
             autoComplete="tel"
             autoFocus
             required
+            leadingIcon={<Phone />}
+            placeholder="+91 98765 43210"
             invalid={Boolean(error)}
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
         </FormField>
-        <Button type="submit" className="w-full" isLoading={isSubmitting}>
+        <Button type="submit" className="w-full" size="lg" isLoading={isSubmitting}>
           Send code
         </Button>
       </form>
@@ -100,27 +116,38 @@ export function MemberOtpLoginForm({ tenantSlug, redirectTo }: MemberOtpLoginFor
           maxLength={6}
           autoFocus
           required
+          className="text-center text-lg font-semibold tracking-[0.5em]"
+          placeholder="000000"
           invalid={Boolean(error)}
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
         />
       </FormField>
-      <Button type="submit" className="w-full" isLoading={isSubmitting}>
+      <Button type="submit" className="w-full" size="lg" isLoading={isSubmitting}>
         Verify and log in
       </Button>
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full"
-        disabled={isSubmitting}
-        onClick={() => {
-          setStep("phone");
-          setCode("");
-          setError(null);
-        }}
-      >
-        Use a different phone number
-      </Button>
+      <div className="flex items-center justify-between text-sm">
+        <button
+          type="button"
+          className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          disabled={isSubmitting}
+          onClick={() => {
+            setStep("phone");
+            setCode("");
+            setError(null);
+          }}
+        >
+          Use a different number
+        </button>
+        <button
+          type="button"
+          className="font-medium text-primary underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+          disabled={isSubmitting || cooldown > 0}
+          onClick={requestOtp}
+        >
+          {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
+        </button>
+      </div>
     </form>
   );
 }

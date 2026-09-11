@@ -4,6 +4,8 @@ export * from "./components/button";
 export * from "./components/spinner";
 export * from "./components/label";
 export * from "./components/input";
+export * from "./components/password-input";
+export * from "./components/password-strength";
 export * from "./components/textarea";
 export * from "./components/select";
 export * from "./components/table";
