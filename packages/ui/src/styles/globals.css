@@ -4,45 +4,48 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    /* A subtle cool, slightly violet-tinted off-white rather than flat
+       white — reads as a more premium "surface" than pure #fff. */
+    --background: 255 60% 98%;
+    --foreground: 222 45% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 222 45% 12%;
 
-    --primary: 221 83% 53%;
+    /* Deep emerald, replacing the earlier blue — the platform's brand color. */
+    --primary: 164 85% 14%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary-foreground: 222 45% 12%;
 
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
 
     --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
+    --accent-foreground: 222 45% 12%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 35%;
+    --success: 161 70% 24%;
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
+    --warning-foreground: 222 45% 12%;
 
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 221 83% 53%;
+    --ring: 164 85% 14%;
 
-    /* Sidebar-only accent for the active nav item — deliberately distinct
-       from --primary (used for buttons/links everywhere else) so the nav
-       reads as a playful highlight rather than another call to action. */
-    --sidebar-accent: 74 100% 74%;
-    --sidebar-accent-foreground: 222 47% 11%;
+    /* Sidebar-only accent for the active nav item — a bright mint, kept
+       distinct from --primary (used for buttons/links everywhere else) so
+       the nav reads as a highlight rather than another call to action. */
+    --sidebar-accent: 154 91% 70%;
+    --sidebar-accent-foreground: 164 85% 14%;
 
     --radius: 0.5rem;
-    --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   }
 
   .dark {
@@ -52,8 +55,8 @@
     --card: 222 47% 10%;
     --card-foreground: 210 40% 98%;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 8%;
+    --primary: 154 60% 55%;
+    --primary-foreground: 164 85% 10%;
 
     --secondary: 217 33% 17%;
     --secondary-foreground: 210 40% 98%;
@@ -67,18 +70,18 @@
     --destructive: 0 63% 51%;
     --destructive-foreground: 210 40% 98%;
 
-    --success: 142 71% 45%;
-    --success-foreground: 222 47% 8%;
+    --success: 154 55% 50%;
+    --success-foreground: 164 85% 10%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 222 47% 8%;
 
     --border: 217 33% 20%;
     --input: 217 33% 20%;
-    --ring: 217 91% 60%;
+    --ring: 154 60% 55%;
 
-    --sidebar-accent: 74 90% 60%;
-    --sidebar-accent-foreground: 222 47% 8%;
+    --sidebar-accent: 154 80% 60%;
+    --sidebar-accent-foreground: 164 85% 10%;
   }
 
   * {
