@@ -35,6 +35,12 @@
     --input: 214 32% 91%;
     --ring: 221 83% 53%;
 
+    /* Sidebar-only accent for the active nav item — deliberately distinct
+       from --primary (used for buttons/links everywhere else) so the nav
+       reads as a playful highlight rather than another call to action. */
+    --sidebar-accent: 74 100% 74%;
+    --sidebar-accent-foreground: 222 47% 11%;
+
     --radius: 0.5rem;
     --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   }
@@ -70,6 +76,9 @@
     --border: 217 33% 20%;
     --input: 217 33% 20%;
     --ring: 217 91% 60%;
+
+    --sidebar-accent: 74 90% 60%;
+    --sidebar-accent-foreground: 222 47% 8%;
   }
 
   * {

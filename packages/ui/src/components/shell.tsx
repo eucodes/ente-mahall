@@ -19,9 +19,15 @@ export interface AppShellProps {
   topbarTitle?: React.ReactNode;
   topbarActions?: React.ReactNode;
   sidebarFooter?: React.ReactNode;
-  accent?: "primary" | "destructive";
+  accent?: "primary" | "destructive" | "lime";
   children: React.ReactNode;
 }
+
+const ACTIVE_CLASSES: Record<NonNullable<AppShellProps["accent"]>, string> = {
+  primary: "bg-primary text-primary-foreground",
+  destructive: "bg-destructive text-destructive-foreground",
+  lime: "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+};
 
 function isActive(pathname: string, item: NavItem) {
   return item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -33,16 +39,17 @@ export function AppShell({
   topbarTitle,
   topbarActions,
   sidebarFooter,
-  accent = "primary",
+  accent = "lime",
   children
 }: AppShellProps) {
   const pathname = usePathname();
+  const activeClass = ACTIVE_CLASSES[accent];
 
   return (
-    <div className="flex min-h-screen bg-muted/40">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-card md:flex">
-        <div className="flex h-16 items-center gap-2 border-b border-border px-6">{brand}</div>
-        <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+    <div className="flex min-h-screen bg-muted/30">
+      <aside className="hidden w-64 shrink-0 flex-col bg-card md:flex">
+        <div className="flex h-16 items-center gap-2 px-6">{brand}</div>
+        <nav className="flex-1 space-y-1 overflow-y-auto px-4">
           {navItems.map((item) => {
             const active = isActive(pathname, item);
             return (
@@ -50,12 +57,8 @@ export function AppShell({
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? accent === "destructive"
-                      ? "bg-destructive text-destructive-foreground"
-                      : "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors [&>svg]:h-[18px] [&>svg]:w-[18px]",
+                  active ? activeClass : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 {item.icon}
@@ -64,7 +67,7 @@ export function AppShell({
             );
           })}
         </nav>
-        {sidebarFooter && <div className="border-t border-border p-4">{sidebarFooter}</div>}
+        {sidebarFooter && <div className="p-4">{sidebarFooter}</div>}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -84,11 +87,7 @@ export function AppShell({
                   href={item.href}
                   className={cn(
                     "shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                    active
-                      ? accent === "destructive"
-                        ? "bg-destructive text-destructive-foreground"
-                        : "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent"
+                    active ? activeClass : "text-muted-foreground hover:bg-muted"
                   )}
                 >
                   {item.label}

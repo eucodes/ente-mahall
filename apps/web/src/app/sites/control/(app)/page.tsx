@@ -4,7 +4,6 @@ import {
   Alert,
   AlertDescription,
   AlertTitle,
-  Badge,
   Building,
   Button,
   Card,
@@ -14,16 +13,11 @@ import {
   EmptyState,
   PageHeader,
   ScrollText,
-  StatCard,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
+  StatCard
 } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getAllTenants, getPlatformSession } from "@/lib/platform";
+import { TenantsTable } from "@/features/platform/tenants-table";
 
 export default async function ControlPlaneHomePage() {
   const user = await getSession();
@@ -67,9 +61,9 @@ export default async function ControlPlaneHomePage() {
       </Alert>
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <StatCard label="Mahalles" value={tenants.length} icon={<Building className="h-5 w-5" />} />
-        <StatCard label="Active" value={activeCount} hint={`${tenants.length - activeCount} inactive`} />
-        <StatCard label="Total members" value={totalMembers} />
+        <StatCard label="Mahalles" value={tenants.length} icon={<Building />} tone="violet" />
+        <StatCard label="Active" value={activeCount} hint={`${tenants.length - activeCount} inactive`} tone="blue" />
+        <StatCard label="Total members" value={totalMembers} tone="teal" />
       </div>
 
       <Card>
@@ -82,34 +76,7 @@ export default async function ControlPlaneHomePage() {
           </Button>
         </CardHeader>
         <CardContent>
-          {tenants.length === 0 ? (
-            <EmptyState title="No Mahalles yet" />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Slug</TableHead>
-                  <TableHead>Members</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tenants.map((tenant) => (
-                  <TableRow key={tenant.id}>
-                    <TableCell className="font-medium">{tenant.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{tenant.slug}</TableCell>
-                    <TableCell>{tenant.memberCount}</TableCell>
-                    <TableCell>
-                      <Badge variant={tenant.isActive ? "success" : "outline"}>
-                        {tenant.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          {tenants.length === 0 ? <EmptyState title="No Mahalles yet" /> : <TenantsTable tenants={tenants} />}
         </CardContent>
       </Card>
     </>

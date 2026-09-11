@@ -2,16 +2,26 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, useToast } from "@mahalle/ui";
+import { Button, LogOut, useToast, type ButtonProps } from "@mahalle/ui";
 import { apiClient } from "@/lib/api-client";
 
 export interface LogoutButtonProps {
   redirectTo: string;
   /** Defaults to the admin/platform User logout — pass the member-scoped one on tenant sites. */
   endpoint?: string;
+  variant?: ButtonProps["variant"];
+  className?: string;
+  /** Show a leading log-out icon — used in the sidebar profile card, off by default for the compact topbar button. */
+  showIcon?: boolean;
 }
 
-export function LogoutButton({ redirectTo, endpoint = "/auth/logout" }: LogoutButtonProps) {
+export function LogoutButton({
+  redirectTo,
+  endpoint = "/auth/logout",
+  variant = "outline",
+  className,
+  showIcon = false
+}: LogoutButtonProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -31,7 +41,8 @@ export function LogoutButton({ redirectTo, endpoint = "/auth/logout" }: LogoutBu
   }
 
   return (
-    <Button variant="outline" size="sm" isLoading={isLoggingOut} onClick={handleLogout}>
+    <Button variant={variant} size="sm" className={className} isLoading={isLoggingOut} onClick={handleLogout}>
+      {showIcon && <LogOut className="h-4 w-4" />}
       Log out
     </Button>
   );

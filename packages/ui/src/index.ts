@@ -1,5 +1,6 @@
 export * from "./lib/cn";
 
+export * from "./components/avatar";
 export * from "./components/button";
 export * from "./components/spinner";
 export * from "./components/label";
@@ -8,6 +9,7 @@ export * from "./components/password-input";
 export * from "./components/password-strength";
 export * from "./components/textarea";
 export * from "./components/select";
+export * from "./components/checkbox";
 export * from "./components/table";
 export * from "./components/pagination";
 export * from "./components/form-field";
