@@ -89,6 +89,8 @@ export const PERMISSIONS = [
   "services.update",
   "services.delete",
 
+  "audit.view",
+
   "website.view",
   "website.update",
 

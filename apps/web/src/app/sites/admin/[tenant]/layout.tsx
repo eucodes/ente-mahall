@@ -61,6 +61,7 @@ export default async function TenantAdminLayout({
       label: "Reports",
       icon: <HeartHandshake />,
       children: [
+        { label: "All reports", href: `${base}/reports`, icon: <FileText />, exact: true },
         { label: "Yatheem register", href: `${base}/reports/yatheem`, icon: <HeartHandshake /> },
         { label: "Expatriate register", href: `${base}/reports/expatriate`, icon: <Plane /> },
         { label: "Blood groups", href: `${base}/reports/blood-groups`, icon: <Droplet /> }
@@ -107,6 +108,7 @@ export default async function TenantAdminLayout({
       icon: <Building />,
       children: [
         { label: "Structure", href: `${base}/settings/structure`, icon: <MapPin /> },
+        { label: "Notifications", href: `${base}/settings/notifications`, icon: <Megaphone /> },
         { label: "Users & Roles", href: `${base}/admins`, icon: <ShieldCheck /> }
       ]
     }

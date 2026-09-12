@@ -19,11 +19,15 @@ export interface MahalleEvent {
   endsAt: string | null;
 }
 
+export type AnnouncementAudience = "ALL" | "COMMITTEE_ONLY" | "DIVISION";
+
 export interface Announcement {
   id: string;
   title: string;
   body: string;
   publishedAt: string | null;
+  audience: AnnouncementAudience;
+  targetDivisionId: string | null;
 }
 
 export interface Program {

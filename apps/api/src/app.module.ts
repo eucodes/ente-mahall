@@ -35,6 +35,8 @@ import { PropertyModule } from "./registers/property/property.module";
 import { FinanceModule } from "./finance/finance.module";
 import { ServicesModule } from "./services/services.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { ActivityModule } from "./activity/activity.module";
+import { SearchModule } from "./search/search.module";
 import { CsrfGuard } from "./common/guards/csrf.guard";
 
 @Module({
@@ -79,7 +81,9 @@ import { CsrfGuard } from "./common/guards/csrf.guard";
     PropertyModule,
     FinanceModule,
     ServicesModule,
-    NotificationsModule
+    NotificationsModule,
+    ActivityModule,
+    SearchModule
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

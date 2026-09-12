@@ -3,8 +3,15 @@ import { Badge, Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
 import { getAnnouncements, type Announcement } from "@/lib/business-resources";
+import { getStructure } from "@/lib/structure";
 import { SimpleCreateForm } from "@/features/tenants/simple-create-form";
 import { SimpleResourceTable } from "@/features/tenants/simple-resource-table";
+
+const AUDIENCE_LABELS: Record<Announcement["audience"], string> = {
+  ALL: "Everyone",
+  COMMITTEE_ONLY: "Committee only",
+  DIVISION: "One division"
+};
 
 const PAGE_SIZE = 20;
 
@@ -24,7 +31,8 @@ export default async function AnnouncementsPage({
 
   const { page: pageParam } = await searchParams;
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
-  const result = await getAnnouncements(slug, page, PAGE_SIZE);
+  const [result, structureResult] = await Promise.all([getAnnouncements(slug, page, PAGE_SIZE), getStructure(slug)]);
+  const divisions = structureResult?.divisions ?? [];
 
   return (
     <>
@@ -51,7 +59,28 @@ export default async function AnnouncementsPage({
               successMessage="Announcement posted"
               fields={[
                 { name: "title", label: "Title", required: true },
-                { name: "body", label: "Body", type: "textarea", required: true }
+                { name: "body", label: "Body", type: "textarea", required: true },
+                {
+                  name: "audience",
+                  label: "Audience",
+                  type: "select",
+                  options: [
+                    { value: "ALL", label: "Everyone" },
+                    { value: "COMMITTEE_ONLY", label: "Committee only" },
+                    { value: "DIVISION", label: "One division" }
+                  ]
+                },
+                ...(divisions.length > 0
+                  ? [
+                      {
+                        name: "targetDivisionId",
+                        label: "Division",
+                        type: "select" as const,
+                        hint: "Only used when audience is \"One division\"",
+                        options: divisions.map((d) => ({ value: d.id, label: d.name }))
+                      }
+                    ]
+                  : [])
               ]}
               extraFields={{ publish: true }}
             />
@@ -62,7 +91,7 @@ export default async function AnnouncementsPage({
                 <SimpleResourceTable<Announcement>
                   slug={slug}
                   resource="announcements"
-                  headers={["Title", "Status"]}
+                  headers={["Title", "Status", "Audience"]}
                   rows={result.items.map((a) => ({
                     item: a,
                     label: a.title,
@@ -70,6 +99,9 @@ export default async function AnnouncementsPage({
                       <span key="title" className="font-medium">{a.title}</span>,
                       <Badge key="status" variant={a.publishedAt ? "success" : "outline"}>
                         {a.publishedAt ? "Published" : "Draft"}
+                      </Badge>,
+                      <Badge key="audience" variant="secondary">
+                        {AUDIENCE_LABELS[a.audience]}
                       </Badge>
                     ]
                   }))}
