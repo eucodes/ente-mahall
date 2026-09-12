@@ -94,3 +94,4 @@ enforcement chain (membership, permissions, role-rank escalation prevention,
 object-level isolation, platform/tenant separation). Phase 9 (Flutter)
 hasn't started — a deliberate, discussed decision to keep improving the
 web/API first.
+# ente-mahall
