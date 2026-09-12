@@ -1,4 +1,5 @@
-import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
+import { BloodGroup, Gender, MaritalStatus, MovementStatus, RelationToHead } from "@mahalle/database";
+import { IsBoolean, IsDateString, IsEmail, IsEnum, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
 
 export class CreateMemberDto {
   @IsString()
@@ -24,4 +25,80 @@ export class CreateMemberDto {
   @IsOptional()
   @IsString()
   familyId?: string;
+
+  @IsOptional()
+  @IsEnum(Gender)
+  gender?: Gender;
+
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: string;
+
+  @IsOptional()
+  @IsEnum(MaritalStatus)
+  maritalStatus?: MaritalStatus;
+
+  @IsOptional()
+  @IsEnum(BloodGroup)
+  bloodGroup?: BloodGroup;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  occupation?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  idNumber?: string;
+
+  @IsOptional()
+  @IsEnum(RelationToHead)
+  relationToHead?: RelationToHead;
+
+  @IsOptional()
+  @IsEnum(MovementStatus)
+  movementStatus?: MovementStatus;
+
+  @IsOptional()
+  @IsDateString()
+  movementDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  movementNotes?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isYatheem?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  guardianName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  guardianPhone?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isExpatriate?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  expatriateCountry?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  expatriateOccupation?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  expatriateContact?: string;
 }

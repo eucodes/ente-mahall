@@ -8,6 +8,7 @@ import { AnnouncementsService } from "./announcements.service";
 @Module({
   imports: [TenantsModule, MembershipsModule, PermissionsModule],
   controllers: [AnnouncementsController],
-  providers: [AnnouncementsService]
+  providers: [AnnouncementsService],
+  exports: [AnnouncementsService]
 })
 export class AnnouncementsModule {}

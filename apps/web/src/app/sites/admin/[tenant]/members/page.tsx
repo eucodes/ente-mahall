@@ -1,23 +1,20 @@
 import { redirect } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader, Pagination } from "@mahalle/ui";
+import { Card, CardContent, EmptyState, PageHeader } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
 import { getMembers } from "@/lib/members";
 import { getFamilies } from "@/lib/business-resources";
-import { MembersTable } from "@/features/tenants/members-table";
+import { MembersRegistry } from "@/features/tenants/members-registry";
 
-const PAGE_SIZE = 20;
-// The family picker is a plain <select> of every family, not paginated —
-// 100 is the API's own pageSize ceiling (see PaginationQueryDto), so this is
-// "as many as the API will return in one page," not an arbitrary choice.
-const FAMILY_PICKER_LIMIT = 100;
+// The API's own pageSize ceiling (see PaginationQueryDto) — the richer
+// registry view (search, filters, stats) works best over as many members
+// as the API will return in one page, rather than the old 20-per-page list.
+const PAGE_SIZE = 100;
 
 export default async function TenantMembersPage({
-  params,
-  searchParams
+  params
 }: {
   params: Promise<{ tenant: string }>;
-  searchParams: Promise<{ page?: string }>;
 }) {
   const { tenant: slug } = await params;
   const user = await getSession();
@@ -30,11 +27,9 @@ export default async function TenantMembersPage({
     redirect("/");
   }
 
-  const { page: pageParam } = await searchParams;
-  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
   const [result, familiesResult] = await Promise.all([
-    getMembers(slug, page, PAGE_SIZE),
-    getFamilies(slug, 1, FAMILY_PICKER_LIMIT)
+    getMembers(slug, 1, PAGE_SIZE),
+    getFamilies(slug, 1, PAGE_SIZE)
   ]);
   const families = familiesResult?.items ?? [];
 
@@ -52,27 +47,7 @@ export default async function TenantMembersPage({
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {result.total} member{result.total === 1 ? "" : "s"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {result.members.length === 0 && page === 1 && (
-              <EmptyState title="No members yet" description="Add the first one below." />
-            )}
-            <MembersTable slug={slug} members={result.members} families={families} />
-            {result.members.length > 0 && (
-              <Pagination
-                page={page}
-                pageSize={PAGE_SIZE}
-                total={result.total}
-                hrefForPage={(p) => `/${slug}/members?page=${p}`}
-              />
-            )}
-          </CardContent>
-        </Card>
+        <MembersRegistry slug={slug} members={result.members} families={families} total={result.total} />
       )}
     </>
   );

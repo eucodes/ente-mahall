@@ -5,14 +5,23 @@ import {
   AppShell,
   Avatar,
   Badge,
+  Building,
   Calendar,
+  Droplet,
+  FileText,
   Megaphone,
+  HeartHandshake,
   Home,
+  Landmark,
   ListChecks,
+  MapPin,
+  Plane,
   ShieldCheck,
   Sparkles,
   UsersRound,
-  Users
+  Users,
+  Wallet,
+  type NavItem
 } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
@@ -37,14 +46,70 @@ export default async function TenantAdminLayout({
   }
 
   const base = `/${slug}`;
-  const navItems = [
+  const navItems: NavItem[] = [
     { label: "Overview", href: base, icon: <Home />, exact: true },
-    { label: "Members", href: `${base}/members`, icon: <Users /> },
-    { label: "Families", href: `${base}/families`, icon: <UsersRound /> },
+    {
+      label: "People",
+      icon: <UsersRound />,
+      children: [
+        { label: "Members", href: `${base}/members`, icon: <Users /> },
+        { label: "Families", href: `${base}/families`, icon: <UsersRound /> },
+        { label: "Houses", href: `${base}/houses`, icon: <MapPin /> }
+      ]
+    },
+    {
+      label: "Reports",
+      icon: <HeartHandshake />,
+      children: [
+        { label: "Yatheem register", href: `${base}/reports/yatheem`, icon: <HeartHandshake /> },
+        { label: "Expatriate register", href: `${base}/reports/expatriate`, icon: <Plane /> },
+        { label: "Blood groups", href: `${base}/reports/blood-groups`, icon: <Droplet /> }
+      ]
+    },
+    {
+      label: "Committee",
+      icon: <Landmark />,
+      children: [
+        { label: "Roster", href: `${base}/committee`, icon: <Landmark />, exact: true },
+        { label: "Meetings", href: `${base}/committee/meetings`, icon: <Calendar /> }
+      ]
+    },
+    {
+      label: "Registers",
+      icon: <FileText />,
+      children: [
+        { label: "Death", href: `${base}/registers/death`, icon: <FileText /> },
+        { label: "Marriage", href: `${base}/registers/marriage`, icon: <FileText /> },
+        { label: "Divorce", href: `${base}/registers/divorce`, icon: <FileText /> },
+        { label: "Mahallu release", href: `${base}/registers/release`, icon: <FileText /> },
+        { label: "Grave", href: `${base}/registers/grave`, icon: <MapPin /> },
+        { label: "Madrassa / Dars", href: `${base}/registers/madrassa`, icon: <UsersRound /> },
+        { label: "Property", href: `${base}/registers/property`, icon: <Landmark /> }
+      ]
+    },
+    {
+      label: "Finance",
+      icon: <Wallet />,
+      children: [
+        { label: "Overview", href: `${base}/finance`, icon: <Wallet />, exact: true },
+        { label: "Vouchers", href: `${base}/finance/vouchers`, icon: <FileText /> },
+        { label: "Dues", href: `${base}/finance/dues`, icon: <FileText /> },
+        { label: "Salary", href: `${base}/finance/salary`, icon: <FileText /> },
+        { label: "Cash book", href: `${base}/finance/cash-book`, icon: <FileText /> }
+      ]
+    },
+    { label: "Services", href: `${base}/services`, icon: <FileText /> },
     { label: "Events", href: `${base}/events`, icon: <Calendar /> },
     { label: "Announcements", href: `${base}/announcements`, icon: <Megaphone /> },
     { label: "Programs", href: `${base}/programs`, icon: <ListChecks /> },
-    { label: "Administrators", href: `${base}/admins`, icon: <ShieldCheck /> }
+    {
+      label: "Settings",
+      icon: <Building />,
+      children: [
+        { label: "Structure", href: `${base}/settings/structure`, icon: <MapPin /> },
+        { label: "Users & Roles", href: `${base}/admins`, icon: <ShieldCheck /> }
+      ]
+    }
   ];
 
   return (

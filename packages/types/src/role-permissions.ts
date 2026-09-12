@@ -17,14 +17,19 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<TenantRole, readonly string[] | "*
   [TenantRole.MODERATOR]: [
     "members.view",
     "families.view",
+    "houses.view",
     "events.view",
     "events.update",
     "announcements.view",
     "announcements.create",
     "announcements.update",
-    "programs.view"
+    "programs.view",
+    "committee.view",
+    "services.view",
+    "services.create",
+    "services.update"
   ],
   [TenantRole.EDITOR]: ["website.view", "website.update", "announcements.view", "announcements.create", "announcements.update"],
-  [TenantRole.STAFF]: ["members.view", "families.view", "events.view", "programs.view"],
+  [TenantRole.STAFF]: ["members.view", "families.view", "houses.view", "events.view", "programs.view", "services.view", "services.create"],
   [TenantRole.MEMBER]: []
 };

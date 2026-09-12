@@ -13,6 +13,6 @@ import { PermissionGuard } from "./guards/permission.guard";
   imports: [MembershipsModule, UsersModule, PermissionsModule],
   controllers: [TenantsController, AdminsController],
   providers: [TenantsService, AdminsService, TenantContextGuard, PermissionGuard],
-  exports: [TenantsService, TenantContextGuard, PermissionGuard]
+  exports: [TenantsService, AdminsService, TenantContextGuard, PermissionGuard]
 })
 export class TenantsModule {}

@@ -5,6 +5,7 @@ import { AuditService } from "../audit/audit.service";
 import { FamiliesService } from "../families/families.service";
 import type { CreateMemberDto } from "./dto/create-member.dto";
 import type { UpdateMemberDto } from "./dto/update-member.dto";
+import type { ListMembersQueryDto } from "./dto/list-members-query.dto";
 
 const FAMILY_INCLUDE = { family: { select: { id: true, name: true } } } as const;
 
@@ -18,6 +19,15 @@ interface RequestContext {
 interface ActorContext {
   userId: string;
   tenantId: string;
+}
+
+/** DTOs carry dateOfBirth/movementDate as plain "YYYY-MM-DD" strings (from @IsDateString) — Prisma's DateTime columns need a real Date. */
+function toMemberData<T extends { dateOfBirth?: string; movementDate?: string }>(dto: T) {
+  return {
+    ...dto,
+    dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : dto.dateOfBirth,
+    movementDate: dto.movementDate ? new Date(dto.movementDate) : dto.movementDate
+  };
 }
 
 /**
@@ -34,16 +44,30 @@ export class MembersService {
     private readonly familiesService: FamiliesService
   ) {}
 
-  async list(tenantId: string, page: number, pageSize: number): Promise<{ members: MemberWithFamily[]; total: number }> {
+  async list(
+    tenantId: string,
+    page: number,
+    pageSize: number,
+    filters: Pick<ListMembersQueryDto, "familyId" | "isYatheem" | "isExpatriate" | "bloodGroup" | "movementStatus"> = {}
+  ): Promise<{ members: MemberWithFamily[]; total: number }> {
+    const where: Prisma.MemberWhereInput = {
+      tenantId,
+      isActive: true,
+      ...(filters.familyId ? { familyId: filters.familyId } : {}),
+      ...(filters.isYatheem !== undefined ? { isYatheem: filters.isYatheem } : {}),
+      ...(filters.isExpatriate !== undefined ? { isExpatriate: filters.isExpatriate } : {}),
+      ...(filters.bloodGroup ? { bloodGroup: filters.bloodGroup } : {}),
+      ...(filters.movementStatus ? { movementStatus: filters.movementStatus } : {})
+    };
     const [members, total] = await Promise.all([
       this.prisma.member.findMany({
-        where: { tenantId, isActive: true },
+        where,
         orderBy: { fullName: "asc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: FAMILY_INCLUDE
       }),
-      this.prisma.member.count({ where: { tenantId, isActive: true } })
+      this.prisma.member.count({ where })
     ]);
     return { members, total };
   }
@@ -74,7 +98,7 @@ export class MembersService {
   async create(actor: ActorContext, dto: CreateMemberDto, context: RequestContext): Promise<MemberWithFamily> {
     await this.assertFamilyInTenant(actor.tenantId, dto.familyId);
     const member = await this.prisma.member.create({
-      data: { ...dto, tenantId: actor.tenantId },
+      data: { ...toMemberData(dto), tenantId: actor.tenantId },
       include: FAMILY_INCLUDE
     });
     await this.audit.record({
@@ -95,7 +119,7 @@ export class MembersService {
     await this.assertFamilyInTenant(actor.tenantId, dto.familyId);
     const member = await this.prisma.member.update({
       where: { id: memberId },
-      data: dto,
+      data: toMemberData(dto),
       include: FAMILY_INCLUDE
     });
     await this.audit.record({

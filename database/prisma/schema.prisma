@@ -18,14 +18,17 @@ model User {
   email        String   @unique
   passwordHash String
   fullName     String
+  phone        String?
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenantMemberships   TenantMembership[]
-  platformMembership  PlatformMembership?
-  refreshTokens       RefreshToken[]
-  auditLogsAsActor    AuditLog[]           @relation("AuditLogActor")
+  tenantMemberships       TenantMembership[]
+  platformMembership      PlatformMembership?
+  refreshTokens           RefreshToken[]
+  auditLogsAsActor        AuditLog[]          @relation("AuditLogActor")
+  onboardingDraft         OnboardingDraft?
+  assignedServiceRequests ServiceRequest[]
 
   @@map("users")
 }
@@ -35,6 +38,14 @@ model User {
 // ---------------------------------------------------------------------------
 
 /// One Mahalle. All tenant-owned data hangs off this via tenantId.
+///
+/// The location/profile/masjid/structure/management columns below are all
+/// optional and are populated by the full onboarding wizard (see the
+/// `onboarding` module and `OnboardingDraft`). Tenants created through the
+/// older, minimal "create a Mahalle" flow simply leave them null — `country`
+/// is used as the discriminator for whether a tenant went through the full
+/// wizard (see the dashboard setup checklist), since Location is the one
+/// step every wizard run passes through.
 model Tenant {
   id          String   @id @default(cuid())
   slug        String   @unique
@@ -44,18 +55,128 @@ model Tenant {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  memberships   TenantMembership[]
-  roles         Role[]
-  auditLogs     AuditLog[]
-  members       Member[]
-  memberOtps    MemberOtp[]
-  families      Family[]
-  events        Event[]
-  announcements Announcement[]
-  programs      Program[]
+  // Branding
+  logoUrl       String?
+  coverImageUrl String?
+
+  // Contact
+  contactPhone String?
+  contactEmail String?
+  website      String?
+
+  // Masjid
+  masjidName    String?
+  masjidPhone   String?
+  masjidAddress String?
+  imamName      String?
+  khatheebName  String?
+
+  // Location
+  country       String?
+  state         String?
+  district      String?
+  localBodyType String?
+  localBody     String?
+  place         String?
+  pinCode       String?
+  addressLine1  String?
+  addressLine2  String?
+  latitude      Float?
+  longitude     Float?
+
+  // Structure
+  hasDivisions         Boolean @default(false)
+  divisionTerm         String?
+  houseNumberingMethod String?
+
+  // Management (primary committee only — the full committee is managed later)
+  presidentName  String?
+  presidentPhone String?
+  secretaryName  String?
+  secretaryPhone String?
+  treasurerName  String?
+  treasurerPhone String?
+
+  memberships           TenantMembership[]
+  roles                 Role[]
+  auditLogs             AuditLog[]
+  members               Member[]
+  memberOtps            MemberOtp[]
+  families              Family[]
+  events                Event[]
+  announcements         Announcement[]
+  programs              Program[]
+  divisions             TenantDivision[]
+  houses                House[]
+  committeeMembers      CommitteeMember[]
+  committeeMeetings     CommitteeMeeting[]
+  committeeDecisions    CommitteeDecision[]
+  certificateCounters   CertificateCounter[]
+  deathRecords          DeathRecord[]
+  marriageRecords       MarriageRecord[]
+  divorceRecords        DivorceRecord[]
+  mahalluReleaseRecords MahalluReleaseRecord[]
+  graveRecords          GraveRecord[]
+  madrassaEnrollments   MadrassaEnrollment[]
+  propertyRecords       PropertyRecord[]
+  financeAccounts       Account[]
+  financeVouchers       Voucher[]
+  financeDues           Due[]
+  financeSalaryRecords  SalaryRecord[]
+  serviceRequests       ServiceRequest[]
+  eventRegistrations    EventRegistration[]
+  notificationSettings  NotificationSettings?
 
   @@index([isActive])
   @@map("tenants")
+}
+
+/// A physical dwelling within a Mahallu. Deliberately holds only a
+/// system-generated id plus a free-text `displayNumber` — the human-facing
+/// number/label a Mahallu actually uses, whose *format* (numeric,
+/// alphanumeric, custom) is a per-tenant choice (Tenant.houseNumberingMethod)
+/// never encoded into this schema. Family registration will reference a
+/// House once built; for now this is structural data only.
+model House {
+  id            String   @id @default(cuid())
+  tenantId      String
+  divisionId    String?
+  displayNumber String
+  address       String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  division TenantDivision? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  families Family[]
+
+  @@unique([tenantId, displayNumber])
+  @@index([tenantId, isActive])
+  @@index([divisionId])
+  @@map("houses")
+}
+
+/// A Mahalle-defined geographical/administrative subdivision (ward, division,
+/// area, zone, or a custom term — see Tenant.divisionTerm). Purely structural
+/// at this stage: family/house records will reference these once family
+/// registration is built, but onboarding only collects the divisions
+/// themselves.
+model TenantDivision {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  code        String?
+  description String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  houses        House[]
+  announcements Announcement[]
+
+  @@index([tenantId, order])
+  @@map("tenant_divisions")
 }
 
 /// Links a User to a Tenant with a Role. This is the row every authorization
@@ -79,6 +200,36 @@ model TenantMembership {
   @@map("tenant_memberships")
 }
 
+/// Server-side scratch state for the in-progress onboarding wizard — this is
+/// what makes "resume after refresh" real rather than client-side guesswork.
+/// One draft per user. `data` holds whatever the wizard has collected so far
+/// for steps that don't have a real Tenant to attach to yet (location,
+/// profile, structure, management); it is never itself validated against
+/// CreateTenantDto — that happens once, on final submission to POST /tenants.
+/// The draft becomes irrelevant the moment a Tenant exists for this user (the
+/// one-Mahalle-per-account rule means there's nothing left to resume), so it
+/// is deleted rather than merely marked COMPLETED.
+model OnboardingDraft {
+  id          String           @id @default(cuid())
+  userId      String           @unique
+  status      OnboardingStatus @default(DRAFT)
+  currentStep String           @default("mahalle")
+  data        Json             @default("{}")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_drafts")
+}
+
+enum OnboardingStatus {
+  DRAFT
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+}
+
 // ---------------------------------------------------------------------------
 // RBAC
 // ---------------------------------------------------------------------------
@@ -95,7 +246,7 @@ model Role {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   memberships TenantMembership[]
   permissions RolePermission[]
 
@@ -177,10 +328,50 @@ model Member {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // Personal & family-register details.
+  gender         Gender?
+  dateOfBirth    DateTime?
+  maritalStatus  MaritalStatus?
+  bloodGroup     BloodGroup?
+  occupation     String?
+  idNumber       String?
+  relationToHead RelationToHead?
+
+  // Movement status doubles as this member's residency history: the current
+  // status plus when and why it last changed, rather than a separate
+  // change-log table — a full activity timeline over AuditLog is Phase 10's
+  // job, not this one's.
+  movementStatus MovementStatus @default(RESIDENT)
+  movementDate   DateTime?
+  movementNotes  String?
+
+  // Yatheem (orphan) register.
+  isYatheem     Boolean @default(false)
+  guardianName  String?
+  guardianPhone String?
+
+  // Expatriate register.
+  isExpatriate         Boolean @default(false)
+  expatriateCountry    String?
+  expatriateOccupation String?
+  expatriateContact    String?
+
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   // A family being deleted shouldn't delete its members — just unlink them.
-  family Family?     @relation(fields: [familyId], references: [id], onDelete: SetNull)
-  otps   MemberOtp[]
+  family                Family?                @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  otps                  MemberOtp[]
+  committeePosts        CommitteeMember[]
+  deathRecord           DeathRecord?
+  groomInMarriages      MarriageRecord[]       @relation("MarriageGroom")
+  brideInMarriages      MarriageRecord[]       @relation("MarriageBride")
+  husbandInDivorces     DivorceRecord[]        @relation("DivorceHusband")
+  wifeInDivorces        DivorceRecord[]        @relation("DivorceWife")
+  mahalluReleaseRecords MahalluReleaseRecord[]
+  madrassaEnrollments   MadrassaEnrollment[]
+  financeVouchers       Voucher[]
+  financeDues           Due[]
+  serviceRequests       ServiceRequest[]
+  eventRegistrations    EventRegistration[]
 
   // A member logs into their own Mahalle's site with phone + OTP (see
   // MemberOtp) — the phone number is how they're found, so it must be
@@ -189,7 +380,54 @@ model Member {
   @@unique([tenantId, phone])
   @@index([tenantId, isActive])
   @@index([familyId])
+  @@index([tenantId, isYatheem])
+  @@index([tenantId, isExpatriate])
+  @@index([tenantId, bloodGroup])
+  @@index([tenantId, movementStatus])
   @@map("members")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  WIDOWED
+  DIVORCED
+}
+
+enum BloodGroup {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+}
+
+/// Free-form family-role labels stay out of this enum on purpose — these are
+/// the roles that matter for reports (e.g. "who is this family's head").
+enum RelationToHead {
+  HEAD
+  SPOUSE
+  SON
+  DAUGHTER
+  PARENT
+  SIBLING
+  OTHER
+}
+
+enum MovementStatus {
+  RESIDENT
+  MIGRATED
+  MOVED_OUT
+  DECEASED
 }
 
 /// A one-time password issued for a Member's phone-based login. Only the
@@ -217,6 +455,7 @@ model MemberOtp {
 model Family {
   id        String   @id @default(cuid())
   tenantId  String
+  houseId   String?
   name      String
   address   String?
   phone     String?
@@ -224,10 +463,14 @@ model Family {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  members Member[]
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  // A house being deleted (or a family's link cleared) shouldn't delete the family.
+  house                 House?                 @relation(fields: [houseId], references: [id], onDelete: SetNull)
+  members               Member[]
+  mahalluReleaseRecords MahalluReleaseRecord[]
 
   @@index([tenantId, isActive])
+  @@index([houseId])
   @@map("families")
 }
 
@@ -244,25 +487,57 @@ model Event {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  serviceRequests ServiceRequest[]
+  registrations   EventRegistration[]
+  vouchers        Voucher[]
 
   @@index([tenantId, isActive])
   @@index([tenantId, startsAt])
   @@map("events")
 }
 
-/// A public notice from a Mahalle. Same tenant-isolation pattern as Member.
-model Announcement {
-  id          String    @id @default(cuid())
-  tenantId    String
-  title       String
-  body        String
-  publishedAt DateTime?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+/// A participant registered for an Event. `memberId` is nullable — guests
+/// who aren't in the member directory can still register.
+model EventRegistration {
+  id               String   @id @default(cuid())
+  tenantId         String
+  eventId          String
+  memberId         String?
+  participantName  String
+  participantPhone String?
+  attended         Boolean  @default(false)
+  createdAt        DateTime @default(now())
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, eventId])
+  @@map("event_registrations")
+}
+
+/// A public notice from a Mahalle. Same tenant-isolation pattern as Member.
+enum AnnouncementAudience {
+  ALL
+  COMMITTEE_ONLY
+  DIVISION
+}
+
+model Announcement {
+  id               String               @id @default(cuid())
+  tenantId         String
+  title            String
+  body             String
+  publishedAt      DateTime?
+  audience         AnnouncementAudience @default(ALL)
+  targetDivisionId String?
+  isActive         Boolean              @default(true)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  targetDivision TenantDivision? @relation(fields: [targetDivisionId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, isActive])
   @@map("announcements")
@@ -284,6 +559,507 @@ model Program {
   @@map("programs")
 }
 
+/// A person holding a committee post (President, Secretary, Treasurer, …).
+/// Deliberately free-text `designation` rather than an enum — committee
+/// structures vary by Mahallu (Principle 1's spirit applied to governance,
+/// not just geography). Links to the existing Member directory rather than
+/// duplicating a person's details here.
+model CommitteeMember {
+  id           String    @id @default(cuid())
+  tenantId     String
+  memberId     String
+  designation  String
+  displayOrder Int       @default(0)
+  termStart    DateTime?
+  termEnd      DateTime?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member           Member             @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  meetingsAttended CommitteeMeeting[] @relation("MeetingAttendees")
+
+  @@index([tenantId, isActive])
+  @@index([memberId])
+  @@map("committee_members")
+}
+
+/// A committee meeting — the official record. Minutes are the meeting's own
+/// narrative summary; individually trackable action items live as
+/// CommitteeDecision rows so they can be listed/searched across meetings.
+model CommitteeMeeting {
+  id          String                 @id @default(cuid())
+  tenantId    String
+  title       String
+  meetingDate DateTime
+  location    String?
+  agenda      String?
+  minutes     String?
+  status      CommitteeMeetingStatus @default(SCHEDULED)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  attendees CommitteeMember[]   @relation("MeetingAttendees")
+  decisions CommitteeDecision[]
+
+  @@index([tenantId, meetingDate])
+  @@map("committee_meetings")
+}
+
+enum CommitteeMeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+/// A single decision/resolution taken at a committee meeting — kept separate
+/// from the meeting's free-text minutes so decisions can be listed and
+/// tracked (e.g. "still pending") independent of the full narrative.
+model CommitteeDecision {
+  id          String   @id @default(cuid())
+  tenantId    String
+  meetingId   String
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant  Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  meeting CommitteeMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([meetingId])
+  @@map("committee_decisions")
+}
+
+// ---------------------------------------------------------------------------
+// Registers (official records — see Principle 3: Registers vs Services)
+// ---------------------------------------------------------------------------
+
+/// Per-tenant, per-register sequential counter backing certificate numbers.
+/// A transaction increments this row and formats the new value — never
+/// `count() + 1`, which races under concurrent issuance and can hand out the
+/// same certificate number twice on an official document.
+model CertificateCounter {
+  id           String @id @default(cuid())
+  tenantId     String
+  registerType String
+  lastNumber   Int    @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, registerType])
+  @@map("certificate_counters")
+}
+
+/// The Mahalle's official death register. `memberId` links back to the
+/// member directory when the deceased was a registered member — nullable
+/// because a Mahalle may record a death for someone never entered there.
+model DeathRecord {
+  id                   String    @id @default(cuid())
+  tenantId             String
+  memberId             String?   @unique
+  deceasedName         String
+  fatherOrGuardianName String?
+  gender               Gender?
+  dateOfBirth          DateTime?
+  dateOfDeath          DateTime
+  placeOfDeath         String?
+  causeOfDeath         String?
+  burialDate           DateTime?
+  remarks              String?
+  certificateNumber    String?
+  certificateIssuedAt  DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member?      @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  grave  GraveRecord?
+
+  @@unique([tenantId, certificateNumber])
+  @@index([tenantId, dateOfDeath])
+  @@map("death_records")
+}
+
+/// The Mahalle's official marriage (nikah) register.
+model MarriageRecord {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  groomName           String
+  groomFatherName     String?
+  groomMemberId       String?
+  brideName           String
+  brideFatherName     String?
+  brideMemberId       String?
+  marriageDate        DateTime
+  place               String?
+  officiantName       String?
+  witness1Name        String?
+  witness2Name        String?
+  mahrDetails         String?
+  remarks             String?
+  certificateNumber   String?
+  certificateIssuedAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  groomMember Member? @relation("MarriageGroom", fields: [groomMemberId], references: [id], onDelete: SetNull)
+  brideMember Member? @relation("MarriageBride", fields: [brideMemberId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, certificateNumber])
+  @@index([tenantId, marriageDate])
+  @@map("marriage_records")
+}
+
+/// The Mahalle's official divorce register. `divorceType` is deliberately
+/// free-text (Talaq/Khula/Faskh/…) rather than an enum — terminology and
+/// applicable procedures vary by school of thought and jurisdiction.
+model DivorceRecord {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  husbandName         String
+  husbandMemberId     String?
+  wifeName            String
+  wifeMemberId        String?
+  divorceType         String?
+  divorceDate         DateTime
+  place               String?
+  officiantName       String?
+  remarks             String?
+  certificateNumber   String?
+  certificateIssuedAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  tenant        Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  husbandMember Member? @relation("DivorceHusband", fields: [husbandMemberId], references: [id], onDelete: SetNull)
+  wifeMember    Member? @relation("DivorceWife", fields: [wifeMemberId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, certificateNumber])
+  @@index([tenantId, divorceDate])
+  @@map("divorce_records")
+}
+
+/// A record that a member (and optionally their family) has been formally
+/// released from this Mahallu's membership — typically because they've
+/// relocated to another Mahallu's jurisdiction.
+model MahalluReleaseRecord {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  memberId            String?
+  memberName          String
+  familyId            String?
+  releaseDate         DateTime
+  reason              String?
+  destinationMahallu  String?
+  remarks             String?
+  certificateNumber   String?
+  certificateIssuedAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  family Family? @relation(fields: [familyId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, certificateNumber])
+  @@index([tenantId, releaseDate])
+  @@map("mahallu_release_records")
+}
+
+/// The Mahalle's burial-plot register. One-to-one with a DeathRecord when
+/// the burial follows a death recorded here; nullable so a plot can also be
+/// logged on its own (e.g. historical burials predating this system).
+model GraveRecord {
+  id            String   @id @default(cuid())
+  tenantId      String
+  deathRecordId String?  @unique
+  deceasedName  String
+  plotNumber    String
+  section       String?
+  burialDate    DateTime
+  remarks       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deathRecord DeathRecord? @relation(fields: [deathRecordId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, plotNumber])
+  @@index([tenantId])
+  @@map("grave_records")
+}
+
+/// The Mahalle's madrassa/dars (religious education) enrollment register.
+/// `className` is free-text since grade/level structures vary by madrassa.
+model MadrassaEnrollment {
+  id              String   @id @default(cuid())
+  tenantId        String
+  studentName     String
+  studentMemberId String?
+  guardianName    String?
+  guardianPhone   String?
+  className       String?
+  admissionDate   DateTime
+  isActive        Boolean  @default(true)
+  remarks         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant        Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  studentMember Member? @relation(fields: [studentMemberId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, isActive])
+  @@map("madrassa_enrollments")
+}
+
+enum PropertyType {
+  WAQF
+  ASSET
+  RENTED
+}
+
+/// The Mahalle's property register — waqf land/buildings, other owned
+/// assets, and property rented out, unified under one register with a type
+/// discriminator since all three are "property the Mahallu holds a record
+/// of," distinguished mainly by `propertyType` and (for rented property)
+/// the lessee/rent fields.
+model PropertyRecord {
+  id              String       @id @default(cuid())
+  tenantId        String
+  propertyType    PropertyType
+  name            String
+  location        String?
+  areaDetails     String?
+  lesseeName      String?
+  lesseePhone     String?
+  rentAmount      String?
+  acquisitionDate DateTime?
+  isActive        Boolean      @default(true)
+  remarks         String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, propertyType, isActive])
+  @@map("property_records")
+}
+
+// ---------------------------------------------------------------------------
+// Finance (Principle 4: Finance owns all accounting records, including
+// transactions originating from Events)
+// ---------------------------------------------------------------------------
+//
+// This is a single-entry, cash-basis model (every Voucher is one cash
+// movement categorized against an Account) rather than full double-entry
+// bookkeeping. The blueprint's own open questions flagged that a proper
+// chart of accounts / double-entry ledger needs accountant review before
+// building it — shipping an unreviewed double-entry model here would risk
+// getting the accounting itself wrong. A cash book, category totals, and a
+// simple income/expense summary are all sound under single-entry and are
+// what this phase implements; a formal trial balance / balance sheet in the
+// double-entry sense is deferred until that review happens.
+
+enum AccountType {
+  INCOME
+  EXPENSE
+  ASSET
+  LIABILITY
+}
+
+/// A category in the Mahallu's simplified chart of accounts (e.g. "Membership
+/// Dues" income, "Electricity" expense) — every Voucher is categorized
+/// against one of these.
+model Account {
+  id        String      @id @default(cuid())
+  tenantId  String
+  name      String
+  type      AccountType
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vouchers Voucher[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("finance_accounts")
+}
+
+enum VoucherType {
+  RECEIPT
+  PAYMENT
+}
+
+/// A single cash movement — a receipt (money in) or payment (money out) —
+/// categorized against an Account. This is Finance's own ledger: Events'
+/// income/expenditure post here too (Principle 4), never to a parallel
+/// ledger of their own.
+model Voucher {
+  id            String      @id @default(cuid())
+  tenantId      String
+  voucherNumber String?
+  type          VoucherType
+  accountId     String
+  memberId      String?
+  eventId       String?
+  date          DateTime
+  amount        Decimal     @db.Decimal(12, 2)
+  partyName     String?
+  paymentMethod String?
+  description   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  account Account       @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  member  Member?       @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  event   Event?        @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  due     Due?
+  salary  SalaryRecord?
+
+  @@unique([tenantId, voucherNumber])
+  @@index([tenantId, date])
+  @@index([accountId])
+  @@index([eventId])
+  @@map("finance_vouchers")
+}
+
+enum DueStatus {
+  PENDING
+  PAID
+  WAIVED
+}
+
+/// An amount owed by a member (e.g. a monthly due), reconciled against the
+/// Voucher that eventually settles it.
+model Due {
+  id            String    @id @default(cuid())
+  tenantId      String
+  memberId      String
+  title         String
+  amount        Decimal   @db.Decimal(12, 2)
+  dueDate       DateTime
+  status        DueStatus @default(PENDING)
+  paidVoucherId String?   @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  paidVoucher Voucher? @relation(fields: [paidVoucherId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([memberId])
+  @@map("finance_dues")
+}
+
+enum SalaryStatus {
+  PENDING
+  PAID
+}
+
+/// A staff salary obligation for one month, reconciled against the Voucher
+/// that pays it. `staffName` is free text — the app doesn't have a staff/HR
+/// module, so this deliberately doesn't invent one.
+model SalaryRecord {
+  id            String       @id @default(cuid())
+  tenantId      String
+  staffName     String
+  month         String
+  amount        Decimal      @db.Decimal(12, 2)
+  status        SalaryStatus @default(PENDING)
+  paidVoucherId String?      @unique
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  paidVoucher Voucher? @relation(fields: [paidVoucherId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, staffName, month])
+  @@index([tenantId, status])
+  @@map("finance_salary_records")
+}
+
+// ---------------------------------------------------------------------------
+// Services (Principle 3: Registers = official records; Services = the
+// request/workflow layer that wraps them, Events, and Certificates)
+// ---------------------------------------------------------------------------
+
+enum ServiceRequestStatus {
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+/// A member-facing (or front-desk-entered) request — never itself an
+/// official record. `registerType`/`registerRecordId` optionally point at
+/// the register the request concerns (e.g. "issue a copy of this death
+/// certificate"); `eventId` optionally points at an Event for a
+/// registration request. Approving a request never writes to a register
+/// automatically — staff act on it and record the outcome here, keeping the
+/// register the sole source of truth for the official record itself.
+model ServiceRequest {
+  id               String               @id @default(cuid())
+  tenantId         String
+  requestType      String
+  memberId         String?
+  requesterName    String
+  requesterPhone   String?
+  subject          String
+  description      String?
+  eventId          String?
+  registerType     String?
+  registerRecordId String?
+  status           ServiceRequestStatus @default(SUBMITTED)
+  assignedToUserId String?
+  resolutionNotes  String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  tenant     Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member     Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  event      Event?  @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  assignedTo User?   @relation(fields: [assignedToUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@map("service_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Communication
+// ---------------------------------------------------------------------------
+
+/// Per-tenant notification preferences. SMS fields are configuration only —
+/// this app has no SMS provider integration (that needs a provider choice
+/// and, in India, DLT template registration, both outside this system's
+/// scope to decide) — so `smsEnabled` and the provider fields describe
+/// *intent*, not a working send path. No API key is stored here; wiring a
+/// real provider is future work once one is chosen.
+model NotificationSettings {
+  id                        String   @id @default(cuid())
+  tenantId                  String   @unique
+  notifyOnNewServiceRequest Boolean  @default(true)
+  notifyOnNewDue            Boolean  @default(true)
+  eventReminderDaysBefore   Int?
+  smsEnabled                Boolean  @default(false)
+  smsProviderName           String?
+  smsSenderId               String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("notification_settings")
+}
+
 // ---------------------------------------------------------------------------
 // Authentication
 // ---------------------------------------------------------------------------
@@ -293,19 +1069,19 @@ model Program {
 /// Rotated on every use (`replacedById`) so a stolen-and-reused old token is
 /// detectable and the whole chain can be revoked.
 model RefreshToken {
-  id          String    @id @default(cuid())
-  userId      String
-  tokenHash   String    @unique
-  expiresAt   DateTime
-  revokedAt   DateTime?
-  replacedById String?  @unique
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime  @default(now())
+  id           String    @id @default(cuid())
+  userId       String
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @unique
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime  @default(now())
 
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  replacedBy  RefreshToken? @relation("RefreshTokenChain", fields: [replacedById], references: [id], onDelete: SetNull)
-  replaces    RefreshToken? @relation("RefreshTokenChain")
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy RefreshToken? @relation("RefreshTokenChain", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces   RefreshToken? @relation("RefreshTokenChain")
 
   @@index([userId])
   @@map("refresh_tokens")
@@ -317,16 +1093,16 @@ model RefreshToken {
 
 /// Append-only. Nothing in the application ever updates or deletes a row here.
 model AuditLog {
-  id           String   @id @default(cuid())
-  actorUserId  String?
-  tenantId     String?
-  action       String
-  targetType   String?
-  targetId     String?
-  metadata     Json?
-  ipAddress    String?
-  userAgent    String?
-  createdAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  actorUserId String?
+  tenantId    String?
+  action      String
+  targetType  String?
+  targetId    String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
 
   actor  User?   @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: SetNull)
   tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)

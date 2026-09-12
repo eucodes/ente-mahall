@@ -34,7 +34,8 @@ export class AuthService {
     const user = await this.usersService.create({
       email: dto.email,
       passwordHash,
-      fullName: dto.fullName
+      fullName: dto.fullName,
+      phone: dto.phone
     });
 
     await this.auditService.record({

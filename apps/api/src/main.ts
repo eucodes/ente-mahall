@@ -1,7 +1,10 @@
 import "reflect-metadata";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { NestFactory } from "@nestjs/core";
 import { ConfigService } from "@nestjs/config";
 import { ValidationPipe } from "@nestjs/common";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
@@ -10,8 +13,14 @@ import { ResponseInterceptor } from "./common/interceptors/response.interceptor"
 import { createCorsOriginValidator } from "./config/cors";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
+
+  // Onboarding logo/cover uploads live outside the "/api/v1" prefix, served
+  // directly as static files — see OnboardingController.
+  const uploadsDir = join(process.cwd(), "uploads");
+  mkdirSync(join(uploadsDir, "onboarding"), { recursive: true });
+  app.useStaticAssets(uploadsDir, { prefix: "/uploads" });
 
   app.use(
     helmet({

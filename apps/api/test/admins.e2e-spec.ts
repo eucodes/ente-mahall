@@ -60,7 +60,7 @@ describe("Admins (e2e)", () => {
   });
 
   it("lets the owner list admins", async () => {
-    const res = await request(app.getHttpServer()).get(`/api/v1/tenants/${slug}/admins`).set("Cookie", owner.cookie);
+    const res = await request(app.getHttpServer()).get(`/api/v1/tenants/${slug}/admins`).set("Cookie", owner.cookie).set("x-app", owner.appScope);
     expect(res.status).toBe(200);
     expect(res.body.data.admins.length).toBeGreaterThanOrEqual(3);
   });
@@ -68,7 +68,7 @@ describe("Admins (e2e)", () => {
   it("PERMISSION CHECK: a plain MEMBER (no admins.view) cannot list admins", async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/v1/tenants/${slug}/admins`)
-      .set("Cookie", plainMember.cookie);
+      .set("Cookie", plainMember.cookie).set("x-app", plainMember.appScope);
     expect(res.status).toBe(403);
   });
 
@@ -89,7 +89,7 @@ describe("Admins (e2e)", () => {
   });
 
   it("ESCALATION CHECK: an ADMIN cannot remove the OWNER (outranks them)", async () => {
-    const listRes = await request(app.getHttpServer()).get(`/api/v1/tenants/${slug}/admins`).set("Cookie", owner.cookie);
+    const listRes = await request(app.getHttpServer()).get(`/api/v1/tenants/${slug}/admins`).set("Cookie", owner.cookie).set("x-app", owner.appScope);
     const ownerMembership = listRes.body.data.admins.find((a: { role: { key: string } }) => a.role.key === "OWNER");
 
     const res = await withSession(request(app.getHttpServer()).delete(`/api/v1/tenants/${slug}/admins/${ownerMembership.id}`), promotedAdmin);
@@ -109,7 +109,7 @@ describe("Admins (e2e)", () => {
   });
 
   it("LAST OWNER CHECK: cannot demote the last owner", async () => {
-    const listRes = await request(app.getHttpServer()).get(`/api/v1/tenants/${slug}/admins`).set("Cookie", owner.cookie);
+    const listRes = await request(app.getHttpServer()).get(`/api/v1/tenants/${slug}/admins`).set("Cookie", owner.cookie).set("x-app", owner.appScope);
     const ownerMembership = listRes.body.data.admins.find((a: { role: { key: string } }) => a.role.key === "OWNER");
 
     const res = await withSession(request(app.getHttpServer()).patch(`/api/v1/tenants/${slug}/admins/${ownerMembership.id}`), owner).send({
@@ -123,7 +123,7 @@ describe("Admins (e2e)", () => {
     expect(res.status).toBe(200);
 
     // Removed membership loses even the base "is a member" access.
-    const meRes = await request(app.getHttpServer()).get(`/api/v1/tenants/${slug}/me`).set("Cookie", promotedAdmin.cookie);
+    const meRes = await request(app.getHttpServer()).get(`/api/v1/tenants/${slug}/me`).set("Cookie", promotedAdmin.cookie).set("x-app", promotedAdmin.appScope);
     expect(meRes.status).toBe(403);
   });
 });

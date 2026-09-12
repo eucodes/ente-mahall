@@ -1,20 +1,16 @@
 import { redirect } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader, Pagination } from "@mahalle/ui";
+import { Card, CardContent, EmptyState, PageHeader } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
-import { getFamilies, type Family } from "@/lib/business-resources";
-import { SimpleCreateForm } from "@/features/tenants/simple-create-form";
-import { SimpleResourceTable } from "@/features/tenants/simple-resource-table";
+import { getFamilies } from "@/lib/business-resources";
+import { getMembers } from "@/lib/members";
+import { getHouses } from "@/lib/houses";
+import { FamiliesRegistry } from "@/features/tenants/families-registry";
 
-const PAGE_SIZE = 20;
+// The API's own pageSize ceiling — see the equivalent note on the Members page.
+const PAGE_SIZE = 100;
 
-export default async function FamiliesPage({
-  params,
-  searchParams
-}: {
-  params: Promise<{ tenant: string }>;
-  searchParams: Promise<{ page?: string }>;
-}) {
+export default async function FamiliesPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant: slug } = await params;
   const user = await getSession();
   if (!user) redirect("/login");
@@ -22,9 +18,11 @@ export default async function FamiliesPage({
   const membership = await getMyTenantMembership(slug);
   if (!membership) redirect("/");
 
-  const { page: pageParam } = await searchParams;
-  const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
-  const result = await getFamilies(slug, page, PAGE_SIZE);
+  const [result, membersResult, housesResult] = await Promise.all([
+    getFamilies(slug, 1, PAGE_SIZE),
+    getMembers(slug, 1, PAGE_SIZE),
+    getHouses(slug, 1, PAGE_SIZE)
+  ]);
 
   return (
     <>
@@ -40,45 +38,13 @@ export default async function FamiliesPage({
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Add a family</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <SimpleCreateForm
-              slug={slug}
-              resource="families"
-              successMessage="Family added"
-              fields={[
-                { name: "name", label: "Family name", required: true },
-                { name: "address", label: "Address" },
-                { name: "phone", label: "Phone" }
-              ]}
-            />
-            {result.items.length === 0 && page === 1 ? (
-              <EmptyState title="No families yet" />
-            ) : (
-              <>
-                <SimpleResourceTable<Family>
-                  slug={slug}
-                  resource="families"
-                  headers={["Name", "Address", "Phone"]}
-                  rows={result.items.map((f) => ({
-                    item: f,
-                    label: f.name,
-                    cells: [<span key="name" className="font-medium">{f.name}</span>, f.address ?? "—", f.phone ?? "—"]
-                  }))}
-                />
-                <Pagination
-                  page={page}
-                  pageSize={PAGE_SIZE}
-                  total={result.total}
-                  hrefForPage={(p) => `/${slug}/families?page=${p}`}
-                />
-              </>
-            )}
-          </CardContent>
-        </Card>
+        <FamiliesRegistry
+          slug={slug}
+          families={result.items}
+          members={membersResult?.members ?? []}
+          houses={housesResult?.items ?? []}
+          total={result.total}
+        />
       )}
     </>
   );

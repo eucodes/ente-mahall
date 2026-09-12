@@ -12,7 +12,19 @@ import { CurrentTenant } from "./decorators/current-tenant.decorator";
 import { CurrentMembership } from "./decorators/current-membership.decorator";
 
 function publicTenant(tenant: Tenant) {
-  return { id: tenant.id, slug: tenant.slug, name: tenant.name, description: tenant.description };
+  return {
+    id: tenant.id,
+    slug: tenant.slug,
+    name: tenant.name,
+    description: tenant.description,
+    isActive: tenant.isActive,
+    createdAt: tenant.createdAt,
+    updatedAt: tenant.updatedAt,
+    country: tenant.country,
+    logoUrl: tenant.logoUrl,
+    masjidName: tenant.masjidName,
+    hasDivisions: tenant.hasDivisions
+  };
 }
 
 function membershipRole(membership: MembershipWithRole) {

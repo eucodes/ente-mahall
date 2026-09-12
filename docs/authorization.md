@@ -86,8 +86,64 @@ granting Super Admin is exactly the kind of sensitive operation
 [security.md](security.md) reserves for step-up-authenticated flows once
 those exist, not a same-session self-service action.
 
+### What the platform can do *to* a tenant (SUPER_ADMIN only)
+
+Separate from — and taking precedence over — everything a tenant's own
+`OWNER` can do to their own Mahalle:
+
+- **Suspend / reactivate** (`PlatformService.setTenantStatus`) — reversible;
+  a suspended tenant immediately 404s on every public/tenant-facing lookup
+  (`findActiveBySlugOrThrow`), same as if it never existed.
+- **Delete** (`PlatformService.deleteTenant`) — irreversible; cascades to
+  every tenant-owned table.
+- **Override role permissions** (`PlatformService.updateRolePermissions`) —
+  replaces a tenant role's entire `RolePermission` set. This is how the
+  platform decides what a Mahalle `ADMIN` (or any other role) is permitted
+  to do, regardless of what the tenant's own `OWNER` configured — the
+  tenant-level role-rank rules above only govern tenants managing
+  *themselves*; the platform isn't bound by them.
+
+`PLATFORM_STAFF` can view all of this (tenant list, a tenant's roles/
+permissions) but the mutating endpoints require `SUPER_ADMIN` specifically —
+enforced by `@RequirePlatformRole()`, checked in `PlatformContextGuard`
+alongside the base membership check. Proven in the "PLATFORM ROLE CHECK"
+cases of `apps/api/test/platform.e2e-spec.ts`.
+
+- **Bulk delete** (`PlatformService.bulkDeleteTenants`,
+  `POST /platform/tenants/bulk-delete`, `SUPER_ADMIN` only) — deletes
+  several tenants in one call, same effect as the single-tenant delete per
+  id; an id that no longer resolves to a tenant is skipped rather than
+  aborting the rest, and the response reports which ids were actually
+  deleted vs. skipped.
+
+### Viewing and managing a Mahalle's own dashboard from the control plane
+
+`PlatformTenantAccessController` (`apps/api/src/platform/platform-tenant-access.controller.ts`)
+exposes a tenant's own operational data — members, families, events,
+announcements, programs, administrators — under `/platform/tenants/:tenantId/...`,
+guarded by `PlatformContextGuard` (never `TenantContextGuard`). This is a
+deliberately separate route tree, not a bypass of `TenantContextGuard`: it
+reuses the same tenant-scoped services (`MembersService`, `FamiliesService`,
+etc.), which already take `tenantId` as an explicit parameter rather than
+inferring it from a `TenantMembership`, so calling them from a platform-
+authorized request is exactly as safe as calling them from a tenant-
+authorized one. Any active platform member can view; `SUPER_ADMIN` is
+required to create/update/delete. Administrator management (add/re-role/
+remove) is intentionally **view-only** here — `AdminsService`'s role-rank
+escalation rules assume the actor is a real tenant member with their own
+rank, which a platform session doesn't have, so those mutating endpoints
+aren't exposed through this route. Proven in the "platform access to a
+Mahalle's own dashboard data" cases of `apps/api/test/platform.e2e-spec.ts`,
+including a SEPARATION CHECK that a tenant OWNER still can't reach this
+platform-only route tree for their own tenant.
+
 ## Ownership boundaries
 
+- **One Mahalle per account** (`TenantsService.createTenant`): an account
+  can create/own exactly one tenant — checked by looking for an existing
+  active `OWNER` membership before allowing creation. Being added as
+  `ADMIN`/`STAFF`/etc. to someone else's Mahalle doesn't count against this;
+  only tenants this account itself created/owns do.
 - A tenant `OWNER` manages administrators **only within their own Mahalle** —
   and has no visibility into or control over any other tenant (enforced by
   `TenantContextGuard`; a request for another tenant's `:slug` 403s outright).

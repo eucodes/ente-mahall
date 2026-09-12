@@ -21,6 +21,20 @@ import { FamiliesModule } from "./families/families.module";
 import { EventsModule } from "./events/events.module";
 import { AnnouncementsModule } from "./announcements/announcements.module";
 import { ProgramsModule } from "./programs/programs.module";
+import { OnboardingModule } from "./onboarding/onboarding.module";
+import { StructureModule } from "./structure/structure.module";
+import { HousesModule } from "./houses/houses.module";
+import { CommitteeModule } from "./committee/committee.module";
+import { DeathModule } from "./registers/death/death.module";
+import { MarriageModule } from "./registers/marriage/marriage.module";
+import { DivorceModule } from "./registers/divorce/divorce.module";
+import { ReleaseModule } from "./registers/release/release.module";
+import { GraveModule } from "./registers/grave/grave.module";
+import { MadrassaModule } from "./registers/madrassa/madrassa.module";
+import { PropertyModule } from "./registers/property/property.module";
+import { FinanceModule } from "./finance/finance.module";
+import { ServicesModule } from "./services/services.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { CsrfGuard } from "./common/guards/csrf.guard";
 
 @Module({
@@ -51,7 +65,21 @@ import { CsrfGuard } from "./common/guards/csrf.guard";
     FamiliesModule,
     EventsModule,
     AnnouncementsModule,
-    ProgramsModule
+    ProgramsModule,
+    OnboardingModule,
+    StructureModule,
+    HousesModule,
+    CommitteeModule,
+    DeathModule,
+    MarriageModule,
+    DivorceModule,
+    ReleaseModule,
+    GraveModule,
+    MadrassaModule,
+    PropertyModule,
+    FinanceModule,
+    ServicesModule,
+    NotificationsModule
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

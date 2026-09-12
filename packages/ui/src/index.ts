@@ -17,6 +17,7 @@ export * from "./components/card";
 export * from "./components/badge";
 export * from "./components/alert";
 export * from "./components/dialog";
+export * from "./components/drawer";
 export * from "./components/confirm-dialog";
 export * from "./components/toast";
 export * from "./components/use-toast";

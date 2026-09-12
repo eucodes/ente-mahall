@@ -22,6 +22,7 @@ import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
 import { getMembers } from "@/lib/members";
 import { getAnnouncements, getEvents, getFamilies, getPrograms } from "@/lib/business-resources";
+import { SetupChecklist } from "@/features/onboarding/setup-checklist";
 
 const STATS: { title: string; href: string; icon: typeof Users; tone: StatCardTone }[] = [
   { title: "Members", href: "members", icon: Users, tone: "violet" },
@@ -64,6 +65,12 @@ export default async function TenantAdminHomePage({ params }: { params: Promise<
   return (
     <>
       <PageHeader title={`Welcome back, ${user.fullName.split(" ")[0]}`} description={`${membership.role.name} at ${membership.tenant.name} · ${TODAY}`} />
+
+      {membership.tenant.country && (
+        <div className="mb-6">
+          <SetupChecklist />
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {STATS.map((stat) => (

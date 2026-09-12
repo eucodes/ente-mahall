@@ -102,7 +102,7 @@ describe("Business modules (families/events/announcements/programs) (e2e)", () =
     it("PERMISSION CHECK: a plain MEMBER cannot list", async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/tenants/${slugA}/${resource}`)
-        .set("Cookie", plainMemberA.cookie);
+        .set("Cookie", plainMemberA.cookie).set("x-app", plainMemberA.appScope);
       expect(res.status).toBe(403);
     });
 
@@ -119,7 +119,7 @@ describe("Business modules (families/events/announcements/programs) (e2e)", () =
     it("owner can list and find the created record", async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/tenants/${slugA}/${resource}`)
-        .set("Cookie", ownerA.cookie);
+        .set("Cookie", ownerA.cookie).set("x-app", ownerA.appScope);
       expect(res.status).toBe(200);
       expect(res.body.data[listField].some((r: { id: string }) => r.id === createdId)).toBe(true);
     });
@@ -127,7 +127,7 @@ describe("Business modules (families/events/announcements/programs) (e2e)", () =
     it("OBJECT-LEVEL ISOLATION: the record 404s under tenant B's scope, even for B's own owner", async () => {
       const res = await request(app.getHttpServer())
         .get(`/api/v1/tenants/${slugB}/${resource}/${createdId}`)
-        .set("Cookie", ownerB.cookie);
+        .set("Cookie", ownerB.cookie).set("x-app", ownerB.appScope);
       expect(res.status).toBe(404);
     });
 
@@ -140,7 +140,7 @@ describe("Business modules (families/events/announcements/programs) (e2e)", () =
 
       const getRes = await request(app.getHttpServer())
         .get(`/api/v1/tenants/${slugA}/${resource}/${createdId}`)
-        .set("Cookie", ownerA.cookie);
+        .set("Cookie", ownerA.cookie).set("x-app", ownerA.appScope);
       expect(getRes.status).toBe(404);
     });
   });

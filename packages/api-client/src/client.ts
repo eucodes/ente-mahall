@@ -83,4 +83,32 @@ export class ApiClient {
   delete<T>(path: string): Promise<T> {
     return this.request<T>(path, { method: "DELETE" });
   }
+
+  /** For multipart file uploads — omits the JSON Content-Type header so the browser can set its own multipart boundary. */
+  private async requestForm<T>(path: string, formData: FormData): Promise<T> {
+    const appScope = this.options.getAppScope?.();
+    const headers: Record<string, string> = {
+      ...(appScope ? { "x-app": appScope } : {}),
+      ...(await this.options.getHeaders?.())
+    };
+    const csrfToken = appScope ? readCsrfCookie(`${appScope}_csrf_token`) : undefined;
+    if (csrfToken) headers["x-csrf-token"] = csrfToken;
+
+    const res = await fetch(`${this.options.baseUrl}${path}`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: formData
+    });
+
+    const body = (await res.json()) as ApiResponse<T>;
+    if (!body.success) {
+      throw new ApiError(body.error.code, body.error.message, res.status, body.error.details);
+    }
+    return body.data;
+  }
+
+  postForm<T>(path: string, formData: FormData): Promise<T> {
+    return this.requestForm<T>(path, formData);
+  }
 }

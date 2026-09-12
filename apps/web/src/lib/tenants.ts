@@ -5,6 +5,11 @@ export interface PublicTenant {
   id: string;
   slug: string;
   name: string;
+  /** Non-null only for tenants created via the full onboarding wizard. */
+  country?: string | null;
+  logoUrl?: string | null;
+  masjidName?: string | null;
+  hasDivisions?: boolean;
 }
 
 export interface RoleInfo {

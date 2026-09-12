@@ -1,4 +1,5 @@
-import { IsBoolean, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
+import { AnnouncementAudience } from "@mahalle/database";
+import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
 
 export class CreateAnnouncementDto {
   @IsString()
@@ -14,4 +15,12 @@ export class CreateAnnouncementDto {
   @IsOptional()
   @IsBoolean()
   publish?: boolean;
+
+  @IsOptional()
+  @IsEnum(AnnouncementAudience)
+  audience?: AnnouncementAudience;
+
+  @IsOptional()
+  @IsString()
+  targetDivisionId?: string;
 }

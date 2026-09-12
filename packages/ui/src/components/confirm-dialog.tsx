@@ -19,6 +19,8 @@ export interface ConfirmDialogProps {
   /** Renders the confirm button as destructive (red) — use for delete/revoke/irreversible actions. */
   destructive?: boolean;
   isConfirming?: boolean;
+  /** Disables the confirm button independent of isConfirming — e.g. until the caller has typed a required confirmation phrase. */
+  confirmDisabled?: boolean;
   onConfirm: () => void | Promise<void>;
 }
 
@@ -36,6 +38,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   destructive = false,
   isConfirming = false,
+  confirmDisabled = false,
   onConfirm
 }: ConfirmDialogProps) {
   return (
@@ -52,6 +55,7 @@ export function ConfirmDialog({
           <Button
             variant={destructive ? "destructive" : "primary"}
             isLoading={isConfirming}
+            disabled={confirmDisabled}
             onClick={() => onConfirm()}
           >
             {confirmLabel}

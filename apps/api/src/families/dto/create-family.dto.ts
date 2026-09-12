@@ -15,4 +15,8 @@ export class CreateFamilyDto {
   @IsString()
   @MaxLength(50)
   phone?: string;
+
+  @IsOptional()
+  @IsString()
+  houseId?: string;
 }

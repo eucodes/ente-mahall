@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader, Pagination } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
@@ -68,7 +69,9 @@ export default async function EventsPage({
                     item: e,
                     label: e.title,
                     cells: [
-                      <span key="title" className="font-medium">{e.title}</span>,
+                      <Link key="title" href={`/${slug}/events/${e.id}`} className="font-medium text-primary hover:underline">
+                        {e.title}
+                      </Link>,
                       new Date(e.startsAt).toLocaleString(),
                       e.location ?? "—"
                     ]

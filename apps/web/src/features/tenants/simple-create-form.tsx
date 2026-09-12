@@ -2,14 +2,17 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, FormField, Input, Textarea, useToast } from "@mahalle/ui";
+import { Button, FormField, Input, Select, Textarea, useToast } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 
 export interface SimpleFormField {
   name: string;
   label: string;
-  type?: "text" | "textarea" | "datetime-local";
+  type?: "text" | "textarea" | "datetime-local" | "date" | "select";
   required?: boolean;
+  /** Only used when type is "select". */
+  options?: { value: string; label: string }[];
+  hint?: string;
 }
 
 interface SimpleCreateFormProps {
@@ -72,6 +75,7 @@ export function SimpleCreateForm({ slug, resource, fields, successMessage, extra
           label={field.label}
           htmlFor={`field-${field.name}`}
           required={field.required}
+          hint={field.hint}
           error={field.name === fields[0]?.name ? (error ?? undefined) : undefined}
         >
           {field.type === "textarea" ? (
@@ -81,6 +85,20 @@ export function SimpleCreateForm({ slug, resource, fields, successMessage, extra
               value={values[field.name]}
               onChange={(e) => setValues((v) => ({ ...v, [field.name]: e.target.value }))}
             />
+          ) : field.type === "select" ? (
+            <Select
+              id={`field-${field.name}`}
+              required={field.required}
+              value={values[field.name]}
+              onChange={(e) => setValues((v) => ({ ...v, [field.name]: e.target.value }))}
+            >
+              <option value="">Select…</option>
+              {field.options?.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
           ) : (
             <Input
               id={`field-${field.name}`}

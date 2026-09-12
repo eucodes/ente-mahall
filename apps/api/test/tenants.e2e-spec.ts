@@ -83,14 +83,14 @@ describe("Tenants (e2e)", () => {
     });
 
     it("lists the tenant under the owner's /tenants/mine", async () => {
-      const res = await request(app.getHttpServer()).get("/api/v1/tenants/mine").set("Cookie", owner.cookie);
+      const res = await request(app.getHttpServer()).get("/api/v1/tenants/mine").set("Cookie", owner.cookie).set("x-app", owner.appScope);
       expect(res.status).toBe(200);
       const slugs = res.body.data.memberships.map((m: { tenant: { slug: string } }) => m.tenant.slug);
       expect(slugs).toContain(slug);
     });
 
     it("does NOT list the tenant under an unrelated user's /tenants/mine", async () => {
-      const res = await request(app.getHttpServer()).get("/api/v1/tenants/mine").set("Cookie", outsider.cookie);
+      const res = await request(app.getHttpServer()).get("/api/v1/tenants/mine").set("Cookie", outsider.cookie).set("x-app", outsider.appScope);
       expect(res.status).toBe(200);
       const slugs = res.body.data.memberships.map((m: { tenant: { slug: string } }) => m.tenant.slug);
       expect(slugs).not.toContain(slug);
@@ -102,13 +102,13 @@ describe("Tenants (e2e)", () => {
     });
 
     it("returns the owner's role from /tenants/:slug/me", async () => {
-      const res = await request(app.getHttpServer()).get(`/api/v1/tenants/${slug}/me`).set("Cookie", owner.cookie);
+      const res = await request(app.getHttpServer()).get(`/api/v1/tenants/${slug}/me`).set("Cookie", owner.cookie).set("x-app", owner.appScope);
       expect(res.status).toBe(200);
       expect(res.body.data.role.key).toBe("OWNER");
     });
 
     it("THE ISOLATION TEST: rejects /tenants/:slug/me for an authenticated user who is not a member of this tenant", async () => {
-      const res = await request(app.getHttpServer()).get(`/api/v1/tenants/${slug}/me`).set("Cookie", outsider.cookie);
+      const res = await request(app.getHttpServer()).get(`/api/v1/tenants/${slug}/me`).set("Cookie", outsider.cookie).set("x-app", outsider.appScope);
       expect(res.status).toBe(403);
     });
   });

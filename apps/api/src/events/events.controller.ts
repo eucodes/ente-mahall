@@ -8,6 +8,7 @@ import { CurrentMembership } from "../tenants/decorators/current-membership.deco
 import type { MembershipWithRole } from "../memberships/memberships.service";
 import { PaginationQueryDto } from "../common/dto/pagination-query.dto";
 import { EventsService } from "./events.service";
+import { EventRegistrationsService } from "./event-registrations.service";
 import { CreateEventDto } from "./dto/create-event.dto";
 import { UpdateEventDto } from "./dto/update-event.dto";
 
@@ -18,7 +19,10 @@ function requestContext(req: Request) {
 @Controller("tenants/:slug/events")
 @UseGuards(JwtAuthGuard, TenantContextGuard, PermissionGuard)
 export class EventsController {
-  constructor(private readonly eventsService: EventsService) {}
+  constructor(
+    private readonly eventsService: EventsService,
+    private readonly registrationsService: EventRegistrationsService
+  ) {}
 
   @Get()
   @RequirePermission("events.view")
@@ -68,5 +72,11 @@ export class EventsController {
   async remove(@CurrentMembership() membership: MembershipWithRole, @Param("eventId") eventId: string, @Req() req: Request) {
     await this.eventsService.remove({ userId: membership.userId, tenantId: membership.tenantId }, eventId, requestContext(req));
     return { success: true };
+  }
+
+  @Get(":eventId/finance-summary")
+  @RequirePermission("finance.view")
+  async financeSummary(@CurrentMembership() membership: MembershipWithRole, @Param("eventId") eventId: string) {
+    return this.registrationsService.financeSummary(membership.tenantId, eventId);
   }
 }

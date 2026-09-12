@@ -46,6 +46,18 @@ export class TenantsService {
       throw new ConflictException("This Mahalle URL is already taken.");
     }
 
+    // One Mahalle per account: an account can create and manage exactly one
+    // Mahalle. Being added as ADMIN/STAFF/etc. of someone else's Mahalle
+    // doesn't count — this only checks OWNER, i.e. Mahalles this user
+    // themselves created. Multiple Mahalles for one person, if ever needed,
+    // is a platform-level decision (Phase 5+), not a self-service one.
+    const existingOwnedTenant = await this.prisma.tenantMembership.findFirst({
+      where: { userId: ownerUserId, isActive: true, role: { key: TenantRole.OWNER } }
+    });
+    if (existingOwnedTenant) {
+      throw new ConflictException("You already manage a Mahalle. Each account can create and own only one.");
+    }
+
     const allPermissions = await this.prisma.permission.findMany();
     if (allPermissions.length === 0) {
       // Should be impossible outside a brand-new DB where the API hasn't
@@ -54,10 +66,24 @@ export class TenantsService {
       throw new ConflictException("Permission catalogue is not yet initialized. Please try again shortly.");
     }
 
+    const { divisions, ...tenantFields } = dto;
+
     const { tenant, ownerMembership } = await this.prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
-        data: { slug, name: dto.name, description: dto.description }
+        data: { ...tenantFields, slug }
       });
+
+      if (divisions && divisions.length > 0) {
+        await tx.tenantDivision.createMany({
+          data: divisions.map((division, index) => ({
+            tenantId: tenant.id,
+            name: division.name,
+            code: division.code,
+            description: division.description,
+            order: index
+          }))
+        });
+      }
 
       const roleByKey = new Map<TenantRole, string>();
       for (const [key, permissionKeys] of Object.entries(DEFAULT_ROLE_PERMISSIONS) as [

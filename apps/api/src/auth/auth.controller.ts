@@ -28,8 +28,13 @@ export class AuthController {
   @SkipCsrf()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async register(@Body() dto: RegisterDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    // Validate the app scope BEFORE touching the database — otherwise a
+    // request with a missing/invalid x-app header would still create the
+    // user (and a refresh token) and only then fail to return a session,
+    // permanently consuming that email with no way to complete registration.
+    const app = requireAppScope(req);
     const { user, tokens } = await this.authService.register(dto, requestContext(req));
-    setAuthCookies(res, this.config, tokens, requireAppScope(req));
+    setAuthCookies(res, this.config, tokens, app);
     return { user };
   }
 
@@ -38,8 +43,11 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    // Same ordering reasoning as register(): fail before issuing a refresh
+    // token the client will never actually receive.
+    const app = requireAppScope(req);
     const { user, tokens } = await this.authService.login(dto, requestContext(req));
-    setAuthCookies(res, this.config, tokens, requireAppScope(req));
+    setAuthCookies(res, this.config, tokens, app);
     return { user };
   }
 

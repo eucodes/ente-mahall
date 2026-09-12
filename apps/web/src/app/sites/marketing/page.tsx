@@ -20,7 +20,6 @@ import { adminHost, ROOT_DOMAIN, tenantHost } from "@/lib/env";
 import { getSession } from "@/lib/session";
 import { getMyTenants } from "@/lib/tenants";
 import { LogoutButton } from "@/features/auth/logout-button";
-import { OnboardMahalleDialog } from "@/features/tenants/onboard-mahalle-dialog";
 
 const FEATURES = [
   {
@@ -70,7 +69,9 @@ export default async function MarketingHomePage() {
                 <Button asChild variant="ghost" size="sm">
                   <a href={`http://${adminHost()}/login`}>Log in</a>
                 </Button>
-                <OnboardMahalleDialog />
+                <Button asChild size="lg">
+                  <a href={`http://${adminHost()}/onboarding`}>Get started</a>
+                </Button>
               </>
             )}
           </div>
@@ -94,7 +95,9 @@ export default async function MarketingHomePage() {
             with every Mahalle isolated in its own private workspace.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <OnboardMahalleDialog />
+            <Button asChild size="lg">
+              <a href={`http://${adminHost()}/onboarding`}>Get started</a>
+            </Button>
             <Button asChild variant="outline" size="lg">
               <a href={`http://${adminHost()}/login`}>
                 Log in <ArrowRight className="h-4 w-4" />
@@ -153,7 +156,7 @@ export default async function MarketingHomePage() {
           <h2 className="text-3xl font-semibold tracking-tight">Everything a Mahalle needs to run day to day</h2>
           <p className="mt-3 text-muted-foreground">
             Built for administrators who want less spreadsheet-wrangling and members who just want
-            to know what's happening.
+            to know what&apos;s happening.
           </p>
         </div>
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -187,7 +190,9 @@ export default async function MarketingHomePage() {
               </li>
             ))}
           </ul>
-          <OnboardMahalleDialog />
+          <Button asChild size="lg">
+            <a href={`http://${adminHost()}/onboarding`}>Get started</a>
+          </Button>
         </div>
       </section>
 

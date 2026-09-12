@@ -32,7 +32,12 @@ export function SlugField({ id, value, onChange, label = "Mahalle URL", onAvaila
   const requestId = useRef(0);
 
   useEffect(() => {
+    // Debounced search-as-you-type: setting "checking"/"idle" synchronously
+    // here (before the timer fires) is the correct, intended behavior, not
+    // an effect anti-pattern — it's what makes the status indicator update
+    // immediately as the user types, ahead of the debounced network check.
     if (!value) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAvailability("idle");
       return;
     }

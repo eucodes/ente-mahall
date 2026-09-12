@@ -43,6 +43,26 @@
   can't create/promote a peer or superior, can't touch their own membership).
 - `PlatformContextGuard`: control-plane authorization is a fully separate
   code path from tenant authorization, sharing no table or guard.
+- **One Mahalle per account**: an account can create/own exactly one tenant
+  (`TenantsService.createTenant`) — being added as ADMIN/STAFF/etc. of
+  someone else's Mahalle doesn't count against this.
+- **Platform control over tenants** (`@RequirePlatformRole(SUPER_ADMIN)` on
+  top of `PlatformContextGuard` — see `RequirePlatformRole` decorator):
+  suspend/reactivate a Mahalle (`PATCH /platform/tenants/:id/status`,
+  reversible, immediately 404s the tenant publicly), permanently delete one
+  (`DELETE /platform/tenants/:id`, cascades to everything under it), and
+  override what a tenant's own roles are permitted to do
+  (`PATCH /platform/tenants/:id/roles/:roleId/permissions`) — the platform
+  deciding what a Mahalle admin can and can't do, independent of and taking
+  precedence over what the tenant's own OWNER configured; and bulk-delete
+  several tenants at once (`POST /platform/tenants/bulk-delete`). `PLATFORM_STAFF`
+  can view all of the above but not change any of it.
+- **Cross-tenant dashboard access** (`PlatformTenantAccessController`): the
+  control plane can view and, for `SUPER_ADMIN`, manage a single Mahalle's
+  members/families/events/announcements/programs/administrators — the same
+  data its own admins see — through a route tree that only ever goes through
+  `PlatformContextGuard`, never `TenantContextGuard`, so the two
+  authorization systems still share no guard or decision path.
 
 All of the above is e2e-tested — see [authorization.md](authorization.md) and
 [testing.md](testing.md).
@@ -60,6 +80,13 @@ All of the above is e2e-tested — see [authorization.md](authorization.md) and
 Once step-up auth exists, these actions require it in addition to normal
 permission checks: deleting a tenant, granting Super Admin, changing billing,
 exporting sensitive data, and starting an impersonation session.
+
+Tenant deletion is implemented today (`SUPER_ADMIN`-only, audit-logged, and
+the control-plane UI requires typing the tenant's slug before the delete
+button activates) — but that's a client-side UX safety net, not step-up
+auth. The real gate is still just "is this session a SUPER_ADMIN," same as
+any other request. Step-up (re-authenticating immediately before the action)
+is still not implemented for this or any other sensitive operation.
 
 ## Audit logging
 

@@ -6,6 +6,8 @@ export interface Family {
   name: string;
   address: string | null;
   phone: string | null;
+  houseId: string | null;
+  house: { id: string; displayNumber: string } | null;
 }
 
 export interface MahalleEvent {

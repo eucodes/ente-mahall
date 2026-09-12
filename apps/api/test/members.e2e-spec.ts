@@ -60,7 +60,7 @@ describe("Members (e2e)", () => {
   it("PERMISSION CHECK: a plain MEMBER (no members.view) cannot list members", async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/v1/tenants/${slugA}/members`)
-      .set("Cookie", plainMemberA.cookie);
+      .set("Cookie", plainMemberA.cookie).set("x-app", plainMemberA.appScope);
     expect(res.status).toBe(403);
   });
 
@@ -77,7 +77,7 @@ describe("Members (e2e)", () => {
   it("owner can list and paginate members", async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/v1/tenants/${slugA}/members?page=1&pageSize=10`)
-      .set("Cookie", ownerA.cookie);
+      .set("Cookie", ownerA.cookie).set("x-app", ownerA.appScope);
     expect(res.status).toBe(200);
     expect(res.body.data.members.some((m: { id: string }) => m.id === memberIdInA)).toBe(true);
     expect(res.body.data.meta.total).toBeGreaterThanOrEqual(1);
@@ -95,14 +95,14 @@ describe("Members (e2e)", () => {
   it("OBJECT-LEVEL ISOLATION: tenant B's owner cannot reach tenant A's member even scoped under A's own slug (no membership in A)", async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/v1/tenants/${slugA}/members/${memberIdInA}`)
-      .set("Cookie", ownerB.cookie);
+      .set("Cookie", ownerB.cookie).set("x-app", ownerB.appScope);
     expect(res.status).toBe(403); // rejected at TenantContextGuard — not even a member of A
   });
 
   it("OBJECT-LEVEL ISOLATION: a member id from tenant A does not exist under tenant B's scope, even for B's own owner", async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/v1/tenants/${slugB}/members/${memberIdInA}`)
-      .set("Cookie", ownerB.cookie);
+      .set("Cookie", ownerB.cookie).set("x-app", ownerB.appScope);
     // ownerB IS a legitimate member of B, but memberIdInA belongs to A — the
     // query is scoped by tenantId, so this 404s rather than ever returning
     // (or worse, letting them modify) another tenant's record.
@@ -118,12 +118,12 @@ describe("Members (e2e)", () => {
 
     const getRes = await request(app.getHttpServer())
       .get(`/api/v1/tenants/${slugA}/members/${memberIdInA}`)
-      .set("Cookie", ownerA.cookie);
+      .set("Cookie", ownerA.cookie).set("x-app", ownerA.appScope);
     expect(getRes.status).toBe(404);
 
     const listRes = await request(app.getHttpServer())
       .get(`/api/v1/tenants/${slugA}/members`)
-      .set("Cookie", ownerA.cookie);
+      .set("Cookie", ownerA.cookie).set("x-app", ownerA.appScope);
     expect(listRes.body.data.members.some((m: { id: string }) => m.id === memberIdInA)).toBe(false);
   });
 });

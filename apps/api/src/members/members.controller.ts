@@ -6,10 +6,10 @@ import { PermissionGuard } from "../tenants/guards/permission.guard";
 import { RequirePermission } from "../common/decorators/require-permission.decorator";
 import { CurrentMembership } from "../tenants/decorators/current-membership.decorator";
 import type { MembershipWithRole } from "../memberships/memberships.service";
-import { PaginationQueryDto } from "../common/dto/pagination-query.dto";
 import { MembersService } from "./members.service";
 import { CreateMemberDto } from "./dto/create-member.dto";
 import { UpdateMemberDto } from "./dto/update-member.dto";
+import { ListMembersQueryDto } from "./dto/list-members-query.dto";
 
 function requestContext(req: Request) {
   return { ipAddress: req.ip, userAgent: req.headers["user-agent"] };
@@ -22,8 +22,14 @@ export class MembersController {
 
   @Get()
   @RequirePermission("members.view")
-  async list(@CurrentMembership() membership: MembershipWithRole, @Query() query: PaginationQueryDto) {
-    const { members, total } = await this.membersService.list(membership.tenantId, query.page, query.pageSize);
+  async list(@CurrentMembership() membership: MembershipWithRole, @Query() query: ListMembersQueryDto) {
+    const { members, total } = await this.membersService.list(membership.tenantId, query.page, query.pageSize, {
+      familyId: query.familyId,
+      isYatheem: query.isYatheem,
+      isExpatriate: query.isExpatriate,
+      bloodGroup: query.bloodGroup,
+      movementStatus: query.movementStatus
+    });
     return { members, meta: { page: query.page, pageSize: query.pageSize, total } };
   }
 
