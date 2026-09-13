@@ -5,22 +5,23 @@ import { cn } from "../lib/cn";
 import { Spinner } from "./spinner";
 
 export const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
   {
     variants: {
       variant: {
-        primary: "bg-primary text-primary-foreground hover:bg-primary/90",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        primary: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 hover:shadow-sm",
+        secondary: "bg-secondary text-secondary-foreground border border-border/80 shadow-2xs hover:bg-muted hover:text-foreground",
+        outline: "border border-input/90 bg-card text-foreground shadow-2xs hover:bg-muted/80 hover:border-border",
+        ghost: "text-foreground/80 hover:bg-muted hover:text-foreground",
+        destructive: "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90",
         link: "text-primary underline-offset-4 hover:underline"
       },
       size: {
-        sm: "h-8 px-3 text-xs",
-        md: "h-10 px-4",
-        lg: "h-11 px-6",
-        icon: "h-10 w-10"
+        sm: "h-9 px-3.5 text-xs font-semibold rounded-xl",
+        md: "h-10 px-4 text-sm font-semibold rounded-xl",
+        lg: "h-11 px-5 text-sm font-semibold rounded-xl",
+        icon: "h-10 w-10 rounded-xl",
+        "icon-sm": "h-9 w-9 rounded-xl"
       }
     },
     defaultVariants: {
@@ -39,10 +40,6 @@ export interface ButtonProps
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, isLoading = false, disabled, children, ...props }, ref) => {
-    // Slot (asChild) requires exactly one element child, so the loading
-    // spinner — which would add a second child — is only ever rendered in
-    // the plain <button> case. asChild is for delegating to a single element
-    // (e.g. a Link) and isn't expected to carry a loading state itself.
     if (asChild) {
       return (
         <Slot ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...props}>

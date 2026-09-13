@@ -6,10 +6,10 @@ import { PermissionGuard } from "../tenants/guards/permission.guard";
 import { RequirePermission } from "../common/decorators/require-permission.decorator";
 import { CurrentMembership } from "../tenants/decorators/current-membership.decorator";
 import type { MembershipWithRole } from "../memberships/memberships.service";
-import { PaginationQueryDto } from "../common/dto/pagination-query.dto";
 import { FamiliesService } from "./families.service";
 import { CreateFamilyDto } from "./dto/create-family.dto";
 import { UpdateFamilyDto } from "./dto/update-family.dto";
+import { ListFamiliesQueryDto } from "./dto/list-families-query.dto";
 
 function requestContext(req: Request) {
   return { ipAddress: req.ip, userAgent: req.headers["user-agent"] };
@@ -22,9 +22,15 @@ export class FamiliesController {
 
   @Get()
   @RequirePermission("families.view")
-  async list(@CurrentMembership() membership: MembershipWithRole, @Query() query: PaginationQueryDto) {
-    const { families, total } = await this.familiesService.list(membership.tenantId, query.page, query.pageSize);
+  async list(@CurrentMembership() membership: MembershipWithRole, @Query() query: ListFamiliesQueryDto) {
+    const { families, total } = await this.familiesService.list(membership.tenantId, query.page, query.pageSize, query);
     return { families, meta: { page: query.page, pageSize: query.pageSize, total } };
+  }
+
+  @Get("summary")
+  @RequirePermission("families.view")
+  async summary(@CurrentMembership() membership: MembershipWithRole) {
+    return this.familiesService.summary(membership.tenantId);
   }
 
   @Get(":familyId")
@@ -59,6 +65,14 @@ export class FamiliesController {
       dto,
       requestContext(req)
     );
+    return { family };
+  }
+
+  @Patch(":familyId/reactivate")
+  @RequirePermission("families.update")
+  @HttpCode(HttpStatus.OK)
+  async reactivate(@CurrentMembership() membership: MembershipWithRole, @Param("familyId") familyId: string, @Req() req: Request) {
+    const family = await this.familiesService.reactivate({ userId: membership.userId, tenantId: membership.tenantId }, familyId, requestContext(req));
     return { family };
   }
 

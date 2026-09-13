@@ -9,6 +9,7 @@ export * from "./components/password-input";
 export * from "./components/password-strength";
 export * from "./components/textarea";
 export * from "./components/select";
+export * from "./components/searchable-select";
 export * from "./components/checkbox";
 export * from "./components/table";
 export * from "./components/pagination";
@@ -26,3 +27,11 @@ export * from "./components/icons";
 export * from "./components/shell";
 export * from "./components/page-header";
 export * from "./components/stat-card";
+export * from "./components/breadcrumbs";
+export * from "./components/tabs";
+export * from "./components/dropdown-menu";
+export * from "./components/permission-matrix";
+
+// Resolve ambiguity between lucide-react icons and UI components
+export { Badge } from "./components/badge";
+export { Table } from "./components/table";

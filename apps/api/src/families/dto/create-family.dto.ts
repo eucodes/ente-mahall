@@ -19,4 +19,9 @@ export class CreateFamilyDto {
   @IsOptional()
   @IsString()
   houseId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
 }

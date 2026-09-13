@@ -83,6 +83,57 @@ export const PERMISSIONS = [
   "finance.create",
   "finance.update",
   "finance.delete",
+  "finance.settings.view",
+  "finance.settings.update",
+
+  "collections.view",
+  "collections.create",
+  "collections.update",
+  "collections.cancel",
+
+  "payments.view",
+  "payments.create",
+  "payments.update",
+  "payments.cancel",
+
+  "receipts.view",
+  "receipts.create",
+  "receipts.print",
+  "receipts.cancel",
+
+  "donations.view",
+  "donations.create",
+  "donations.update",
+  "donations.cancel",
+
+  "dues.view",
+  "dues.manage",
+
+  "expenses.view",
+  "expenses.create",
+  "expenses.update",
+  "expenses.approve",
+  "expenses.cancel",
+
+  "salary.view",
+  "salary.create",
+  "salary.update",
+  "salary.approve",
+  "salary.pay",
+
+  "accounting.view",
+  "accounting.accounts.manage",
+  "accounting.journal.create",
+  "accounting.journal.post",
+  "accounting.journal.cancel",
+  "accounting.ledger.view",
+  "accounting.reports.view",
+
+  "banking.view",
+  "banking.manage",
+
+  "taxes.view",
+  "taxes.manage",
 
   "services.view",
   "services.create",
@@ -102,7 +153,13 @@ export const PERMISSIONS = [
   "admins.update",
   "admins.delete",
 
-  "reports.view"
+  "roles.view",
+  "roles.create",
+  "roles.update",
+  "roles.delete",
+
+  "reports.view",
+  "reports.export"
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];

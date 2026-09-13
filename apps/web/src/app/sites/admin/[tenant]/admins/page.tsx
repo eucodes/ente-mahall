@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
 import { getAdmins } from "@/lib/admins";
+import { getRoles } from "@/lib/roles";
 import { AddAdminForm, AdminsTable } from "@/features/tenants/admins-table";
 
 export default async function TenantAdminsPage({ params }: { params: Promise<{ tenant: string }> }) {
@@ -17,11 +19,20 @@ export default async function TenantAdminsPage({ params }: { params: Promise<{ t
     redirect("/");
   }
 
-  const admins = await getAdmins(slug);
+  const [admins, roles] = await Promise.all([getAdmins(slug), getRoles(slug)]);
+  const assignableRoles = (roles ?? []).filter((r) => r.isActive);
 
   return (
     <>
-      <PageHeader title="Administrators" description="The people who help run this Mahalle." />
+      <PageHeader
+        title="Users"
+        description="The people who help run this Mahalle, and the role each one holds."
+        actions={
+          <Link href={`/${slug}/admins/roles`} className="text-sm font-medium text-primary hover:underline">
+            Manage roles →
+          </Link>
+        }
+      />
 
       {admins === null ? (
         <Card>
@@ -35,11 +46,11 @@ export default async function TenantAdminsPage({ params }: { params: Promise<{ t
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>Add an administrator</CardTitle>
+            <CardTitle>Add a user</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <AddAdminForm slug={slug} />
-            <AdminsTable slug={slug} admins={admins} currentUserId={user.id} />
+            <AddAdminForm slug={slug} roles={assignableRoles} />
+            <AdminsTable slug={slug} admins={admins} roles={assignableRoles} currentUserId={user.id} />
           </CardContent>
         </Card>
       )}

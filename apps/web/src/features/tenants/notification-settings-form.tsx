@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Checkbox, FormField, Input, useToast } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -16,6 +16,15 @@ export function NotificationSettingsForm({ slug, settings }: { slug: string; set
   const [smsProviderName, setSmsProviderName] = useState(settings.smsProviderName ?? "");
   const [smsSenderId, setSmsSenderId] = useState(settings.smsSenderId ?? "");
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setNotifyOnNewServiceRequest(settings.notifyOnNewServiceRequest);
+    setNotifyOnNewDue(settings.notifyOnNewDue);
+    setEventReminderDaysBefore(settings.eventReminderDaysBefore?.toString() ?? "");
+    setSmsEnabled(settings.smsEnabled);
+    setSmsProviderName(settings.smsProviderName ?? "");
+    setSmsSenderId(settings.smsSenderId ?? "");
+  }, [settings]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();

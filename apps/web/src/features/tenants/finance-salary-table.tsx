@@ -2,12 +2,35 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, ConfirmDialog, EmptyState, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Trash, useToast } from "@mahalle/ui";
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Trash,
+  DollarSign,
+  Check,
+  useToast
+} from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { Account, SalaryRecord } from "@/lib/finance";
 import { FinanceMarkPaidDialog } from "./finance-mark-paid-dialog";
 
-export function FinanceSalaryTable({ slug, records, accounts }: { slug: string; records: SalaryRecord[]; accounts: Account[] }) {
+export function FinanceSalaryTable({
+  slug,
+  records,
+  accounts
+}: {
+  slug: string;
+  records: SalaryRecord[];
+  accounts: Account[];
+}) {
   const router = useRouter();
   const { toast } = useToast();
   const [payId, setPayId] = useState<string | null>(null);
@@ -23,10 +46,21 @@ export function FinanceSalaryTable({ slug, records, accounts }: { slug: string; 
       setRemoveTarget(null);
       router.refresh();
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Couldn't remove that record.";
+      const message = err instanceof ApiError ? err.message : "Couldn't remove that salary record.";
       toast({ title: "Something went wrong", description: message, variant: "destructive" });
     } finally {
       setIsRemoving(false);
+    }
+  }
+
+  async function handleApprove(id: string) {
+    try {
+      await apiClient.post(`/tenants/${slug}/finance/salary/${id}/approve`, {});
+      toast({ title: "Salary record approved", variant: "success" });
+      router.refresh();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Failed to approve salary";
+      toast({ title: "Error", description: msg, variant: "destructive" });
     }
   }
 
@@ -39,32 +73,82 @@ export function FinanceSalaryTable({ slug, records, accounts }: { slug: string; 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Staff</TableHead>
+            <TableHead>Staff Name</TableHead>
             <TableHead>Month</TableHead>
-            <TableHead>Amount</TableHead>
+            <TableHead>Basic / Allowances</TableHead>
+            <TableHead>Deductions</TableHead>
+            <TableHead>Net Salary</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {records.map((record) => (
-            <TableRow key={record.id}>
-              <TableCell className="font-medium">{record.staffName}</TableCell>
-              <TableCell>{record.month}</TableCell>
-              <TableCell className="tabular-nums">₹{record.amount}</TableCell>
-              <TableCell>
-                <Badge variant={record.status === "PAID" ? "secondary" : "outline"}>{record.status[0] + record.status.slice(1).toLowerCase()}</Badge>
+          {records.map((rec) => (
+            <TableRow key={rec.id}>
+              <TableCell className="font-medium text-xs">{rec.staffName}</TableCell>
+              <TableCell className="text-muted-foreground text-xs">{rec.month}</TableCell>
+              <TableCell className="text-xs">
+                <div>₹{parseFloat(rec.basicSalary || rec.amount).toLocaleString("en-IN")}</div>
+                {rec.allowances && parseFloat(rec.allowances) > 0 && (
+                  <span className="text-[10px] text-emerald-600 font-medium">
+                    +₹{parseFloat(rec.allowances).toLocaleString("en-IN")} alw
+                  </span>
+                )}
+              </TableCell>
+              <TableCell className="text-xs">
+                {rec.deductions && parseFloat(rec.deductions) > 0 ? (
+                  <span className="text-rose-600 font-medium">
+                    -₹{parseFloat(rec.deductions).toLocaleString("en-IN")}
+                  </span>
+                ) : (
+                  "—"
+                )}
+              </TableCell>
+              <TableCell className="text-xs font-mono font-bold text-foreground">
+                ₹{parseFloat(rec.netSalary || rec.amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </TableCell>
+              <TableCell className="text-xs">
+                <Badge
+                  variant={rec.status === "PAID" ? "secondary" : "outline"}
+                  className="text-[10px]"
+                >
+                  {rec.status === "PAID" ? "PAID" : rec.approvalStatus || rec.status}
+                </Badge>
               </TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end gap-1">
-                  {record.status === "PENDING" && (
-                    <Button variant="outline" size="sm" onClick={() => setPayId(record.id)}>
+                <div className="flex items-center justify-end gap-1">
+                  {rec.approvalStatus === "PENDING" && rec.status === "PENDING" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleApprove(rec.id)}
+                      className="h-7 px-2 text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                    >
+                      <Check className="h-3 w-3" />
+                      Approve
+                    </Button>
+                  )}
+                  {rec.status === "PENDING" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPayId(rec.id)}
+                      className="h-7 px-2 text-xs gap-1 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                    >
+                      <DollarSign className="h-3 w-3" />
                       Pay
                     </Button>
                   )}
-                  <Button variant="ghost" size="sm" onClick={() => setRemoveTarget(record)}>
-                    <Trash className="h-3.5 w-3.5" />
-                  </Button>
+                  {rec.status !== "PAID" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setRemoveTarget(rec)}
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               </TableCell>
             </TableRow>
@@ -76,17 +160,15 @@ export function FinanceSalaryTable({ slug, records, accounts }: { slug: string; 
         slug={slug}
         resource="salary"
         id={payId}
-        open={payId !== null}
-        onOpenChange={(open) => !open && setPayId(null)}
         accounts={accounts}
-        title="Record salary payment"
+        onClose={() => setPayId(null)}
       />
 
       <ConfirmDialog
         open={removeTarget !== null}
         onOpenChange={(open) => !open && setRemoveTarget(null)}
-        title={`Remove ${removeTarget?.staffName ?? "this record"}?`}
-        description="This action cannot be undone from here."
+        title="Remove this salary record?"
+        description={`This will delete the obligation of ₹${removeTarget?.netSalary || removeTarget?.amount} for ${removeTarget?.staffName}.`}
         confirmLabel="Remove"
         destructive
         isConfirming={isRemoving}

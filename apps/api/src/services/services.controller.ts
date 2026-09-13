@@ -2,8 +2,10 @@ import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post
 import type { Request } from "express";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { TenantContextGuard } from "../tenants/guards/tenant-context.guard";
+import { FeatureGuard } from "../features/guards/feature.guard";
 import { PermissionGuard } from "../tenants/guards/permission.guard";
 import { RequirePermission } from "../common/decorators/require-permission.decorator";
+import { RequireFeature } from "../common/decorators/require-feature.decorator";
 import { CurrentMembership } from "../tenants/decorators/current-membership.decorator";
 import type { MembershipWithRole } from "../memberships/memberships.service";
 import { ServicesService, type ServiceRequestWithDetail } from "./services.service";
@@ -16,7 +18,8 @@ function requestContext(req: Request) {
 }
 
 @Controller("tenants/:slug/services")
-@UseGuards(JwtAuthGuard, TenantContextGuard, PermissionGuard)
+@UseGuards(JwtAuthGuard, TenantContextGuard, FeatureGuard, PermissionGuard)
+@RequireFeature("services")
 export class ServicesController {
   constructor(private readonly servicesService: ServicesService) {}
 

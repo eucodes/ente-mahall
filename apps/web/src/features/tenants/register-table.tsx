@@ -15,11 +15,13 @@ import {
   TableHeader,
   TableRow,
   Trash,
+  Printer,
   useToast
 } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { RegisterColumnConfig, RegisterFieldConfig, RegisterRecord } from "./register-types";
 import { RegisterFormDialog } from "./register-form-dialog";
+import { PrintableCertificateModal } from "../registers/printable-certificate";
 
 function formatCell(value: unknown, format: RegisterColumnConfig["format"]): string {
   if (value === null || value === undefined || value === "") return "—";
@@ -59,6 +61,7 @@ export function RegisterTable({
   const [removeTarget, setRemoveTarget] = useState<RegisterRecord | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const [issuingId, setIssuingId] = useState<string | null>(null);
+  const [viewCertificate, setViewCertificate] = useState<RegisterRecord | null>(null);
 
   function openAddForm() {
     setEditingRecord(null);
@@ -134,7 +137,17 @@ export function RegisterTable({
                   {certificated && (
                     <TableCell>
                       {record.certificateNumber ? (
-                        <Badge variant="secondary">{String(record.certificateNumber)}</Badge>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary">{String(record.certificateNumber)}</Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewCertificate(record)}
+                            title="Print / Save Certificate"
+                          >
+                            <Printer className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       ) : (
                         <Button
                           variant="outline"
@@ -176,6 +189,31 @@ export function RegisterTable({
         isConfirming={isRemoving}
         onConfirm={handleRemove}
       />
+
+      {viewCertificate && (
+        <PrintableCertificateModal
+          open={viewCertificate !== null}
+          onOpenChange={(open) => !open && setViewCertificate(null)}
+          data={{
+            title: `${resource.toUpperCase()} CERTIFICATE`,
+            subtitle: "Certified Mahall Record",
+            certificateNumber: String(viewCertificate.certificateNumber ?? "CERT-RECORD"),
+            issueDate: new Date().toLocaleDateString("en-IN"),
+            mahalleName: slug.toUpperCase() + " MAHALLE",
+            recipientName: String(viewCertificate[labelKey] ?? "Resident"),
+            declaration: `This is to certify that the following record has been duly registered and certified in the official registers of ${slug.toUpperCase()} Mahalle in accordance with established rules and verified records.`,
+            details: columns.map((col) => ({
+              label: col.header,
+              value: formatCell(viewCertificate[col.key], col.format)
+            })),
+            signatories: [
+              { role: "President" },
+              { role: "General Secretary" },
+              { role: "Qazi / Khatib" }
+            ]
+          }}
+        />
+      )}
     </div>
   );
 }

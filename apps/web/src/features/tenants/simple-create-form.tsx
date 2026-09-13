@@ -110,8 +110,8 @@ export function SimpleCreateForm({ slug, resource, fields, successMessage, extra
           )}
         </FormField>
       ))}
-      <Button type="submit" isLoading={isSubmitting}>
-        Add
+      <Button type="submit" isLoading={isSubmitting} className="rounded-xl font-bold shadow-xs">
+        Add Record
       </Button>
     </form>
   );

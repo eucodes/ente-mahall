@@ -33,11 +33,10 @@ export default async function TenantMembersPage({
   ]);
   const families = familiesResult?.items ?? [];
 
-  return (
-    <>
-      <PageHeader title="Members" description="The Mahalle's member directory." />
-
-      {result === null ? (
+  if (result === null) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Members Directory" description="The Mahalle's member directory." />
         <Card>
           <CardContent className="p-0">
             <EmptyState
@@ -46,9 +45,9 @@ export default async function TenantMembersPage({
             />
           </CardContent>
         </Card>
-      ) : (
-        <MembersRegistry slug={slug} members={result.members} families={families} total={result.total} />
-      )}
-    </>
-  );
+      </div>
+    );
+  }
+
+  return <MembersRegistry slug={slug} members={result.members} families={families} total={result.total} />;
 }

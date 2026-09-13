@@ -57,16 +57,16 @@ function ImageUploadField({ label, hint, url, onUploaded }: ImageUploadFieldProp
 
   return (
     <FormField label={label} hint={!error ? hint : undefined} error={error ?? undefined}>
-      <div className="flex items-center gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-dashed border-border bg-muted">
+      <div className="flex items-center gap-4 rounded-xl border border-border/70 bg-muted/20 p-3">
+        <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/60 shadow-2xs">
           {url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={url} alt="" className="h-full w-full object-cover" />
           ) : (
-            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+            <ImageIcon className="h-6 w-6 text-muted-foreground/60" />
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
           <input
             ref={inputRef}
             type="file"
@@ -78,11 +78,24 @@ function ImageUploadField({ label, hint, url, onUploaded }: ImageUploadFieldProp
               e.target.value = "";
             }}
           />
-          <Button type="button" variant="outline" size="sm" isLoading={isUploading} onClick={() => inputRef.current?.click()}>
-            {isUploading ? "Uploading" : url ? "Change" : "Upload"}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            isLoading={isUploading}
+            onClick={() => inputRef.current?.click()}
+            className="text-xs font-semibold"
+          >
+            {isUploading ? "Uploading..." : url ? "Replace Image" : "Upload File"}
           </Button>
           {url && !isUploading && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => onUploaded("")}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onUploaded("")}
+              className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
               Remove
             </Button>
           )}
@@ -94,31 +107,49 @@ function ImageUploadField({ label, hint, url, onUploaded }: ImageUploadFieldProp
 
 export function ProfileStep({ value, errors, onChange, onBack, onSubmit }: ProfileStepProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Set up your Mahallu profile</CardTitle>
-        <CardDescription>Add your Mahallu&apos;s contact and profile information.</CardDescription>
+    <Card className="overflow-hidden border-border/80 shadow-md">
+      <div className="h-1.5 w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500" />
+      <CardHeader className="space-y-2 pb-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Globe className="h-5 w-5" />
+          </div>
+          <div>
+            <CardTitle className="text-xl font-bold tracking-tight">Profile & Masjid Details</CardTitle>
+            <CardDescription className="text-sm">
+              Configure your visual branding, official communication channels, and primary mosque information.
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-6" noValidate>
-          <section className="space-y-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Mahallu branding</h3>
-            <ImageUploadField
-              label="Mahallu Logo"
-              hint="JPG, PNG, or WEBP. Square (1:1) works best. Optional."
-              url={value.logoUrl}
-              onUploaded={(logoUrl) => onChange({ logoUrl })}
-            />
-            <ImageUploadField
-              label="Cover Image"
-              hint="JPG, PNG, or WEBP. Optional."
-              url={value.coverImageUrl}
-              onUploaded={(coverImageUrl) => onChange({ coverImageUrl })}
-            />
-          </section>
+          {/* Section 1: Branding */}
+          <div className="space-y-4 rounded-xl border border-border/60 bg-muted/15 p-4">
+            <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-primary">1. Visual Branding</span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ImageUploadField
+                label="Mahallu Logo"
+                hint="Square (1:1) PNG/JPG recommended"
+                url={value.logoUrl}
+                onUploaded={(logoUrl) => onChange({ logoUrl })}
+              />
+              <ImageUploadField
+                label="Cover Image"
+                hint="Wide landscape photo for header"
+                url={value.coverImageUrl}
+                onUploaded={(coverImageUrl) => onChange({ coverImageUrl })}
+              />
+            </div>
+          </div>
 
-          <section className="space-y-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contact information</h3>
+          {/* Section 2: Contact */}
+          <div className="space-y-4 rounded-xl border border-border/60 bg-muted/15 p-4">
+            <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-primary">2. Contact Channels</span>
+            </div>
             <FormField label="Official Phone Number" htmlFor="onboarding-contact-phone" required error={errors.contactPhone}>
               <Input
                 id="onboarding-contact-phone"
@@ -126,7 +157,7 @@ export function ProfileStep({ value, errors, onChange, onBack, onSubmit }: Profi
                 required
                 leadingIcon={<Phone />}
                 invalid={Boolean(errors.contactPhone)}
-                placeholder="Enter official Mahallu phone number"
+                placeholder="+91 98765 43210"
                 value={value.contactPhone}
                 onChange={(e) => onChange({ contactPhone: e.target.value })}
               />
@@ -138,7 +169,7 @@ export function ProfileStep({ value, errors, onChange, onBack, onSubmit }: Profi
                   type="email"
                   leadingIcon={<Mail />}
                   invalid={Boolean(errors.contactEmail)}
-                  placeholder="mahallu@example.com"
+                  placeholder="contact@mahallu.org"
                   value={value.contactEmail}
                   onChange={(e) => onChange({ contactEmail: e.target.value })}
                 />
@@ -149,61 +180,74 @@ export function ProfileStep({ value, errors, onChange, onBack, onSubmit }: Profi
                   type="url"
                   leadingIcon={<Globe />}
                   invalid={Boolean(errors.website)}
-                  placeholder="https://example.com"
+                  placeholder="https://mahallu.org"
                   value={value.website}
                   onChange={(e) => onChange({ website: e.target.value })}
                 />
               </FormField>
             </div>
-          </section>
+          </div>
 
-          <section className="space-y-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Masjid information</h3>
+          {/* Section 3: Masjid */}
+          <div className="space-y-4 rounded-xl border border-border/60 bg-muted/15 p-4">
+            <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-primary">3. Primary Masjid & Leadership</span>
+            </div>
             <FormField label="Masjid Name" htmlFor="onboarding-masjid-name" required error={errors.masjidName}>
               <Input
                 id="onboarding-masjid-name"
                 required
                 invalid={Boolean(errors.masjidName)}
-                placeholder="Enter Masjid name"
+                placeholder="e.g. Town Central Juma Masjid"
                 value={value.masjidName}
                 onChange={(e) => onChange({ masjidName: e.target.value })}
               />
             </FormField>
-            <FormField label="Masjid Phone Number" htmlFor="onboarding-masjid-phone" hint="Optional">
+            <FormField label="Masjid Contact Number" htmlFor="onboarding-masjid-phone" hint="Optional">
               <Input
                 id="onboarding-masjid-phone"
                 type="tel"
+                leadingIcon={<Phone />}
+                placeholder="Office or reception contact"
                 value={value.masjidPhone}
                 onChange={(e) => onChange({ masjidPhone: e.target.value })}
               />
             </FormField>
-            <FormField label="Masjid Address" htmlFor="onboarding-masjid-address" hint="Optional">
+            <FormField label="Masjid Full Address" htmlFor="onboarding-masjid-address" hint="Optional">
               <Textarea
                 id="onboarding-masjid-address"
+                placeholder="Complete address if different from administrative office..."
+                rows={2}
                 value={value.masjidAddress}
                 onChange={(e) => onChange({ masjidAddress: e.target.value })}
               />
             </FormField>
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField label="Imam Name" htmlFor="onboarding-imam-name" hint="Optional">
-                <Input id="onboarding-imam-name" value={value.imamName} onChange={(e) => onChange({ imamName: e.target.value })} />
+                <Input
+                  id="onboarding-imam-name"
+                  placeholder="e.g. Usthad Ahmad Kabeer"
+                  value={value.imamName}
+                  onChange={(e) => onChange({ imamName: e.target.value })}
+                />
               </FormField>
               <FormField label="Khatheeb Name" htmlFor="onboarding-khatheeb-name" hint="Optional">
                 <Input
                   id="onboarding-khatheeb-name"
+                  placeholder="e.g. Usthad Abdul Rahman"
                   value={value.khatheebName}
                   onChange={(e) => onChange({ khatheebName: e.target.value })}
                 />
               </FormField>
             </div>
-          </section>
+          </div>
 
-          <div className="flex gap-2 pt-1">
-            <Button type="button" variant="outline" onClick={onBack}>
+          <div className="flex items-center gap-3 pt-2">
+            <Button type="button" variant="outline" size="lg" onClick={onBack} className="min-w-[100px]">
               Back
             </Button>
-            <Button type="submit" className="w-full" size="lg">
-              Continue
+            <Button type="submit" className="flex-1 text-sm font-semibold shadow-xs" size="lg">
+              Continue to Structure
             </Button>
           </div>
         </form>

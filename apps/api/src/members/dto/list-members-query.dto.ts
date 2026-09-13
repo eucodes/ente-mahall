@@ -29,4 +29,8 @@ export class ListMembersQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsEnum(MovementStatus)
   movementStatus?: MovementStatus;
+
+  @IsOptional()
+  @IsString()
+  divisionId?: string;
 }

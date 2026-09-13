@@ -3,6 +3,7 @@ export enum TenantRole {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
   MODERATOR = "MODERATOR",
+  ACCOUNTANT = "ACCOUNTANT",
   EDITOR = "EDITOR",
   STAFF = "STAFF",
   MEMBER = "MEMBER"
@@ -25,6 +26,7 @@ export const TENANT_ROLE_RANK: Record<TenantRole, number> = {
   [TenantRole.OWNER]: 5,
   [TenantRole.ADMIN]: 4,
   [TenantRole.MODERATOR]: 3,
+  [TenantRole.ACCOUNTANT]: 3,
   [TenantRole.EDITOR]: 2,
   [TenantRole.STAFF]: 1,
   [TenantRole.MEMBER]: 0

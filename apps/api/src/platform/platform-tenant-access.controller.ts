@@ -116,7 +116,7 @@ export class PlatformTenantAccessController {
 
   @Get("families")
   async listFamilies(@Param("tenantId") tenantId: string, @Query() query: PaginationQueryDto) {
-    const { families, total } = await this.familiesService.list(tenantId, query.page, query.pageSize);
+    const { families, total } = await this.familiesService.list(tenantId, query.page, query.pageSize, {});
     return { families, meta: { page: query.page, pageSize: query.pageSize, total } };
   }
 

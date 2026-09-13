@@ -64,43 +64,47 @@ export function SlugField({ id, value, onChange, label = "Mahalle URL", onAvaila
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>
+      <Label htmlFor={id} className="text-sm font-semibold text-foreground">
         {label}
         <span className="text-destructive"> *</span>
       </Label>
       <div
         className={cn(
-          "flex items-center overflow-hidden rounded-md border border-input bg-background text-sm focus-within:ring-2 focus-within:ring-ring",
-          availability === "taken" && "border-destructive focus-within:ring-destructive"
+          "group flex items-center overflow-hidden rounded-xl border border-input/80 bg-background text-sm shadow-2xs transition-all duration-150 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20",
+          availability === "taken" && "border-destructive focus-within:border-destructive focus-within:ring-destructive/20"
         )}
       >
-        <span className="select-none whitespace-nowrap bg-muted px-3 py-2 text-muted-foreground">https://</span>
+        <span className="select-none border-r border-border/60 bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+          https://
+        </span>
         <input
           id={id}
           required
           value={value}
           onChange={(e) => onChange(slugify(e.target.value))}
           placeholder="your-mahalle"
-          className="min-w-0 flex-1 bg-transparent py-2 text-foreground outline-none placeholder:text-muted-foreground"
+          className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
         />
-        <span className="select-none whitespace-nowrap bg-muted px-3 py-2 text-muted-foreground">.{ROOT_DOMAIN}</span>
-        <span className="flex w-8 items-center justify-center text-muted-foreground">
-          {availability === "checking" && <Loader className="h-4 w-4 animate-spin" />}
-          {availability === "available" && <Check className="h-4 w-4 text-success" />}
+        <span className="select-none border-l border-border/60 bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
+          .{ROOT_DOMAIN}
+        </span>
+        <span className="flex w-9 items-center justify-center text-muted-foreground">
+          {availability === "checking" && <Loader className="h-4 w-4 animate-spin text-primary" />}
+          {availability === "available" && <Check className="h-4 w-4 text-emerald-600" />}
           {availability === "taken" && <X className="h-4 w-4 text-destructive" />}
         </span>
       </div>
       <p
         className={cn(
-          "text-xs",
-          availability === "taken" ? "font-medium text-destructive" : "text-muted-foreground"
+          "text-xs transition-colors",
+          availability === "taken" ? "font-medium text-destructive" : availability === "available" ? "font-medium text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
         )}
       >
         {availability === "taken"
-          ? "That URL is already taken — try another."
+          ? "That URL is already taken — choose another identifier."
           : availability === "available"
-            ? "This URL is available."
-            : "This is where you and your members will reach this Mahalle."}
+            ? "✓ Perfect! This URL identifier is available."
+            : "Members and admins will access your workspace via this unique subdomain."}
       </p>
     </div>
   );

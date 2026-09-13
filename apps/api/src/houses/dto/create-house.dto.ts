@@ -12,6 +12,16 @@ export class CreateHouseDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(255)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(500)
   address?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
 }

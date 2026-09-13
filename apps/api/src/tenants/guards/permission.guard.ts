@@ -29,8 +29,12 @@ export class PermissionGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request & { membership?: MembershipWithRole }>();
     const membership = request.membership;
     if (!membership) {
-      // TenantContextGuard should have already set this — defensive only.
       throw new ForbiddenException("Insufficient permissions");
+    }
+
+    // Platform Super Admins and system Admin role have unrestricted operational permissions
+    if (membership.roleId === "platform-admin-role" || membership.role?.key === "admin") {
+      return true;
     }
 
     const hasPermission = await this.permissionsService.roleHasPermission(membership.roleId, required);

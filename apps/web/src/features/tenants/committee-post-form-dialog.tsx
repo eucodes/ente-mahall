@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, FormField, Input, Select, useToast } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -19,6 +19,8 @@ function toDateInputValue(iso: string | null): string {
   return iso ? iso.slice(0, 10) : "";
 }
 
+const EMPTY_FORM: FormValues = { memberId: "", designation: "", displayOrder: "0", termStart: "", termEnd: "" };
+
 export function CommitteePostFormDialog({
   slug,
   open,
@@ -34,7 +36,7 @@ export function CommitteePostFormDialog({
 }) {
   const router = useRouter();
   const { toast } = useToast();
-  const [values, setValues] = useState<FormValues>(
+  const [values, setValues] = useState<FormValues>(() =>
     editingPost
       ? {
           memberId: editingPost.memberId,
@@ -43,10 +45,27 @@ export function CommitteePostFormDialog({
           termStart: toDateInputValue(editingPost.termStart),
           termEnd: toDateInputValue(editingPost.termEnd)
         }
-      : { memberId: "", designation: "", displayOrder: "0", termStart: "", termEnd: "" }
+      : EMPTY_FORM
   );
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setError(null);
+      if (editingPost) {
+        setValues({
+          memberId: editingPost.memberId,
+          designation: editingPost.designation,
+          displayOrder: String(editingPost.displayOrder),
+          termStart: toDateInputValue(editingPost.termStart),
+          termEnd: toDateInputValue(editingPost.termEnd)
+        });
+      } else {
+        setValues(EMPTY_FORM);
+      }
+    }
+  }, [open, editingPost]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -56,8 +75,8 @@ export function CommitteePostFormDialog({
       memberId: values.memberId,
       designation: values.designation,
       displayOrder: values.displayOrder ? Number(values.displayOrder) : undefined,
-      termStart: values.termStart || undefined,
-      termEnd: values.termEnd || undefined
+      termStart: editingPost ? (values.termStart || null) : (values.termStart || undefined),
+      termEnd: editingPost ? (values.termEnd || null) : (values.termEnd || undefined)
     };
     try {
       if (editingPost) {

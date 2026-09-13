@@ -82,7 +82,7 @@ export function TopbarSearch({ slug }: { slug: string }) {
                 </button>
               ))}
               {results.houses.map((h) => (
-                <button key={h.id} className="block w-full px-3 py-2 text-left hover:bg-muted" onClick={() => go(`/${slug}/houses`)}>
+                <button key={h.id} className="block w-full px-3 py-2 text-left hover:bg-muted" onClick={() => go(`/${slug}/families`)}>
                   House {h.displayNumber}
                 </button>
               ))}

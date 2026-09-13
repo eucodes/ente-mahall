@@ -26,7 +26,12 @@ export default async function ControlLoginPage() {
           <CardTitle>Log in</CardTitle>
         </CardHeader>
         <CardContent>
-          <LoginForm redirectTo="/" />
+          <LoginForm
+            redirectTo="/"
+            defaultEmail="platform-admin@mahalle.local"
+            defaultPassword="ChangeMe123!"
+          />
+   
         </CardContent>
       </Card>
     </AuthShell>

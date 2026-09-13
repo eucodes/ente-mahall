@@ -16,19 +16,19 @@ import {
   TableRow,
   useToast
 } from "@mahalle/ui";
-import { TenantRole } from "@mahalle/types";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { AdminMember } from "@/lib/admins";
-
-const ROLE_OPTIONS = Object.values(TenantRole);
+import type { RoleSummary } from "@/lib/roles";
 
 export function AdminsTable({
   slug,
   admins,
+  roles,
   currentUserId
 }: {
   slug: string;
   admins: AdminMember[];
+  roles: RoleSummary[];
   currentUserId: string;
 }) {
   const router = useRouter();
@@ -77,6 +77,12 @@ export function AdminsTable({
         <TableBody>
           {admins.map((admin) => {
             const isSelf = admin.user.id === currentUserId;
+            // The admin's current role might be inactive or missing from the
+            // assignable list (e.g. a deactivated custom role) — always
+            // include it as an option so the select never silently drops it.
+            const options = roles.some((r) => r.key === admin.role.key)
+              ? roles
+              : [{ id: admin.role.key, key: admin.role.key, name: admin.role.name } as RoleSummary, ...roles];
             return (
               <TableRow key={admin.id}>
                 <TableCell className="font-medium">
@@ -90,11 +96,11 @@ export function AdminsTable({
                     value={admin.role.key}
                     disabled={isSelf}
                     onChange={(e) => handleRoleChange(admin, e.target.value)}
-                    className="h-8 w-36"
+                    className="h-8 w-44"
                   >
-                    {ROLE_OPTIONS.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
+                    {options.map((role) => (
+                      <option key={role.key} value={role.key}>
+                        {role.name}
                       </option>
                     ))}
                   </Select>
@@ -129,11 +135,11 @@ export function AdminsTable({
   );
 }
 
-export function AddAdminForm({ slug }: { slug: string }) {
+export function AddAdminForm({ slug, roles }: { slug: string; roles: RoleSummary[] }) {
   const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
-  const [roleKey, setRoleKey] = useState<string>(TenantRole.STAFF);
+  const [roleKey, setRoleKey] = useState<string>(roles.find((r) => r.key === "STAFF")?.key ?? roles[0]?.key ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -168,10 +174,10 @@ export function AddAdminForm({ slug }: { slug: string }) {
         />
       </FormField>
       <FormField label="Role" htmlFor="add-admin-role">
-        <Select id="add-admin-role" value={roleKey} onChange={(e) => setRoleKey(e.target.value)} className="w-36">
-          {ROLE_OPTIONS.map((role) => (
-            <option key={role} value={role}>
-              {role}
+        <Select id="add-admin-role" value={roleKey} onChange={(e) => setRoleKey(e.target.value)} className="w-44">
+          {roles.map((role) => (
+            <option key={role.key} value={role.key}>
+              {role.name}
             </option>
           ))}
         </Select>

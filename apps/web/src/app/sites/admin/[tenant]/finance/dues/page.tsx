@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
-import { getAccounts, getDues } from "@/lib/finance";
+import { getAccounts, getDues, getCollectionCategories } from "@/lib/finance";
 import { getMembers } from "@/lib/members";
 import { SimpleCreateForm } from "@/features/tenants/simple-create-form";
 import { FinanceDuesTable } from "@/features/tenants/finance-dues-table";
@@ -17,12 +17,17 @@ export default async function DuesPage({ params }: { params: Promise<{ tenant: s
   const membership = await getMyTenantMembership(slug);
   if (!membership) redirect("/");
 
-  const [result, accounts, membersResult] = await Promise.all([getDues(slug, 1, PAGE_SIZE), getAccounts(slug), getMembers(slug, 1, PAGE_SIZE)]);
+  const [result, accounts, membersResult, categories] = await Promise.all([
+    getDues(slug, 1, PAGE_SIZE),
+    getAccounts(slug),
+    getMembers(slug, 1, PAGE_SIZE),
+    getCollectionCategories(slug)
+  ]);
 
   if (result === null || accounts === null) {
     return (
       <>
-        <PageHeader title="Dues" description="Amounts owed by members, reconciled against payment vouchers." />
+        <PageHeader title="Dues & Arrears" description="Amounts owed by members and families, reconciled against payment receipts." />
         <Card>
           <CardContent className="p-0">
             <EmptyState
@@ -37,11 +42,11 @@ export default async function DuesPage({ params }: { params: Promise<{ tenant: s
 
   return (
     <>
-      <PageHeader title="Dues" description="Amounts owed by members, reconciled against payment vouchers." />
+      <PageHeader title="Dues & Arrears" description="Amounts owed by members and families, reconciled against payment receipts." />
       <div className="space-y-6">
-        <Card>
+        <Card className="rounded-2xl border border-border/80 shadow-sm">
           <CardHeader>
-            <CardTitle>Add a due</CardTitle>
+            <CardTitle className="text-base font-semibold">Add Member / Family Due</CardTitle>
           </CardHeader>
           <CardContent>
             <SimpleCreateForm
@@ -56,14 +61,20 @@ export default async function DuesPage({ params }: { params: Promise<{ tenant: s
                   required: true,
                   options: (membersResult?.members ?? []).map((m) => ({ value: m.id, label: m.fullName }))
                 },
-                { name: "title", label: "Title", required: true },
-                { name: "amount", label: "Amount", required: true },
-                { name: "dueDate", label: "Due date", type: "date", required: true }
+                { name: "title", label: "Title / Particulars", required: true },
+                { name: "amount", label: "Amount (₹)", required: true },
+                { name: "dueDate", label: "Due Date", type: "date", required: true },
+                { name: "period", label: "Period (e.g. Sep 2026)", type: "text" }
               ]}
             />
           </CardContent>
         </Card>
-        <FinanceDuesTable slug={slug} dues={result.dues} accounts={accounts} />
+        <FinanceDuesTable
+          slug={slug}
+          dues={result.dues}
+          accounts={accounts}
+          mahalleName={membership.tenant.name || "Mahall"}
+        />
       </div>
     </>
   );

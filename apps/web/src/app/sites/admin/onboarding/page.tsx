@@ -28,19 +28,36 @@ export default async function OnboardingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-muted/40">
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex h-16 max-w-5xl items-center px-6">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+    <main className="min-h-screen bg-background relative overflow-hidden">
+      {/* Background ambient lighting */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-96 w-[800px] rounded-full bg-emerald-500/8 blur-[120px] dark:bg-emerald-500/12" />
+
+      <header className="sticky top-0 z-20 border-b border-border/70 bg-background/85 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-xs shadow-emerald-700/20">
               <Sparkles className="h-4 w-4" />
             </div>
-            <span className="font-semibold tracking-tight">admin.{ROOT_DOMAIN}</span>
+            <div className="flex items-center gap-2">
+              <span className="font-bold tracking-tight text-foreground text-base">Ente Mahallu</span>
+              <span className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                Setup Wizard
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="hidden sm:inline">Need assistance?</span>
+            <a
+              href={`https://${ROOT_DOMAIN}`}
+              className="inline-flex items-center gap-1 rounded-lg border border-border/80 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted/70"
+            >
+              Exit to portal
+            </a>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl px-6 py-10 sm:py-12">
+      <div className="relative mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
         <OnboardingWizard
           initialStep={initialStep}
           initialData={initialData}

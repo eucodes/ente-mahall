@@ -9,10 +9,51 @@ export interface PlatformTenant {
   id: string;
   slug: string;
   name: string;
+  description?: string | null;
   isActive: boolean;
   createdAt: string;
+  updatedAt?: string;
+  // Branding
+  logoUrl?: string | null;
+  coverImageUrl?: string | null;
+  // Contact
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  website?: string | null;
+  // Masjid
+  masjidName?: string | null;
+  masjidPhone?: string | null;
+  masjidAddress?: string | null;
+  imamName?: string | null;
+  khatheebName?: string | null;
+  // Location
+  country?: string | null;
+  state?: string | null;
+  district?: string | null;
+  localBodyType?: string | null;
+  localBody?: string | null;
+  place?: string | null;
+  pinCode?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  // Structure
+  hasDivisions?: boolean;
+  divisionTerm?: string | null;
+  // Management
+  presidentName?: string | null;
+  presidentPhone?: string | null;
+  secretaryName?: string | null;
+  secretaryPhone?: string | null;
+  treasurerName?: string | null;
+  treasurerPhone?: string | null;
+  // Counts
   memberCount: number;
+  familyCount: number;
+  adminCount: number;
 }
+
 
 export interface AuditLogEntry {
   id: string;
@@ -152,11 +193,104 @@ export async function getTenantAdmins(tenantId: string): Promise<PlatformAdmin[]
 
 export async function getAuditLogs(
   page: number,
-  pageSize: number
+  pageSize: number,
+  filters?: { search?: string; action?: string; tenantId?: string }
 ): Promise<{ entries: AuditLogEntry[]; total: number }> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    pageSize: pageSize.toString()
+  });
+  if (filters?.search) params.set("search", filters.search);
+  if (filters?.action && filters.action !== "all") params.set("action", filters.action);
+  if (filters?.tenantId && filters.tenantId !== "all") params.set("tenantId", filters.tenantId);
+
   const { status, body } = await serverApiGet<{ entries: AuditLogEntry[]; meta: { total: number } }>(
-    `/platform/audit-logs?page=${page}&pageSize=${pageSize}`
+    `/platform/audit-logs?${params.toString()}`
   );
   if (status !== 200 || !body.success || !body.data) return { entries: [], total: 0 };
   return { entries: body.data.entries, total: body.data.meta.total };
 }
+
+export interface PlatformUser {
+  id: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  user: { id: string; email: string; fullName: string; isActive: boolean };
+}
+
+export async function getPlatformUsers(): Promise<PlatformUser[]> {
+  const { status, body } = await serverApiGet<{ users: PlatformUser[] }>("/platform/users");
+  if (status !== 200 || !body.success || !body.data) return [];
+  return body.data.users;
+}
+
+export interface StatewideUser {
+  id: string;
+  email: string;
+  fullName: string;
+  phone: string | null;
+  isActive: boolean;
+  createdAt: string;
+  platformRole: string | null;
+  tenants: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    role: string;
+  }>;
+  activeSessionsCount: number;
+}
+
+export async function getAllUsers(search?: string): Promise<StatewideUser[]> {
+  const path = search ? `/platform/all-users?search=${encodeURIComponent(search)}` : "/platform/all-users";
+  const { status, body } = await serverApiGet<{ users: StatewideUser[] }>(path);
+  if (status !== 200 || !body.success || !body.data) return [];
+  return body.data.users;
+}
+
+export interface SystemStatus {
+  status: string;
+  database: {
+    connected: boolean;
+    provider: string;
+  };
+  counts: {
+    tenants: number;
+    activeTenants: number;
+    users: number;
+    members: number;
+    families: number;
+    auditLogs: number;
+    activeSessions: number;
+  };
+  environment: {
+    nodeEnv: string;
+    platformVersion: string;
+    uptimeSeconds: number;
+  };
+}
+
+export async function getSystemStatus(): Promise<SystemStatus | null> {
+  const { status, body } = await serverApiGet<SystemStatus>("/platform/system/status");
+  if (status !== 200 || !body.success || !body.data) return null;
+  return body.data;
+}
+
+export interface PlatformUserSession {
+  id: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+}
+
+export async function getUserSessions(userId: string): Promise<PlatformUserSession[]> {
+  const { status, body } = await serverApiGet<{ sessions: PlatformUserSession[] }>(
+    `/platform/users/${encodeURIComponent(userId)}/sessions`
+  );
+  if (status !== 200 || !body.success || !body.data) return [];
+  return body.data.sessions;
+}
+

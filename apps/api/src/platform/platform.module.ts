@@ -13,6 +13,7 @@ import { PlatformContextGuard } from "./guards/platform-context.guard";
 @Module({
   imports: [MembersModule, FamiliesModule, EventsModule, AnnouncementsModule, ProgramsModule, TenantsModule],
   controllers: [PlatformController, PlatformTenantAccessController],
-  providers: [PlatformService, PlatformContextGuard]
+  providers: [PlatformService, PlatformContextGuard],
+  exports: [PlatformService, PlatformContextGuard]
 })
 export class PlatformModule {}

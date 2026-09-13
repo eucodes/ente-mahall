@@ -19,7 +19,7 @@ import {
 const RESERVED_SLUGS = new Set(["www", "admin", "control", "api", "app", "mail", "ftp"]);
 
 const LOCAL_BODY_TYPES = ["Grama Panchayat", "Municipality", "Corporation", "Other"] as const;
-const HOUSE_NUMBERING_METHODS = ["NUMERIC", "ALPHANUMERIC", "CUSTOM"] as const;
+const HOUSE_NUMBERING_METHODS = ["NUMERIC", "ALPHANUMERIC", "CUSTOM", "PER_DIVISION", "GLOBAL"] as const;
 
 export class DivisionDto {
   @IsString()

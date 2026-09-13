@@ -28,7 +28,8 @@ export class MembersController {
       isYatheem: query.isYatheem,
       isExpatriate: query.isExpatriate,
       bloodGroup: query.bloodGroup,
-      movementStatus: query.movementStatus
+      movementStatus: query.movementStatus,
+      divisionId: query.divisionId
     });
     return { members, meta: { page: query.page, pageSize: query.pageSize, total } };
   }

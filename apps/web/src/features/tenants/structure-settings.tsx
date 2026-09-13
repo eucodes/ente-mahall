@@ -3,64 +3,72 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Badge,
   Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-  ConfirmDialog,
   EmptyState,
   FormField,
   Input,
   Pencil,
   Select,
+  StatCard,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-  Trash,
   useToast
 } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
-import type { Division, Structure } from "@/lib/structure";
+import type { Division, Structure, StructureSummary } from "@/lib/structure";
 import { DivisionFormDialog } from "./division-form-dialog";
-
-const DIVISION_TERMS = ["Ward", "Division", "Area", "Zone", "Other"] as const;
-const HOUSE_NUMBERING_METHODS = ["NUMERIC", "ALPHANUMERIC", "CUSTOM"] as const;
 
 export interface StructureSettingsProps {
   slug: string;
   structure: Structure;
   divisions: Division[];
+  summary: StructureSummary | null;
 }
 
-export function StructureSettings({ slug, structure, divisions }: StructureSettingsProps) {
+export function StructureSettings({ slug, structure, divisions, summary }: StructureSettingsProps) {
   const router = useRouter();
   const { toast } = useToast();
 
   const [hasDivisions, setHasDivisions] = useState(structure.hasDivisions);
-  const [divisionTerm, setDivisionTerm] = useState(structure.divisionTerm ?? "");
-  const [houseNumberingMethod, setHouseNumberingMethod] = useState(structure.houseNumberingMethod ?? "NUMERIC");
+  const [divisionTerm, setDivisionTerm] = useState(structure.divisionTerm ?? "Division");
+  const [isNumberingPerDivision, setIsNumberingPerDivision] = useState(() => {
+    if (structure.houseNumberingMethod === "PER_DIVISION") return true;
+    if (structure.houseNumberingMethod === "GLOBAL") return false;
+    if (structure.houseNumberPrefix) return false;
+    return true; // default to different per division
+  });
+  const [houseNumberPrefix, setHouseNumberPrefix] = useState(structure.houseNumberPrefix ?? "");
   const [isSaving, setIsSaving] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingDivision, setEditingDivision] = useState<Division | null>(null);
-  const [removeTarget, setRemoveTarget] = useState<Division | null>(null);
-  const [isRemoving, setIsRemoving] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const label = divisionTerm || "division";
-  const isKnownTerm = (DIVISION_TERMS as readonly string[]).includes(divisionTerm);
+  const activeDivisions = divisions.filter((d) => d.isActive);
+  const inactiveDivisions = divisions.filter((d) => !d.isActive);
+  const sortedActive = [...activeDivisions].sort((a, b) => a.order - b.order);
 
   async function handleSaveSettings() {
     setIsSaving(true);
     try {
       await apiClient.patch(`/tenants/${slug}/structure`, {
         hasDivisions,
-        divisionTerm: hasDivisions ? divisionTerm : "",
-        houseNumberingMethod
+        divisionTerm: hasDivisions ? divisionTerm.trim() : "",
+        houseNumberingMethod: hasDivisions ? (isNumberingPerDivision ? "PER_DIVISION" : "GLOBAL") : "GLOBAL",
+        houseNumberPrefix: hasDivisions
+          ? (!isNumberingPerDivision && houseNumberPrefix.trim() ? houseNumberPrefix.trim().toUpperCase() : null)
+          : (houseNumberPrefix.trim() ? houseNumberPrefix.trim().toUpperCase() : null)
       });
       toast({ title: "Structure settings saved", variant: "success" });
       router.refresh();
@@ -72,24 +80,51 @@ export function StructureSettings({ slug, structure, divisions }: StructureSetti
     }
   }
 
-  async function handleRemoveDivision() {
-    if (!removeTarget) return;
-    setIsRemoving(true);
+  async function handleToggleActive(division: Division) {
+    setBusyId(division.id);
     try {
-      await apiClient.delete(`/tenants/${slug}/structure/divisions/${removeTarget.id}`);
-      toast({ title: `Removed ${removeTarget.name}`, variant: "success" });
-      setRemoveTarget(null);
+      const action = division.isActive ? "deactivate" : "reactivate";
+      await apiClient.patch(`/tenants/${slug}/structure/divisions/${division.id}/${action}`, {});
+      toast({ title: division.isActive ? `${division.name} deactivated` : `${division.name} reactivated`, variant: "success" });
       router.refresh();
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Couldn't remove that entry.";
+      const message = err instanceof ApiError ? err.message : "Couldn't update that entry.";
       toast({ title: "Something went wrong", description: message, variant: "destructive" });
     } finally {
-      setIsRemoving(false);
+      setBusyId(null);
+    }
+  }
+
+  async function handleMove(division: Division, direction: -1 | 1) {
+    const index = sortedActive.findIndex((d) => d.id === division.id);
+    const swapWith = sortedActive[index + direction];
+    if (!swapWith) return;
+    const reordered = [...sortedActive];
+    [reordered[index], reordered[index + direction]] = [reordered[index + direction], reordered[index]];
+    setBusyId(division.id);
+    try {
+      await apiClient.post(`/tenants/${slug}/structure/divisions/reorder`, { orderedIds: reordered.map((d) => d.id) });
+      router.refresh();
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Couldn't reorder.";
+      toast({ title: "Something went wrong", description: message, variant: "destructive" });
+    } finally {
+      setBusyId(null);
     }
   }
 
   return (
     <div className="space-y-6">
+      {summary && (
+        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <StatCard label={hasDivisions ? `Total ${label.toLowerCase()}s` : "Total divisions"} value={summary.totalDivisions} tone="violet" />
+          <StatCard label="Total houses" value={summary.totalHouses} tone="blue" />
+          <StatCard label="Active houses" value={summary.activeHouses} tone="green" />
+          <StatCard label="Inactive houses" value={summary.inactiveHouses} />
+          {hasDivisions && <StatCard label="Unassigned houses" value={summary.unassignedHouses} />}
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>How is this Mahallu organized?</CardTitle>
@@ -105,55 +140,125 @@ export function StructureSettings({ slug, structure, divisions }: StructureSetti
               onChange={(e) => setHasDivisions(e.target.value === "yes")}
               className="max-w-xs"
             >
-              <option value="no">No</option>
-              <option value="yes">Yes</option>
+              <option value="no">No subdivisions</option>
+              <option value="yes">Subdivisions enabled</option>
             </Select>
           </FormField>
 
-          {hasDivisions && (
-            <FormField label="What do you call these divisions?" htmlFor="settings-division-term">
-              <div className="flex max-w-md gap-2">
-                <Select
+          {hasDivisions ? (
+            <>
+              <FormField
+                label="What do you call these divisions?"
+                htmlFor="settings-division-term"
+                hint="e.g. Division, Ward, Area, Zone, Mohalla, Unit"
+              >
+                <Input
                   id="settings-division-term"
-                  value={isKnownTerm ? divisionTerm : "Other"}
-                  onChange={(e) => setDivisionTerm(e.target.value === "Other" ? "" : e.target.value)}
+                  placeholder="e.g. Division, Ward, Area, Zone"
+                  value={divisionTerm}
+                  onChange={(e) => setDivisionTerm(e.target.value)}
+                  className="max-w-md"
+                />
+              </FormField>
+
+              <div className="space-y-3 pt-2 border-t border-border">
+                <FormField
+                  label={`Is house numbering different in each ${label.toLowerCase()}?`}
+                  htmlFor="numbering-scope"
+                  hint={`Determine whether each ${label.toLowerCase()} has its own prefix code or if one global code is used`}
                 >
-                  <option value="">Select</option>
-                  {DIVISION_TERMS.map((term) => (
-                    <option key={term} value={term}>
-                      {term}
-                    </option>
-                  ))}
-                </Select>
-                {!isKnownTerm && (
-                  <Input
-                    placeholder="Enter your term (e.g. Unit)"
-                    value={divisionTerm}
-                    onChange={(e) => setDivisionTerm(e.target.value)}
-                  />
+                  <div className="flex flex-col sm:flex-row gap-3 max-w-xl">
+                    <label
+                      className={`flex-1 flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
+                        isNumberingPerDivision
+                          ? "border-primary bg-primary/5 text-foreground"
+                          : "border-border hover:bg-muted/40 text-muted-foreground"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        id="numbering-scope-div"
+                        name="numbering-scope"
+                        checked={isNumberingPerDivision}
+                        onChange={() => setIsNumberingPerDivision(true)}
+                        className="mt-0.5 text-primary focus:ring-primary"
+                      />
+                      <div className="flex flex-col text-xs">
+                        <span className="font-semibold text-foreground">Yes, different per {label.toLowerCase()}</span>
+                        <span className="text-muted-foreground mt-0.5">
+                          Each {label.toLowerCase()} defines its own code (e.g. Kambalakkad = KBD → KBD01)
+                        </span>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex-1 flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
+                        !isNumberingPerDivision
+                          ? "border-primary bg-primary/5 text-foreground"
+                          : "border-border hover:bg-muted/40 text-muted-foreground"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        id="numbering-scope-global"
+                        name="numbering-scope"
+                        checked={!isNumberingPerDivision}
+                        onChange={() => setIsNumberingPerDivision(false)}
+                        className="mt-0.5 text-primary focus:ring-primary"
+                      />
+                      <div className="flex flex-col text-xs">
+                        <span className="font-semibold text-foreground">No, same globally</span>
+                        <span className="text-muted-foreground mt-0.5">
+                          Use the same prefix code for all houses across the Mahallu
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </FormField>
+
+                {!isNumberingPerDivision && (
+                  <div className="p-3.5 rounded-xl bg-muted/30 border border-border/80 max-w-md space-y-2 animate-in fade-in-50 duration-150">
+                    <FormField
+                      label="Global House Number Prefix / Code"
+                      htmlFor="global-house-prefix"
+                      hint="Prefix code used before house numbers across the entire Mahallu (e.g. MH, KBD)"
+                    >
+                      <Input
+                        id="global-house-prefix"
+                        placeholder="e.g. MH"
+                        value={houseNumberPrefix}
+                        onChange={(e) => setHouseNumberPrefix(e.target.value.toUpperCase())}
+                        className="font-mono uppercase max-w-xs"
+                      />
+                    </FormField>
+                  </div>
                 )}
               </div>
-            </FormField>
+            </>
+          ) : (
+            /* When divisions are disabled: ask house number code globally */
+            <div className="space-y-3 pt-2 border-t border-border max-w-md animate-in fade-in-50 duration-150">
+              <FormField
+                label="House Number Prefix / Code"
+                htmlFor="disabled-div-house-prefix"
+                hint="Prefix code used before house numbers across this Mahallu (e.g. MH for MH01, MH02)"
+              >
+                <Input
+                  id="disabled-div-house-prefix"
+                  placeholder="e.g. MH"
+                  value={houseNumberPrefix}
+                  onChange={(e) => setHouseNumberPrefix(e.target.value.toUpperCase())}
+                  className="font-mono uppercase max-w-xs"
+                />
+              </FormField>
+            </div>
           )}
 
-          <FormField label="House numbering method" htmlFor="settings-house-numbering">
-            <Select
-              id="settings-house-numbering"
-              className="max-w-xs"
-              value={houseNumberingMethod}
-              onChange={(e) => setHouseNumberingMethod(e.target.value)}
-            >
-              {HOUSE_NUMBERING_METHODS.map((m) => (
-                <option key={m} value={m}>
-                  {m[0] + m.slice(1).toLowerCase()}
-                </option>
-              ))}
-            </Select>
-          </FormField>
-
-          <Button isLoading={isSaving} onClick={handleSaveSettings}>
-            Save
-          </Button>
+          <div className="pt-2">
+            <Button isLoading={isSaving} onClick={handleSaveSettings}>
+              Save
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -162,7 +267,7 @@ export function StructureSettings({ slug, structure, divisions }: StructureSetti
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div>
               <CardTitle className="capitalize">{label}s</CardTitle>
-              <CardDescription>Add, edit, or remove the {label.toLowerCase()}s this Mahallu is split into.</CardDescription>
+              <CardDescription>Add, edit, reorder, or deactivate the {label.toLowerCase()}s this Mahallu is split into.</CardDescription>
             </div>
             <Button
               size="sm"
@@ -181,18 +286,55 @@ export function StructureSettings({ slug, structure, divisions }: StructureSetti
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Order</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Description</TableHead>
+                    <TableHead>Code / Prefix</TableHead>
+                    <TableHead>Houses</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {divisions.map((division) => (
+                  {[...sortedActive, ...inactiveDivisions].map((division, idx) => (
                     <TableRow key={division.id}>
+                      <TableCell className="text-muted-foreground">
+                        {division.isActive && (
+                          <div className="flex gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={idx === 0 || busyId === division.id}
+                              onClick={() => handleMove(division, -1)}
+                              aria-label={`Move ${division.name} up`}
+                            >
+                              ↑
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={idx === sortedActive.length - 1 || busyId === division.id}
+                              onClick={() => handleMove(division, 1)}
+                              aria-label={`Move ${division.name} down`}
+                            >
+                              ↓
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="font-medium">{division.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{division.code ?? "—"}</TableCell>
-                      <TableCell className="text-muted-foreground">{division.description ?? "—"}</TableCell>
+                      <TableCell>
+                        {division.code ? (
+                          <span className="font-mono font-semibold px-2 py-0.5 rounded bg-muted text-foreground text-xs border border-border">
+                            {division.code}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">—</TableCell>
+                      <TableCell>
+                        <Badge variant={division.isActive ? "secondary" : "outline"}>{division.isActive ? "Active" : "Inactive"}</Badge>
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button
@@ -205,8 +347,13 @@ export function StructureSettings({ slug, structure, divisions }: StructureSetti
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setRemoveTarget(division)}>
-                            <Trash className="h-4 w-4" />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            isLoading={busyId === division.id}
+                            onClick={() => handleToggleActive(division)}
+                          >
+                            {division.isActive ? "Deactivate" : "Reactivate"}
                           </Button>
                         </div>
                       </TableCell>
@@ -220,17 +367,6 @@ export function StructureSettings({ slug, structure, divisions }: StructureSetti
       )}
 
       <DivisionFormDialog slug={slug} open={formOpen} onOpenChange={setFormOpen} editingDivision={editingDivision} divisionTerm={label} />
-
-      <ConfirmDialog
-        open={removeTarget !== null}
-        onOpenChange={(open) => !open && setRemoveTarget(null)}
-        title={`Remove ${removeTarget?.name ?? "this entry"}?`}
-        description="Houses in this entry are not deleted — they just become unassigned."
-        confirmLabel="Remove"
-        destructive
-        isConfirming={isRemoving}
-        onConfirm={handleRemoveDivision}
-      />
     </div>
   );
 }

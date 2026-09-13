@@ -21,7 +21,7 @@ export default async function SalaryPage({ params }: { params: Promise<{ tenant:
   if (result === null || accounts === null) {
     return (
       <>
-        <PageHeader title="Salary" description="Staff salary obligations, reconciled against payment vouchers." />
+        <PageHeader title="Staff Salary Register" description="Staff salary obligations, allowances, deductions, and payment disbursement." />
         <Card>
           <CardContent className="p-0">
             <EmptyState
@@ -36,21 +36,23 @@ export default async function SalaryPage({ params }: { params: Promise<{ tenant:
 
   return (
     <>
-      <PageHeader title="Salary" description="Staff salary obligations, reconciled against payment vouchers." />
+      <PageHeader title="Staff Salary Register" description="Staff salary obligations, allowances, deductions, and payment disbursement." />
       <div className="space-y-6">
-        <Card>
+        <Card className="rounded-2xl border border-border/80 shadow-sm">
           <CardHeader>
-            <CardTitle>Add a salary record</CardTitle>
+            <CardTitle className="text-base font-semibold">Add Salary Obligation</CardTitle>
           </CardHeader>
           <CardContent>
             <SimpleCreateForm
               slug={slug}
               resource="finance/salary"
-              successMessage="Salary record added"
+              successMessage="Salary obligation recorded"
               fields={[
-                { name: "staffName", label: "Staff name", required: true },
-                { name: "month", label: "Month", required: true, type: "text" },
-                { name: "amount", label: "Amount", required: true }
+                { name: "staffName", label: "Staff Name / Designation", required: true },
+                { name: "month", label: "Month (e.g. Sep 2026)", required: true, type: "text" },
+                { name: "basicSalary", label: "Basic Salary (₹)", required: true },
+                { name: "allowances", label: "Allowances (₹)", hint: "Optional add-ons" },
+                { name: "deductions", label: "Deductions (₹)", hint: "Optional deductions" }
               ]}
             />
           </CardContent>

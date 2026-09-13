@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Card, CardContent, EmptyState, PageHeader } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
-import { getStructure } from "@/lib/structure";
+import { getStructure, getStructureSummary } from "@/lib/structure";
 import { StructureSettings } from "@/features/tenants/structure-settings";
 
 export default async function StructureSettingsPage({ params }: { params: Promise<{ tenant: string }> }) {
@@ -13,7 +13,7 @@ export default async function StructureSettingsPage({ params }: { params: Promis
   const membership = await getMyTenantMembership(slug);
   if (!membership) redirect("/");
 
-  const result = await getStructure(slug);
+  const [result, summary] = await Promise.all([getStructure(slug), getStructureSummary(slug)]);
 
   return (
     <>
@@ -29,7 +29,7 @@ export default async function StructureSettingsPage({ params }: { params: Promis
           </CardContent>
         </Card>
       ) : (
-        <StructureSettings slug={slug} structure={result.structure} divisions={result.divisions} />
+        <StructureSettings slug={slug} structure={result.structure} divisions={result.divisions} summary={summary} />
       )}
     </>
   );

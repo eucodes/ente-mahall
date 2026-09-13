@@ -280,7 +280,7 @@ export function OnboardingWizard({ initialStep, initialData, account: accountFro
   }
 
   return (
-    <div className="mx-auto w-full max-w-lg space-y-8">
+    <div className="mx-auto w-full max-w-2xl space-y-8">
       <OnboardingSteps current={step} />
 
       {step === "account" && (

@@ -41,6 +41,7 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
       <FormField label="Full name" htmlFor="register-name" required>
         <Input
           id="register-name"
+          name="name"
           autoComplete="name"
           autoFocus
           required
@@ -53,6 +54,7 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
       <FormField label="Email" htmlFor="register-email" required>
         <Input
           id="register-email"
+          name="email"
           type="email"
           autoComplete="email"
           required
@@ -72,6 +74,7 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
         <div className="space-y-2">
           <PasswordInput
             id="register-password"
+            name="password"
             autoComplete="new-password"
             required
             invalid={Boolean(error)}

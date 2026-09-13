@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   Button,
@@ -51,6 +51,15 @@ export function RegisterFormDialog({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (open) {
+      setError(null);
+      setValues(
+        Object.fromEntries(fields.map((f) => [f.name, toInputValue(editingRecord?.[f.name], f.type)]))
+      );
+    }
+  }, [open, editingRecord, fields]);
+
   function setValue(name: string, value: string) {
     setValues((v) => ({ ...v, [name]: value }));
   }
@@ -65,7 +74,7 @@ export function RegisterFormDialog({
       if (field.type === "checkbox") {
         payload[field.name] = raw === "true";
       } else {
-        payload[field.name] = raw || undefined;
+        payload[field.name] = editingRecord ? (raw || null) : (raw || undefined);
       }
     }
     try {
@@ -87,59 +96,61 @@ export function RegisterFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="w-[95vw] max-w-xl sm:w-[620px] h-[640px] max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl">
+        <DialogHeader className="p-5 pb-3 border-b border-border bg-muted/20 shrink-0">
           <DialogTitle>{editingRecord ? title.edit : title.create}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {fields.map((field, index) => {
-              const wrapperClass = field.fullWidth || field.type === "textarea" ? "sm:col-span-2" : undefined;
-              const fieldId = `field-${field.name}`;
-              return (
-                <FormField
-                  key={field.name}
-                  label={field.label}
-                  htmlFor={fieldId}
-                  required={field.required}
-                  hint={field.hint}
-                  error={index === 0 ? (error ?? undefined) : undefined}
-                  className={wrapperClass}
-                >
-                  {field.type === "textarea" ? (
-                    <Textarea id={fieldId} required={field.required} value={values[field.name]} onChange={(e) => setValue(field.name, e.target.value)} />
-                  ) : field.type === "select" ? (
-                    <Select id={fieldId} required={field.required} value={values[field.name]} onChange={(e) => setValue(field.name, e.target.value)}>
-                      <option value="">Select…</option>
-                      {field.options?.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : field.type === "checkbox" ? (
-                    <div className="flex h-9 items-center">
-                      <Checkbox checked={values[field.name] === "true"} onChange={(e) => setValue(field.name, String(e.target.checked))} />
-                    </div>
-                  ) : (
-                    <Input
-                      id={fieldId}
-                      type={field.type === "date" ? "date" : "text"}
-                      required={field.required}
-                      value={values[field.name]}
-                      onChange={(e) => setValue(field.name, e.target.value)}
-                    />
-                  )}
-                </FormField>
-              );
-            })}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0" noValidate>
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {fields.map((field, index) => {
+                const wrapperClass = field.fullWidth || field.type === "textarea" ? "sm:col-span-2" : undefined;
+                const fieldId = `field-${field.name}`;
+                return (
+                  <FormField
+                    key={field.name}
+                    label={field.label}
+                    htmlFor={fieldId}
+                    required={field.required}
+                    hint={field.hint}
+                    error={index === 0 ? (error ?? undefined) : undefined}
+                    className={wrapperClass}
+                  >
+                    {field.type === "textarea" ? (
+                      <Textarea id={fieldId} required={field.required} value={values[field.name]} onChange={(e) => setValue(field.name, e.target.value)} />
+                    ) : field.type === "select" ? (
+                      <Select id={fieldId} required={field.required} value={values[field.name]} onChange={(e) => setValue(field.name, e.target.value)}>
+                        <option value="">Select…</option>
+                        {field.options?.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : field.type === "checkbox" ? (
+                      <div className="flex h-9 items-center">
+                        <Checkbox checked={values[field.name] === "true"} onChange={(e) => setValue(field.name, String(e.target.checked))} />
+                      </div>
+                    ) : (
+                      <Input
+                        id={fieldId}
+                        type={field.type === "date" ? "date" : "text"}
+                        required={field.required}
+                        value={values[field.name]}
+                        onChange={(e) => setValue(field.name, e.target.value)}
+                      />
+                    )}
+                  </FormField>
+                );
+              })}
+            </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="p-4 px-6 border-t border-border bg-muted/20 flex items-center justify-end gap-2 shrink-0">
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" isLoading={isSubmitting}>
-              {editingRecord ? "Save" : "Add"}
+            <Button type="submit" size="sm" isLoading={isSubmitting}>
+              {editingRecord ? "Save Changes" : "Add Record"}
             </Button>
           </DialogFooter>
         </form>

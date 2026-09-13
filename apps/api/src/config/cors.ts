@@ -6,7 +6,15 @@
  * subdomain never needs a CORS allowlist update.
  */
 export function createCorsOriginValidator(cookieDomain: string, explicitOrigins: string[]) {
-  const rootApex = cookieDomain.replace(/^\./, "");
+  const rootApexes = cookieDomain
+    .split(",")
+    .map((d) => d.trim().replace(/^\./, "").replace(/:\d+$/, ""))
+    .filter(Boolean);
+
+  const cleanExplicitOrigins = explicitOrigins
+    .flatMap((o) => o.split(","))
+    .map((o) => o.trim())
+    .filter(Boolean);
 
   return (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     if (!origin) {
@@ -15,14 +23,16 @@ export function createCorsOriginValidator(cookieDomain: string, explicitOrigins:
       return;
     }
 
-    if (explicitOrigins.includes(origin)) {
+    if (cleanExplicitOrigins.includes(origin)) {
       callback(null, true);
       return;
     }
 
     try {
       const hostname = new URL(origin).hostname;
-      const isUnderRootDomain = rootApex.length > 0 && (hostname === rootApex || hostname.endsWith(`.${rootApex}`));
+      const isUnderRootDomain = rootApexes.some(
+        (apex) => apex.length > 0 && (hostname === apex || hostname.endsWith(`.${apex}`))
+      );
       callback(null, isUnderRootDomain);
     } catch {
       callback(null, false);

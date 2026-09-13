@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Card, CardContent, EmptyState, PageHeader } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
-import { getFamilies } from "@/lib/business-resources";
+import { getFamilies, getFamilySummary } from "@/lib/business-resources";
 import { getMembers } from "@/lib/members";
 import { getHouses } from "@/lib/houses";
 import { FamiliesRegistry } from "@/features/tenants/families-registry";
@@ -18,17 +18,17 @@ export default async function FamiliesPage({ params }: { params: Promise<{ tenan
   const membership = await getMyTenantMembership(slug);
   if (!membership) redirect("/");
 
-  const [result, membersResult, housesResult] = await Promise.all([
-    getFamilies(slug, 1, PAGE_SIZE),
+  const [result, membersResult, housesResult, summary] = await Promise.all([
+    getFamilies(slug, 1, PAGE_SIZE, { status: "all" }),
     getMembers(slug, 1, PAGE_SIZE),
-    getHouses(slug, 1, PAGE_SIZE)
+    getHouses(slug, 1, PAGE_SIZE),
+    getFamilySummary(slug)
   ]);
 
-  return (
-    <>
-      <PageHeader title="Families" description="Household units within the Mahalle." />
-
-      {result === null ? (
+  if (result === null) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Families" description="Household units within the Mahalle." />
         <Card>
           <CardContent className="p-0">
             <EmptyState
@@ -37,15 +37,18 @@ export default async function FamiliesPage({ params }: { params: Promise<{ tenan
             />
           </CardContent>
         </Card>
-      ) : (
-        <FamiliesRegistry
-          slug={slug}
-          families={result.items}
-          members={membersResult?.members ?? []}
-          houses={housesResult?.items ?? []}
-          total={result.total}
-        />
-      )}
-    </>
+      </div>
+    );
+  }
+
+  return (
+    <FamiliesRegistry
+      slug={slug}
+      families={result.items}
+      members={membersResult?.members ?? []}
+      houses={housesResult?.items ?? []}
+      total={result.total}
+      summary={summary}
+    />
   );
 }

@@ -41,6 +41,10 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))"
         },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))"
+        },
         "sidebar-accent": {
           DEFAULT: "hsl(var(--sidebar-accent))",
           foreground: "hsl(var(--sidebar-accent-foreground))"

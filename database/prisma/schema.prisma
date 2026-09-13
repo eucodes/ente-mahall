@@ -85,9 +85,17 @@ model Tenant {
   longitude     Float?
 
   // Structure
-  hasDivisions         Boolean @default(false)
-  divisionTerm         String?
-  houseNumberingMethod String?
+  hasDivisions           Boolean @default(false)
+  divisionTerm           String?
+  houseNumberingMethod   String?
+  // House-number configuration (Settings > Structure > House Configuration).
+  // These only shape *new* house numbers going forward — changing them never
+  // touches an existing House.displayNumber.
+  houseNumberPrefix      String?
+  houseNumberSuffix      String?
+  houseNumberStartAt     Int?
+  houseNumberMinDigits   Int?
+  houseNumberAllowManual Boolean @default(true)
 
   // Management (primary committee only — the full committee is managed later)
   presidentName  String?
@@ -126,6 +134,23 @@ model Tenant {
   serviceRequests       ServiceRequest[]
   eventRegistrations    EventRegistration[]
   notificationSettings  NotificationSettings?
+  formAssignments       FormAssignment[]
+  featureOverrides      TenantFeatureOverride[]
+  subscription          Subscription?
+  invoices              Invoice[]
+  payments              Payment[]
+  financeSettings       FinanceSettings?
+  financePaymentMethods FinancePaymentMethod[]
+  financeBankAccounts   FinanceBankAccount[]
+  financialYears        FinancialYear[]
+  collectionCategories  CollectionCategory[]
+  expenseCategories     ExpenseCategory[]
+  financeCollections    FinanceCollection[]
+  financeReceipts       FinanceReceipt[]
+  journalEntries        JournalEntry[]
+  interestFreeAccounts  InterestFreeAccount[]
+  interestFreeTransactions InterestFreeTransaction[]
+  taxLegalFilings       TaxLegalFiling[]
 
   @@index([isActive])
   @@map("tenants")
@@ -142,7 +167,10 @@ model House {
   tenantId      String
   divisionId    String?
   displayNumber String
+  /// Optional human-facing label distinct from the number (e.g. "Green Villa") — the number is still the stable identifier.
+  name          String?
   address       String?
+  notes         String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -169,13 +197,20 @@ model TenantDivision {
   code        String?
   description String?
   order       Int      @default(0)
+  /// Deactivated divisions stay on historical House/Announcement records but
+  /// drop out of pickers for new ones — never hard-deleted, since houses may
+  /// still reference them (onDelete: SetNull only fires on real deletion).
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   houses        House[]
   announcements Announcement[]
 
+  @@unique([tenantId, code])
   @@index([tenantId, order])
+  @@index([tenantId, isActive])
   @@map("tenant_divisions")
 }
 
@@ -238,13 +273,23 @@ enum OnboardingStatus {
 /// own role set. Seed data creates the standard OWNER/ADMIN/MODERATOR/EDITOR/
 /// STAFF/MEMBER roles per tenant.
 model Role {
-  id        String   @id @default(cuid())
-  tenantId  String
-  key       String
-  name      String
-  isSystem  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  tenantId    String
+  key         String
+  name        String
+  description String?
+  /// System roles (OWNER/ADMIN/MODERATOR/EDITOR/STAFF/MEMBER) are seeded per
+  /// tenant and carry the privilege-escalation rank in TENANT_ROLE_RANK —
+  /// their permission sets aren't editable here. isSystem: false marks a
+  /// tenant-created custom role (e.g. "Accountant"), fully editable via the
+  /// Role Editor.
+  isSystem    Boolean  @default(true)
+  /// Soft-deactivation for custom roles — a role with active memberships
+  /// can't be deactivated until every member is reassigned elsewhere (see
+  /// RolesService.deactivate).
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   memberships TenantMembership[]
@@ -305,6 +350,295 @@ enum PlatformRole {
   SUPER_ADMIN
   PLATFORM_STAFF
   PLATFORM_SUPPORT
+}
+
+// ---------------------------------------------------------------------------
+// Forms (platform capability — Section M/N/O)
+// ---------------------------------------------------------------------------
+
+/// A form as a stable, reusable concept (e.g. "Marriage NOC Request"). The
+/// template itself never holds fields directly — those live on its
+/// FormVersions, so a published version stays exactly as it was collected
+/// even as the template evolves (Section N: never edit a historical version
+/// in place).
+model FormTemplate {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  category    String?
+  /// When true, every active Mahalle gets this form; FormAssignment rows are
+  /// only used to scope a form to specific Mahalles when this is false.
+  isPlatformWide Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  versions    FormVersion[]
+  assignments FormAssignment[]
+
+  @@map("form_templates")
+}
+
+enum FormVersionStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/// One immutable-once-published snapshot of a template's fields. `version`
+/// is a per-template sequence (1, 2, 3, ...) shown to admins as "v1", "v2".
+model FormVersion {
+  id          String            @id @default(cuid())
+  templateId  String
+  version     Int
+  status      FormVersionStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  template FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  fields   FormField[]
+
+  @@unique([templateId, version])
+  @@map("form_versions")
+}
+
+enum FormFieldType {
+  TEXT
+  LONG_TEXT
+  NUMBER
+  PHONE
+  EMAIL
+  DATE
+  TIME
+  SELECT
+  MULTI_SELECT
+  RADIO
+  CHECKBOX
+  FILE_UPLOAD
+  ADDRESS
+  MEMBER_LOOKUP
+  FAMILY_LOOKUP
+  HOUSE_LOOKUP
+}
+
+/// A single field on a form version. Only mutable while its version is
+/// DRAFT — see FormsService for where that's enforced.
+model FormField {
+  id          String        @id @default(cuid())
+  versionId   String
+  key         String
+  label       String
+  type        FormFieldType
+  description String?
+  required    Boolean       @default(false)
+  order       Int
+  /// Option list for SELECT/MULTI_SELECT/RADIO, as string[] — never read for
+  /// other field types.
+  options     Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  version FormVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, key])
+  @@index([versionId, order])
+  @@map("form_fields")
+}
+
+/// Scopes a non-platform-wide FormTemplate to one specific Mahalle.
+model FormAssignment {
+  id         String   @id @default(cuid())
+  templateId String
+  tenantId   String
+  createdAt  DateTime @default(now())
+
+  template FormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, tenantId])
+  @@map("form_assignments")
+}
+
+// ---------------------------------------------------------------------------
+// Features (platform capability — Section Q)
+// ---------------------------------------------------------------------------
+
+/// The platform-wide catalogue of toggleable modules (Finance, Marriage,
+/// Madrassa, SMS, ...). `isEnabledGlobally = false` is an absolute platform
+/// restriction: no TenantFeatureOverride can turn it back on for anyone
+/// (Section Q — "A Mahalle must never be able to enable a feature that the
+/// platform has globally disabled"). There is no Plan-entitlement layer yet
+/// (Plans don't exist until Phase 7); once they do, it slots in between this
+/// and the override.
+model Feature {
+  id                String   @id @default(cuid())
+  key               String   @unique
+  name              String
+  description       String?
+  category          String?
+  isEnabledGlobally Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  overrides TenantFeatureOverride[]
+  planFeatures PlanFeature[]
+
+  @@map("features")
+}
+
+/// A single Mahalle's exception to a Feature's platform default. Absence of
+/// a row means "use the platform default." Only meaningful while the
+/// Feature is enabled globally — see FeaturesService for where that's
+/// enforced.
+model TenantFeatureOverride {
+  id        String   @id @default(cuid())
+  tenantId  String
+  featureId String
+  isEnabled Boolean
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, featureId])
+  @@map("tenant_feature_overrides")
+}
+
+// ---------------------------------------------------------------------------
+// Plans & Billing (platform capability — Section R/S)
+// ---------------------------------------------------------------------------
+
+enum BillingPeriod {
+  MONTHLY
+  YEARLY
+}
+
+/// A sellable plan defining entitlements. Never referenced by name in
+/// application logic (Section R) — features/limits live in configurable
+/// rows here, not hard-coded per plan key. Sits between the platform default
+/// and a Mahalle's own override in Feature's effective-enablement chain
+/// (Section Q): a feature the platform allows can still be withheld from a
+/// Mahalle simply because its Plan doesn't include it.
+model Plan {
+  id             String        @id @default(cuid())
+  key            String        @unique
+  name           String
+  description    String?
+  priceMinor     Int? // price in the smallest currency unit (e.g. paise); null = custom/contact-us pricing
+  currency       String        @default("INR")
+  billingPeriod  BillingPeriod @default(MONTHLY)
+  userLimit      Int?
+  memberLimit    Int?
+  storageLimitMb Int?
+  smsCredits     Int?
+  supportLevel   String?
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  features      PlanFeature[]
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+/// One Feature a Plan entitles its subscribers to. A Feature's absence here
+/// means this Plan does not grant it — regardless of the platform default.
+model PlanFeature {
+  id        String   @id @default(cuid())
+  planId    String
+  featureId String
+  createdAt DateTime @default(now())
+
+  plan    Plan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureId])
+  @@map("plan_features")
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+}
+
+/// A Mahalle's billing relationship — deliberately distinct from
+/// Tenant.isActive (Section S: "Mahalle: Active, Subscription: Past Due are
+/// not the same thing"). One per tenant.
+model Subscription {
+  id                String             @id @default(cuid())
+  tenantId          String             @unique
+  planId            String
+  status            SubscriptionStatus @default(TRIAL)
+  trialEndsAt       DateTime?
+  currentPeriodEnd  DateTime?
+  cancelledAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan     Plan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices Invoice[]
+
+  @@map("subscriptions")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  OVERDUE
+  VOID
+}
+
+/// A manually-tracked bill. No payment gateway integration yet (Section AN
+/// explicitly defers that to its own phase) — issuing and marking paid are
+/// both platform-admin actions here, not automated charge attempts.
+model Invoice {
+  id             String        @id @default(cuid())
+  tenantId       String
+  subscriptionId String?
+  amountMinor    Int
+  currency       String        @default("INR")
+  status         InvoiceStatus @default(DRAFT)
+  description    String?
+  issuedAt       DateTime?
+  dueAt          DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  payments     Payment[]
+
+  @@index([tenantId])
+  @@map("invoices")
+}
+
+/// A manually-recorded payment against an invoice (bank transfer, cash,
+/// cheque, ...). Not a gateway transaction record.
+model Payment {
+  id          String   @id @default(cuid())
+  tenantId    String
+  invoiceId   String?
+  amountMinor Int
+  currency    String   @default("INR")
+  method      String
+  reference   String?
+  recordedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@map("payments")
 }
 
 // ---------------------------------------------------------------------------
@@ -370,6 +704,8 @@ model Member {
   madrassaEnrollments   MadrassaEnrollment[]
   financeVouchers       Voucher[]
   financeDues           Due[]
+  financeCollections    FinanceCollection[]
+  interestFreeAccounts  InterestFreeAccount[]
   serviceRequests       ServiceRequest[]
   eventRegistrations    EventRegistration[]
 
@@ -453,22 +789,33 @@ model MemberOtp {
 
 /// A household unit within a Mahalle. Same tenant-isolation pattern as Member.
 model Family {
-  id        String   @id @default(cuid())
-  tenantId  String
-  houseId   String?
-  name      String
-  address   String?
-  phone     String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  tenantId     String
+  houseId      String?
+  /// Stable tenant-scoped identifier (e.g. "F-00125"), issued once via
+  /// CertificateService's counter — never reused, never renumbered.
+  /// Nullable only because rows created before this field existed have none.
+  familyNumber String?
+  name         String
+  address      String?
+  phone        String?
+  notes        String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   // A house being deleted (or a family's link cleared) shouldn't delete the family.
+  // Deliberately NOT unique on houseId — a house may have more than one
+  // family (see Section 4 rule: don't assume 1 house = 1 family).
   house                 House?                 @relation(fields: [houseId], references: [id], onDelete: SetNull)
   members               Member[]
   mahalluReleaseRecords MahalluReleaseRecord[]
+  financeCollections    FinanceCollection[]
+  financeDues           Due[]
+  interestFreeAccounts  InterestFreeAccount[]
 
+  @@unique([tenantId, familyNumber])
   @@index([tenantId, isActive])
   @@index([houseId])
   @@map("families")
@@ -869,26 +1216,258 @@ enum AccountType {
   EXPENSE
   ASSET
   LIABILITY
+  EQUITY
 }
 
-/// A category in the Mahallu's simplified chart of accounts (e.g. "Membership
-/// Dues" income, "Electricity" expense) — every Voucher is categorized
-/// against one of these.
+/// A category in the Mahallu's chart of accounts. Supports hierarchical parent/child trees.
 model Account {
-  id        String      @id @default(cuid())
+  id              String             @id @default(cuid())
+  tenantId        String
+  code            String?
+  name            String
+  type            AccountType
+  parentAccountId String?
+  description     String?
+  isSystem        Boolean            @default(false)
+  openingBalance  Decimal            @default(0) @db.Decimal(12, 2)
+  currentBalance  Decimal            @default(0) @db.Decimal(12, 2)
+  isActive        Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parentAccount        Account?             @relation("AccountHierarchy", fields: [parentAccountId], references: [id], onDelete: SetNull)
+  childAccounts        Account[]            @relation("AccountHierarchy")
+  vouchers             Voucher[]
+  journalLines         JournalEntryLine[]
+  collectionCategories CollectionCategory[]
+  expenseCategories    ExpenseCategory[]
+  bankAccounts         FinanceBankAccount[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, code])
+  @@index([tenantId, isActive])
+  @@index([parentAccountId])
+  @@map("finance_accounts")
+}
+
+model FinanceSettings {
+  id                             String   @id @default(cuid())
+  tenantId                       String   @unique
+  currency                       String   @default("INR")
+  financialYearStartMonth        Int      @default(4)
+  financialYearStartDay          Int      @default(1)
+  defaultCollectionDescription   String?
+  defaultPaymentMethodId         String?
+  defaultCashAccountId           String?
+  defaultBankAccountId           String?
+  receiptPrefix                  String   @default("RCP")
+  receiptStartNumber             Int      @default(1)
+  receiptDigits                  Int      @default(6)
+  voucherPrefix                  String   @default("VCH")
+  voucherStartNumber             Int      @default(1)
+  voucherDigits                  Int      @default(6)
+  defaultSalaryExpenseAccountId  String?
+  defaultCollectionIncomeAccountId String?
+  defaultDonationIncomeAccountId String?
+  defaultGeneralExpenseAccountId String?
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("finance_settings")
+}
+
+model FinancePaymentMethod {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  name                 String
+  code                 String
+  type                 String   @default("CASH") // CASH, UPI, BANK_TRANSFER, CHEQUE, OTHER
+  isActive             Boolean  @default(true)
+  requiresReference    Boolean  @default(false)
+  requiresChequeNumber Boolean  @default(false)
+  requiresBankDetails  Boolean  @default(false)
+  displayOrder         Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  collections FinanceCollection[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@map("finance_payment_methods")
+}
+
+model FinanceBankAccount {
+  id             String   @id @default(cuid())
+  tenantId       String
+  accountName    String
+  bankName       String
+  branch         String?
+  accountNumber  String
+  ifsc           String?
+  accountType    String   @default("SAVINGS")
+  openingBalance Decimal  @default(0) @db.Decimal(12, 2)
+  currentBalance Decimal  @default(0) @db.Decimal(12, 2)
+  chartAccountId String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chartAccount Account?            @relation(fields: [chartAccountId], references: [id], onDelete: SetNull)
+  collections  FinanceCollection[]
+  vouchers     Voucher[]
+
+  @@index([tenantId, isActive])
+  @@map("finance_bank_accounts")
+}
+
+model FinancialYear {
+  id        String    @id @default(cuid())
   tenantId  String
   name      String
-  type      AccountType
-  isActive  Boolean     @default(true)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  startDate DateTime
+  endDate   DateTime
+  status    String    @default("OPEN") // OPEN, CLOSED
+  isCurrent Boolean   @default(false)
+  closedAt  DateTime?
+  closedBy  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  vouchers Voucher[]
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  journalEntries JournalEntry[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, status])
+  @@map("finance_financial_years")
+}
+
+model CollectionCategory {
+  id              String   @id @default(cuid())
+  tenantId        String
+  name            String
+  code            String?
+  description     String?
+  incomeAccountId        String?
+  targetType             String   @default("ALL_FAMILIES")
+  isRecurring            Boolean  @default(false)
+  recurrenceFrequency    String?  @default("MONTHLY")
+  targetEconomicCategory String?  @default("ALL")
+  targetDivisionIds      String[] @default([])
+  defaultAmount          Decimal? @db.Decimal(12, 2)
+  isActive               Boolean  @default(true)
+  displayOrder    Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  incomeAccount Account?            @relation(fields: [incomeAccountId], references: [id], onDelete: SetNull)
+  collections   FinanceCollection[]
+  dues          Due[]
 
   @@unique([tenantId, name])
   @@index([tenantId, isActive])
-  @@map("finance_accounts")
+  @@map("finance_collection_categories")
+}
+
+model ExpenseCategory {
+  id               String   @id @default(cuid())
+  tenantId         String
+  name             String
+  code             String?
+  description      String?
+  expenseAccountId String?
+  isActive         Boolean  @default(true)
+  displayOrder     Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  expenseAccount Account?  @relation(fields: [expenseAccountId], references: [id], onDelete: SetNull)
+  vouchers       Voucher[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("finance_expense_categories")
+}
+
+model FinanceCollection {
+  id              String   @id @default(cuid())
+  tenantId        String
+  collectionNumber String?
+  type            String   // FAMILY_COLLECTION, DAY_COLLECTION, FRIDAY_COLLECTION, DONATION, PROGRAM_COLLECTION, OTHER
+  categoryId      String?
+  familyId        String?
+  memberId        String?
+  donorName       String?
+  donorPhone      String?
+  donorAddress    String?
+  collectorName   String?
+  amount          Decimal  @db.Decimal(12, 2)
+  paymentMethodId String?
+  paymentMethod   String?
+  bankAccountId   String?
+  date            DateTime @default(now())
+  reference       String?
+  description     String?
+  notes           String?
+  status          String   @default("COMPLETED") // COMPLETED, CANCELLED
+  receiptId       String?  @unique
+  journalEntryId  String?  @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category         CollectionCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  family           Family?               @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  member           Member?               @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  paymentMethodRef FinancePaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  bankAccount      FinanceBankAccount?   @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  receipt          FinanceReceipt?       @relation("CollectionReceipt", fields: [receiptId], references: [id], onDelete: SetNull)
+  journalEntry     JournalEntry?         @relation("CollectionJournalEntry", fields: [journalEntryId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, collectionNumber])
+  @@index([tenantId, date])
+  @@index([tenantId, type])
+  @@index([familyId])
+  @@index([memberId])
+  @@index([categoryId])
+  @@map("finance_collections")
+}
+
+model FinanceReceipt {
+  id              String    @id @default(cuid())
+  tenantId        String
+  receiptNumber   String
+  voucherId       String?
+  dueId           String?
+  date            DateTime  @default(now())
+  receivedFrom    String
+  categoryName    String?
+  amount          Decimal   @db.Decimal(12, 2)
+  paymentMethod   String?
+  reference       String?
+  description     String?
+  recordedBy      String?
+  status          String    @default("ACTIVE") // ACTIVE, CANCELLED
+  cancelledAt     DateTime?
+  cancelledReason String?
+  cancelledBy     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  collection FinanceCollection? @relation("CollectionReceipt")
+
+  @@unique([tenantId, receiptNumber])
+  @@index([tenantId, date])
+  @@index([tenantId, status])
+  @@map("finance_receipts")
 }
 
 enum VoucherType {
@@ -896,37 +1475,51 @@ enum VoucherType {
   PAYMENT
 }
 
-/// A single cash movement — a receipt (money in) or payment (money out) —
-/// categorized against an Account. This is Finance's own ledger: Events'
-/// income/expenditure post here too (Principle 4), never to a parallel
-/// ledger of their own.
 model Voucher {
-  id            String      @id @default(cuid())
-  tenantId      String
-  voucherNumber String?
-  type          VoucherType
-  accountId     String
-  memberId      String?
-  eventId       String?
-  date          DateTime
-  amount        Decimal     @db.Decimal(12, 2)
-  partyName     String?
-  paymentMethod String?
-  description   String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id                String              @id @default(cuid())
+  tenantId          String
+  voucherNumber     String?
+  type              VoucherType
+  voucherSubtype    String?             @default("PAYMENT") // EXPENSE, PAYMENT, GENERAL, RECEIPT
+  status            String              @default("PAID") // DRAFT, SUBMITTED, APPROVED, PAID, CANCELLED
+  accountId         String
+  memberId          String?
+  eventId           String?
+  expenseCategoryId String?
+  bankAccountId     String?
+  date              DateTime
+  amount            Decimal             @db.Decimal(12, 2)
+  partyName         String?
+  payeeName         String?
+  paymentMethod     String?
+  reference         String?
+  description       String?
+  attachmentUrl     String?
+  notes             String?
+  approvedBy        String?
+  approvedAt        DateTime?
+  paidAt            DateTime?
+  receiptId         String?
+  journalEntryId    String?             @unique
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
-  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  account Account       @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  member  Member?       @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  event   Event?        @relation(fields: [eventId], references: [id], onDelete: SetNull)
-  due     Due?
-  salary  SalaryRecord?
+  tenant          Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  account         Account              @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  member          Member?              @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  event           Event?               @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  expenseCategory ExpenseCategory?     @relation(fields: [expenseCategoryId], references: [id], onDelete: SetNull)
+  bankAccount     FinanceBankAccount?  @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  journalEntry    JournalEntry?        @relation("VoucherJournalEntry", fields: [journalEntryId], references: [id], onDelete: SetNull)
+  due             Due?
+  salary          SalaryRecord?
 
   @@unique([tenantId, voucherNumber])
   @@index([tenantId, date])
   @@index([accountId])
   @@index([eventId])
+  @@index([expenseCategoryId])
+  @@index([bankAccountId])
   @@map("finance_vouchers")
 }
 
@@ -936,26 +1529,33 @@ enum DueStatus {
   WAIVED
 }
 
-/// An amount owed by a member (e.g. a monthly due), reconciled against the
-/// Voucher that eventually settles it.
 model Due {
-  id            String    @id @default(cuid())
-  tenantId      String
-  memberId      String
-  title         String
-  amount        Decimal   @db.Decimal(12, 2)
-  dueDate       DateTime
-  status        DueStatus @default(PENDING)
-  paidVoucherId String?   @unique
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                String              @id @default(cuid())
+  tenantId          String
+  memberId          String
+  familyId          String?
+  categoryId        String?
+  title             String
+  period            String?
+  amount            Decimal             @db.Decimal(12, 2)
+  paidAmount        Decimal             @default(0) @db.Decimal(12, 2)
+  outstandingAmount Decimal?            @db.Decimal(12, 2)
+  dueDate           DateTime
+  status            DueStatus           @default(PENDING)
+  paidVoucherId     String?             @unique
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  paidVoucher Voucher? @relation(fields: [paidVoucherId], references: [id], onDelete: SetNull)
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member      Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  family      Family?             @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  category    CollectionCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  paidVoucher Voucher?            @relation(fields: [paidVoucherId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, status])
   @@index([memberId])
+  @@index([familyId])
+  @@index([categoryId])
   @@map("finance_dues")
 }
 
@@ -964,19 +1564,24 @@ enum SalaryStatus {
   PAID
 }
 
-/// A staff salary obligation for one month, reconciled against the Voucher
-/// that pays it. `staffName` is free text — the app doesn't have a staff/HR
-/// module, so this deliberately doesn't invent one.
 model SalaryRecord {
-  id            String       @id @default(cuid())
-  tenantId      String
-  staffName     String
-  month         String
-  amount        Decimal      @db.Decimal(12, 2)
-  status        SalaryStatus @default(PENDING)
-  paidVoucherId String?      @unique
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id             String       @id @default(cuid())
+  tenantId       String
+  staffName      String
+  month          String
+  amount         Decimal      @db.Decimal(12, 2)
+  basicSalary    Decimal?     @db.Decimal(12, 2)
+  allowances     Decimal?     @db.Decimal(12, 2)
+  deductions     Decimal?     @db.Decimal(12, 2)
+  netSalary      Decimal?     @db.Decimal(12, 2)
+  paymentDate    DateTime?
+  paymentMethod  String?
+  reference      String?
+  status         SalaryStatus @default(PENDING)
+  approvalStatus String       @default("PAID") // DRAFT, APPROVED, PAID, CANCELLED
+  paidVoucherId  String?      @unique
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   paidVoucher Voucher? @relation(fields: [paidVoucherId], references: [id], onDelete: SetNull)
@@ -984,6 +1589,122 @@ model SalaryRecord {
   @@unique([tenantId, staffName, month])
   @@index([tenantId, status])
   @@map("finance_salary_records")
+}
+
+model JournalEntry {
+  id             String             @id @default(cuid())
+  tenantId       String
+  entryNumber    String
+  financialYearId String?
+  date           DateTime           @default(now())
+  reference      String?
+  description    String
+  sourceType     String             @default("MANUAL") // MANUAL, COLLECTION, DONATION, EXPENSE, SALARY, DUE, BANK_TRANSFER
+  sourceId       String?
+  status         String             @default("POSTED") // DRAFT, POSTED, CANCELLED
+  totalDebit     Decimal            @db.Decimal(12, 2)
+  totalCredit    Decimal            @db.Decimal(12, 2)
+  postedAt       DateTime?
+  postedBy       String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  financialYear FinancialYear?     @relation(fields: [financialYearId], references: [id], onDelete: SetNull)
+  lines         JournalEntryLine[]
+  collection    FinanceCollection? @relation("CollectionJournalEntry")
+  voucher       Voucher?           @relation("VoucherJournalEntry")
+
+  @@unique([tenantId, entryNumber])
+  @@index([tenantId, date])
+  @@index([tenantId, status])
+  @@index([financialYearId])
+  @@map("finance_journal_entries")
+}
+
+model JournalEntryLine {
+  id             String       @id @default(cuid())
+  journalEntryId String
+  accountId      String
+  debit          Decimal      @default(0) @db.Decimal(12, 2)
+  credit         Decimal      @default(0) @db.Decimal(12, 2)
+  description    String?
+  createdAt      DateTime     @default(now())
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      Account      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@map("finance_journal_entry_lines")
+}
+
+model InterestFreeAccount {
+  id            String                      @id @default(cuid())
+  tenantId      String
+  accountNumber String
+  holderName    String
+  holderType    String                      @default("MEMBER") // MEMBER, FAMILY, OTHER
+  memberId      String?
+  familyId      String?
+  phone         String?
+  balance       Decimal                     @default(0) @db.Decimal(12, 2)
+  status        String                      @default("ACTIVE") // ACTIVE, DORMANT, CLOSED
+  createdAt     DateTime                    @default(now())
+  updatedAt     DateTime                    @updatedAt
+
+  tenant       Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member       Member?                     @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  family       Family?                     @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  transactions InterestFreeTransaction[]
+
+  @@unique([tenantId, accountNumber])
+  @@index([tenantId, status])
+  @@map("finance_interest_free_accounts")
+}
+
+model InterestFreeTransaction {
+  id            String              @id @default(cuid())
+  tenantId      String
+  accountId     String
+  type          String              // DEPOSIT, WITHDRAWAL, TRANSFER
+  amount        Decimal             @db.Decimal(12, 2)
+  date          DateTime            @default(now())
+  reference     String?
+  description   String?
+  balanceAfter  Decimal             @db.Decimal(12, 2)
+  receiptNumber String?
+  createdAt     DateTime            @default(now())
+
+  tenant  Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  account InterestFreeAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, date])
+  @@index([accountId])
+  @@map("finance_interest_free_transactions")
+}
+
+model TaxLegalFiling {
+  id          String    @id @default(cuid())
+  tenantId    String
+  title       String
+  filingType  String    // WAKF_BOARD, TAX_RETURN, MUNICIPAL_TAX, AUDIT_REPORT, 12A_80G, OTHER
+  period      String?
+  dueDate     DateTime
+  amount      Decimal?  @db.Decimal(12, 2)
+  status      String    @default("PENDING") // PENDING, FILED, PAID, OVERDUE
+  paymentDate DateTime?
+  reference   String?
+  notes       String?
+  documentUrl String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, dueDate])
+  @@map("finance_tax_legal_filings")
 }
 
 // ---------------------------------------------------------------------------

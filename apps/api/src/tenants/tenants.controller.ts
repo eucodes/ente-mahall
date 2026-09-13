@@ -11,6 +11,8 @@ import { TenantContextGuard } from "./guards/tenant-context.guard";
 import { CurrentTenant } from "./decorators/current-tenant.decorator";
 import { CurrentMembership } from "./decorators/current-membership.decorator";
 
+import { FeaturesService } from "../features/features.service";
+
 function publicTenant(tenant: Tenant) {
   return {
     id: tenant.id,
@@ -35,7 +37,8 @@ function membershipRole(membership: MembershipWithRole) {
 export class TenantsController {
   constructor(
     private readonly tenantsService: TenantsService,
-    private readonly membershipsService: MembershipsService
+    private readonly membershipsService: MembershipsService,
+    private readonly featuresService: FeaturesService
   ) {}
 
   @Post()
@@ -74,5 +77,13 @@ export class TenantsController {
   @HttpCode(HttpStatus.OK)
   me(@CurrentTenant() tenant: Tenant, @CurrentMembership() membership: MembershipWithRole) {
     return { tenant: publicTenant(tenant), role: membershipRole(membership) };
+  }
+
+  /** The effective feature flags for this Mahalle. */
+  @Get(":slug/features")
+  @UseGuards(JwtAuthGuard, TenantContextGuard)
+  async features(@CurrentTenant() tenant: Tenant) {
+    const features = await this.featuresService.getTenantFeatures(tenant.id);
+    return { features };
   }
 }

@@ -9,13 +9,15 @@ import type { User } from "@mahalle/types";
 export interface LoginFormProps {
   /** Where to send the user after a successful login. */
   redirectTo: string;
+  defaultEmail?: string;
+  defaultPassword?: string;
 }
 
-export function LoginForm({ redirectTo }: LoginFormProps) {
+export function LoginForm({ redirectTo, defaultEmail = "", defaultPassword = "" }: LoginFormProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(defaultEmail);
+  const [password, setPassword] = useState(defaultPassword);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -41,6 +43,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       <FormField label="Email" htmlFor="login-email" required>
         <Input
           id="login-email"
+          name="email"
           type="email"
           autoComplete="email"
           autoFocus
@@ -54,6 +57,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       <FormField label="Password" htmlFor="login-password" required error={error ?? undefined}>
         <PasswordInput
           id="login-password"
+          name="password"
           autoComplete="current-password"
           required
           invalid={Boolean(error)}

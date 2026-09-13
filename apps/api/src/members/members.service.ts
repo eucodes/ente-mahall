@@ -48,8 +48,17 @@ export class MembersService {
     tenantId: string,
     page: number,
     pageSize: number,
-    filters: Pick<ListMembersQueryDto, "familyId" | "isYatheem" | "isExpatriate" | "bloodGroup" | "movementStatus"> = {}
+    filters: Pick<ListMembersQueryDto, "familyId" | "isYatheem" | "isExpatriate" | "bloodGroup" | "movementStatus" | "divisionId"> = {}
   ): Promise<{ members: MemberWithFamily[]; total: number }> {
+    let divisionName: string | undefined;
+    if (filters.divisionId) {
+      const division = await this.prisma.tenantDivision.findFirst({
+        where: { id: filters.divisionId, tenantId },
+        select: { name: true }
+      });
+      divisionName = division?.name;
+    }
+
     const where: Prisma.MemberWhereInput = {
       tenantId,
       isActive: true,
@@ -57,7 +66,24 @@ export class MembersService {
       ...(filters.isYatheem !== undefined ? { isYatheem: filters.isYatheem } : {}),
       ...(filters.isExpatriate !== undefined ? { isExpatriate: filters.isExpatriate } : {}),
       ...(filters.bloodGroup ? { bloodGroup: filters.bloodGroup } : {}),
-      ...(filters.movementStatus ? { movementStatus: filters.movementStatus } : {})
+      ...(filters.movementStatus ? { movementStatus: filters.movementStatus } : {}),
+      ...(filters.divisionId
+        ? {
+            family: {
+              OR: [
+                { house: { divisionId: filters.divisionId } },
+                ...(divisionName
+                  ? [
+                      { notes: { contains: `Ward: ${divisionName}`, mode: "insensitive" as const } },
+                      { notes: { contains: `Division: ${divisionName}`, mode: "insensitive" as const } },
+                      { notes: { contains: `Area: ${divisionName}`, mode: "insensitive" as const } },
+                      { notes: { contains: `Zone: ${divisionName}`, mode: "insensitive" as const } }
+                    ]
+                  : [])
+              ]
+            }
+          }
+        : {})
     };
     const [members, total] = await Promise.all([
       this.prisma.member.findMany({

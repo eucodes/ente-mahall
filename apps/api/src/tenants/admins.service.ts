@@ -1,9 +1,18 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import type { Role } from "@mahalle/database";
 import { TENANT_ROLE_RANK, TenantRole } from "@mahalle/types";
 import { PrismaService } from "../database/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { MembershipsService, type MembershipWithRole } from "../memberships/memberships.service";
 import { UsersService } from "../users/users.service";
+
+/** Where a custom (non-system) role sits for escalation purposes: below OWNER, at ADMIN's rank — only OWNER/ADMIN may assign or revoke a custom operational role like "Accountant". */
+const CUSTOM_ROLE_RANK = TENANT_ROLE_RANK[TenantRole.ADMIN];
+
+function rankOf(role: Pick<Role, "key" | "isSystem">): number {
+  if (!role.isSystem) return CUSTOM_ROLE_RANK;
+  return TENANT_ROLE_RANK[role.key as TenantRole] ?? CUSTOM_ROLE_RANK;
+}
 
 interface RequestContext {
   ipAddress?: string;
@@ -32,24 +41,39 @@ export class AdminsService {
    * An actor may only grant/modify a role ranked strictly below their own —
    * except OWNER, who may also grant OWNER (to share or transfer ownership).
    * This is what stops an ADMIN from making themselves (or anyone else) an
-   * OWNER, or a MODERATOR from creating another MODERATOR-or-above.
+   * OWNER, or a MODERATOR from creating another MODERATOR-or-above. Custom
+   * (non-system) roles are treated as ADMIN-rank for this check — only
+   * OWNER/ADMIN may hand out a specialized operational role.
    */
-  private assertCanAssignRole(actorRole: TenantRole, targetRole: TenantRole): void {
-    const actorRank = TENANT_ROLE_RANK[actorRole];
-    const targetRank = TENANT_ROLE_RANK[targetRole];
-    const allowed = actorRole === TenantRole.OWNER ? targetRank <= actorRank : targetRank < actorRank;
+  private assertCanAssignRole(actorRole: Pick<Role, "key" | "isSystem" | "name">, targetRole: Pick<Role, "key" | "isSystem" | "name">): void {
+    const actorRank = rankOf(actorRole);
+    const targetRank = rankOf(targetRole);
+    const actorIsOwner = actorRole.isSystem && actorRole.key === TenantRole.OWNER;
+    const allowed = actorIsOwner ? targetRank <= actorRank : targetRank < actorRank;
     if (!allowed) {
-      throw new ForbiddenException(`You cannot assign the ${targetRole} role`);
+      throw new ForbiddenException(`You cannot assign the ${targetRole.name} role`);
     }
+  }
+
+  private async findAssignableRoleOrThrow(tenantId: string, roleKey: string): Promise<Role> {
+    const role = await this.prisma.role.findUnique({ where: { tenantId_key: { tenantId, key: roleKey } } });
+    if (!role) {
+      throw new NotFoundException("That role doesn't exist for this Mahalle");
+    }
+    if (!role.isActive) {
+      throw new BadRequestException(`The "${role.name}" role is deactivated and can't be assigned. Reactivate it first.`);
+    }
+    return role;
   }
 
   async add(
     tenantId: string,
     actor: MembershipWithRole,
-    input: { email: string; roleKey: TenantRole },
+    input: { email: string; roleKey: string },
     context: RequestContext
   ) {
-    this.assertCanAssignRole(actor.role.key as TenantRole, input.roleKey);
+    const role = await this.findAssignableRoleOrThrow(tenantId, input.roleKey);
+    this.assertCanAssignRole(actor.role, role);
 
     const user = await this.usersService.findByEmail(input.email);
     if (!user) {
@@ -62,10 +86,6 @@ export class AdminsService {
     if (existing?.isActive) {
       throw new ConflictException("This person is already a member of this Mahalle");
     }
-
-    const role = await this.prisma.role.findUniqueOrThrow({
-      where: { tenantId_key: { tenantId, key: input.roleKey } }
-    });
 
     const membership = existing
       ? await this.prisma.tenantMembership.update({
@@ -84,7 +104,7 @@ export class AdminsService {
       action: "tenant.admin.add",
       targetType: "TenantMembership",
       targetId: membership.id,
-      metadata: { email: input.email, roleKey: input.roleKey },
+      metadata: { email: input.email, roleKey: role.key },
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     });
@@ -96,7 +116,7 @@ export class AdminsService {
     tenantId: string,
     actor: MembershipWithRole,
     membershipId: string,
-    roleKey: TenantRole,
+    roleKey: string,
     context: RequestContext
   ) {
     if (membershipId === actor.id) {
@@ -108,21 +128,18 @@ export class AdminsService {
       throw new NotFoundException("Membership not found");
     }
 
-    this.assertCanAssignRole(actor.role.key as TenantRole, roleKey);
+    const role = await this.findAssignableRoleOrThrow(tenantId, roleKey);
+    this.assertCanAssignRole(actor.role, role);
     // Also require the actor to outrank the target's CURRENT role, so a
     // MODERATOR can't "demote" an ADMIN down to STAFF either.
-    this.assertCanAssignRole(actor.role.key as TenantRole, target.role.key as TenantRole);
+    this.assertCanAssignRole(actor.role, target.role);
 
-    if (target.role.key === TenantRole.OWNER && roleKey !== TenantRole.OWNER) {
+    if (target.role.key === TenantRole.OWNER && role.key !== TenantRole.OWNER) {
       const ownerCount = await this.membershipsService.countActiveOwners(tenantId);
       if (ownerCount <= 1) {
         throw new BadRequestException("Cannot demote the last owner of this Mahalle");
       }
     }
-
-    const role = await this.prisma.role.findUniqueOrThrow({
-      where: { tenantId_key: { tenantId, key: roleKey } }
-    });
 
     const updated = await this.prisma.tenantMembership.update({
       where: { id: membershipId },
@@ -136,7 +153,7 @@ export class AdminsService {
       action: "tenant.admin.role_change",
       targetType: "TenantMembership",
       targetId: membershipId,
-      metadata: { fromRole: target.role.key, toRole: roleKey },
+      metadata: { fromRole: target.role.key, toRole: role.key },
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     });
@@ -154,7 +171,7 @@ export class AdminsService {
       throw new NotFoundException("Membership not found");
     }
 
-    this.assertCanAssignRole(actor.role.key as TenantRole, target.role.key as TenantRole);
+    this.assertCanAssignRole(actor.role, target.role);
 
     if (target.role.key === TenantRole.OWNER) {
       const ownerCount = await this.membershipsService.countActiveOwners(tenantId);

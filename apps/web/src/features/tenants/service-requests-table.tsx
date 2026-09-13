@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Badge,
@@ -56,6 +56,10 @@ export function ServiceRequestsTable({ slug, requests }: { slug: string; request
 
   const selected = selectedId ? (requests.find((r) => r.id === selectedId) ?? null) : null;
   const filtered = useMemo(() => (statusFilter ? requests.filter((r) => r.status === statusFilter) : requests), [requests, statusFilter]);
+
+  useEffect(() => {
+    setNotes(selected?.resolutionNotes ?? "");
+  }, [selectedId, selected?.resolutionNotes]);
 
   async function updateStatus(id: string, status: ServiceRequestStatus, resolutionNotes?: string) {
     setIsUpdating(true);

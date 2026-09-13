@@ -33,6 +33,7 @@ export interface Member {
 
 export interface MemberFilters {
   familyId?: string;
+  divisionId?: string;
   isYatheem?: boolean;
   isExpatriate?: boolean;
   bloodGroup?: BloodGroup;
@@ -48,6 +49,7 @@ export async function getMembers(
 ): Promise<{ members: Member[]; total: number } | null> {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   if (filters.familyId) params.set("familyId", filters.familyId);
+  if (filters.divisionId) params.set("divisionId", filters.divisionId);
   if (filters.isYatheem !== undefined) params.set("isYatheem", String(filters.isYatheem));
   if (filters.isExpatriate !== undefined) params.set("isExpatriate", String(filters.isExpatriate));
   if (filters.bloodGroup) params.set("bloodGroup", filters.bloodGroup);
@@ -58,4 +60,12 @@ export async function getMembers(
   );
   if (status !== 200 || !body.success || !body.data) return null;
   return { members: body.data.members, total: body.data.meta.total };
+}
+
+export async function getMember(slug: string, memberId: string): Promise<Member | null> {
+  const { status, body } = await serverApiGet<{ member: Member }>(
+    `/tenants/${encodeURIComponent(slug)}/members/${encodeURIComponent(memberId)}`
+  );
+  if (status !== 200 || !body.success || !body.data) return null;
+  return body.data.member;
 }

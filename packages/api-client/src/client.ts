@@ -59,7 +59,24 @@ export class ApiClient {
       headers: { ...headers, ...init?.headers }
     });
 
-    const body = (await res.json()) as ApiResponse<T>;
+    if (res.status === 204 || res.headers.get("content-length") === "0") {
+      return undefined as T;
+    }
+
+    const text = await res.text();
+    if (!text || !text.trim()) {
+      return undefined as T;
+    }
+
+    let body: ApiResponse<T>;
+    try {
+      body = JSON.parse(text) as ApiResponse<T>;
+    } catch {
+      if (res.ok) {
+        return undefined as T;
+      }
+      throw new ApiError("HTTP_ERROR", `HTTP ${res.status} ${res.statusText}`, res.status);
+    }
 
     if (!body.success) {
       throw new ApiError(body.error.code, body.error.message, res.status, body.error.details);
@@ -101,7 +118,25 @@ export class ApiClient {
       body: formData
     });
 
-    const body = (await res.json()) as ApiResponse<T>;
+    if (res.status === 204 || res.headers.get("content-length") === "0") {
+      return undefined as T;
+    }
+
+    const text = await res.text();
+    if (!text || !text.trim()) {
+      return undefined as T;
+    }
+
+    let body: ApiResponse<T>;
+    try {
+      body = JSON.parse(text) as ApiResponse<T>;
+    } catch {
+      if (res.ok) {
+        return undefined as T;
+      }
+      throw new ApiError("HTTP_ERROR", `HTTP ${res.status} ${res.statusText}`, res.status);
+    }
+
     if (!body.success) {
       throw new ApiError(body.error.code, body.error.message, res.status, body.error.details);
     }

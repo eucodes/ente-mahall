@@ -1,40 +1,33 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
-  ArrowRight,
-  Avatar,
-  Calendar,
+  Badge,
+  Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  EmptyState,
-  ListChecks,
-  Megaphone,
-  PageHeader,
-  ShieldCheck,
-  StatCard,
+  Globe,
+  Sparkles,
+  ExternalLink,
+  CreditCard,
+  Building,
+  CheckCircle2,
+  Layers,
   UsersRound,
-  Users,
-  type StatCardTone
+  Wallet,
+  FileText,
+  HeartHandshake
 } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
-import { getMembers } from "@/lib/members";
-import { getAnnouncements, getEvents, getFamilies, getPrograms } from "@/lib/business-resources";
-import { SetupChecklist } from "@/features/onboarding/setup-checklist";
+import { HomeWebsiteCard } from "@/features/navigation/home-website-card";
 
-const STATS: { title: string; href: string; icon: typeof Users; tone: StatCardTone }[] = [
-  { title: "Members", href: "members", icon: Users, tone: "violet" },
-  { title: "Families", href: "families", icon: UsersRound, tone: "blue" },
-  { title: "Events", href: "events", icon: Calendar, tone: "green" },
-  { title: "Announcements", href: "announcements", icon: Megaphone, tone: "teal" },
-  { title: "Programs", href: "programs", icon: ListChecks, tone: "default" }
-];
-
-const TODAY = new Date().toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
-
-export default async function TenantAdminHomePage({ params }: { params: Promise<{ tenant: string }> }) {
+export default async function TenantAdminHomePage({
+  params
+}: {
+  params: Promise<{ tenant: string }>;
+}) {
   const { tenant: slug } = await params;
   const user = await getSession();
   if (!user) {
@@ -46,124 +39,259 @@ export default async function TenantAdminHomePage({ params }: { params: Promise<
     redirect("/");
   }
 
-  const [membersResult, familiesResult, eventsResult, announcementsResult, programsResult] = await Promise.all([
-    getMembers(slug, 1, 5),
-    getFamilies(slug, 1, 1),
-    getEvents(slug, 1, 5),
-    getAnnouncements(slug, 1, 1),
-    getPrograms(slug, 1, 1)
-  ]);
+  const tenant = membership.tenant;
+  const publicUrl = `https://${slug}.mahalle.app`;
 
-  const counts: Record<string, number | null> = {
-    members: membersResult?.total ?? null,
-    families: familiesResult?.total ?? null,
-    events: eventsResult?.total ?? null,
-    announcements: announcementsResult?.total ?? null,
-    programs: programsResult?.total ?? null
-  };
+  // Calculate profile completeness score
+  let completedFields = 0;
+  const totalFields = 4;
+  if (tenant.name) completedFields++;
+  if (tenant.masjidName) completedFields++;
+  if (tenant.country) completedFields++;
+  if (tenant.logoUrl) completedFields++;
+  const completionPercentage = Math.round((completedFields / totalFields) * 100);
 
   return (
-    <>
-      <PageHeader title={`Welcome back, ${user.fullName.split(" ")[0]}`} description={`${membership.role.name} at ${membership.tenant.name} · ${TODAY}`} />
+    <div className="space-y-6">
+      {/* 1. Workspace Status & Plan Banner */}
+      <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-slate-900 via-slate-950 to-emerald-950 p-6 sm:p-8 text-white shadow-xl">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-300 backdrop-blur-sm border border-emerald-500/30">
+                <Sparkles className="h-3.5 w-3.5" />
+                Active Workspace
+              </span>
+              <span className="text-xs text-slate-400">·</span>
+              <span className="text-xs font-medium text-slate-300">
+                Plan: <strong className="text-white font-semibold">Community Basic</strong>
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+              Your Mahallu Workspace is Active
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
+              Everything you need to run <strong className="text-white">{tenant.name}</strong> administration, public website, member records, and official registers.
+            </p>
+          </div>
 
-      {membership.tenant.country && (
-        <div className="mb-6">
-          <SetupChecklist />
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <Link href={`/${slug}/billing`}>
+              <Button
+                size="md"
+                variant="secondary"
+                className="h-10 px-4 rounded-xl font-semibold text-xs sm:text-sm bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-md shadow-xs transition-all"
+              >
+                <CreditCard className="h-4 w-4 text-emerald-400" />
+                <span>Manage Billing</span>
+              </Button>
+            </Link>
+            <Link href={`/${slug}/overview`}>
+              <Button
+                size="md"
+                className="h-10 px-4.5 rounded-xl font-bold text-xs sm:text-sm bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shadow-emerald-950/40 transition-all active:scale-[0.98]"
+              >
+                <Building className="h-4 w-4 stroke-[2.5]" />
+                <span>Open Mahall Hub</span>
+              </Button>
+            </Link>
+          </div>
         </div>
-      )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {STATS.map((stat) => (
-          <Link key={stat.href} href={`/${slug}/${stat.href}`}>
-            <StatCard
-              label={stat.title}
-              value={counts[stat.href] ?? "—"}
-              icon={<stat.icon />}
-              tone={stat.tone}
-            />
-          </Link>
-        ))}
+        {/* Decorative background gradients */}
+        <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute -left-16 -bottom-16 h-64 w-64 rounded-full bg-teal-500/10 blur-3xl pointer-events-none" />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>Recent members</CardTitle>
-            <Link href={`/${slug}/members`} className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-              View all <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {!membersResult ? (
-              <EmptyState title="Not available" description="You don't have permission to view members." />
-            ) : membersResult.members.length === 0 ? (
-              <EmptyState title="No members yet" />
-            ) : (
-              <ul className="divide-y divide-border">
-                {membersResult.members.map((member) => (
-                  <li key={member.id} className="flex items-center gap-3 py-2.5">
-                    <Avatar name={member.fullName} size="sm" />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{member.fullName}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {member.family?.name ?? member.phone ?? "—"}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+      {/* 2. Two Main Action Cards: Public Website & Profile Completion */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Card A: Mahall Public Website */}
+        <HomeWebsiteCard slug={slug} publicUrl={publicUrl} />
 
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle>Upcoming events</CardTitle>
-            <Link href={`/${slug}/events`} className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-              View all <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {!eventsResult ? (
-              <EmptyState title="Not available" description="You don't have permission to view events." />
-            ) : eventsResult.items.length === 0 ? (
-              <EmptyState title="No events yet" />
-            ) : (
-              <ul className="space-y-3">
-                {eventsResult.items.map((event) => (
-                  <li key={event.id} className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-lg bg-primary/10 text-[10px] font-semibold uppercase leading-none text-primary">
-                      <span>{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short" })}</span>
-                      <span className="text-sm">{new Date(event.startsAt).getDate()}</span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{event.title}</p>
-                      <p className="truncate text-xs text-muted-foreground">{event.location ?? "No location set"}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Link href={`/${slug}/admins`} className="group mt-4 block">
-        <Card className="transition-shadow group-hover:shadow-md">
-          <CardContent className="flex items-center justify-between p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <ShieldCheck className="h-5 w-5" />
+        {/* Card B: Mahall Profile Completion */}
+        <Card className="rounded-3xl border-border/80 bg-card p-6 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <Building className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Mahall Profile</h3>
+                  <p className="text-xs text-muted-foreground">General settings and identity</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-semibold">Administrators</p>
-                <p className="text-sm text-muted-foreground">Add, re-role, or remove the people who help run this Mahalle.</p>
+              <Badge variant="secondary" className="font-bold text-xs">
+                {completionPercentage}% complete
+              </Badge>
+            </div>
+
+            {/* Progress Gauge */}
+            <div className="mt-6 flex items-center gap-4">
+              <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-muted">
+                <svg className="h-16 w-16 -rotate-90 transform" viewBox="0 0 36 36">
+                  <path
+                    className="text-muted-foreground/20"
+                    strokeWidth="3.5"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                  <path
+                    className="text-emerald-500"
+                    strokeDasharray={`${completionPercentage}, 100`}
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                </svg>
+                <span className="absolute text-xs font-bold text-foreground">
+                  {completionPercentage}%
+                </span>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-foreground">
+                  {completionPercentage === 100
+                    ? "Mahall identity is complete and verified."
+                    : "Complete remaining setup items to unlock full capabilities."}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Includes masjid address, contact numbers, jurisdiction bounds, and officer directory.
+                </p>
               </div>
             </div>
-            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-          </CardContent>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-border/60">
+            <Link
+              href={`/${slug}/settings`}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+            >
+              <span>Complete profile</span>
+              <span>→</span>
+            </Link>
+          </div>
         </Card>
-      </Link>
-    </>
+      </div>
+
+      {/* 3. Quick Guide & Video Walkthrough Section */}
+      <Card className="rounded-3xl border-border/80 bg-card overflow-hidden shadow-xs">
+        <div className="grid lg:grid-cols-12 gap-0">
+          {/* Left Video Player Preview (5 cols) */}
+          <div className="lg:col-span-5 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-6 sm:p-8 text-white flex flex-col justify-between min-h-[220px]">
+            <div className="space-y-2">
+              <span className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+                Tutorial
+              </span>
+              <h3 className="text-lg font-bold text-white">Mahalle OS Quick Guide</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Watch how easy it is to manage families, record collections, and issue official certificates.
+              </p>
+            </div>
+
+            <div className="mt-6 flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/30">
+                <svg className="h-5 w-5 fill-current ml-0.5" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-white">Watch 5-min Walkthrough</p>
+                <p className="text-[11px] text-slate-400">Step-by-step introduction</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Checklist / Playlist (7 cols) */}
+          <div className="lg:col-span-7 p-6 space-y-3 bg-card/60">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground pb-1">
+              Getting Started Playlist
+            </p>
+
+            <Link
+              href={`/${slug}/settings/structure`}
+              className="flex items-center justify-between p-3 rounded-2xl border border-border/60 bg-card hover:bg-muted/60 transition-colors"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <Layers className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-foreground">
+                    1. Wards & House Numbering Configuration
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    Define division codes or global house numbering rules
+                  </p>
+                </div>
+              </div>
+              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 ml-2" />
+            </Link>
+
+            <Link
+              href={`/${slug}/families`}
+              className="flex items-center justify-between p-3 rounded-2xl border border-border/60 bg-card hover:bg-muted/60 transition-colors"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                  <UsersRound className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-foreground">
+                    2. Census & Family Registry
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    Add family units, members, occupations, and education
+                  </p>
+                </div>
+              </div>
+              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 ml-2" />
+            </Link>
+
+            <Link
+              href={`/${slug}/finance/dues`}
+              className="flex items-center justify-between p-3 rounded-2xl border border-border/60 bg-card hover:bg-muted/60 transition-colors"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
+                  <Wallet className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-foreground">
+                    3. Financial Treasury & Varisa Dues
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    Track cash book, monthly collections, and receipts
+                  </p>
+                </div>
+              </div>
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground/40 shrink-0 ml-2" />
+            </Link>
+
+            <Link
+              href={`/${slug}/registers/marriage`}
+              className="flex items-center justify-between p-3 rounded-2xl border border-border/60 bg-card hover:bg-muted/60 transition-colors"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-foreground">
+                    4. Official Registers & NOCs
+                  </p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    Digital certificates for Nikah, Mayyith, and Talaq
+                  </p>
+                </div>
+              </div>
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground/40 shrink-0 ml-2" />
+            </Link>
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 }

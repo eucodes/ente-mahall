@@ -23,13 +23,20 @@ export class HousesController {
   @Get()
   @RequirePermission("houses.view")
   async list(@CurrentMembership() membership: MembershipWithRole, @Query() query: ListHousesQueryDto) {
-    const { houses, total } = await this.housesService.list(
-      membership.tenantId,
-      query.page,
-      query.pageSize,
-      query.divisionId
-    );
+    const { houses, total } = await this.housesService.list(membership.tenantId, query.page, query.pageSize, query);
     return { houses, meta: { page: query.page, pageSize: query.pageSize, total } };
+  }
+
+  @Get("summary")
+  @RequirePermission("houses.view")
+  async summary(@CurrentMembership() membership: MembershipWithRole) {
+    return this.housesService.summary(membership.tenantId);
+  }
+
+  @Get("next-number")
+  @RequirePermission("houses.create")
+  async nextNumber(@CurrentMembership() membership: MembershipWithRole) {
+    return this.housesService.suggestNextNumber(membership.tenantId);
   }
 
   @Get(":houseId")
@@ -64,6 +71,14 @@ export class HousesController {
       dto,
       requestContext(req)
     );
+    return { house };
+  }
+
+  @Patch(":houseId/reactivate")
+  @RequirePermission("houses.update")
+  @HttpCode(HttpStatus.OK)
+  async reactivate(@CurrentMembership() membership: MembershipWithRole, @Param("houseId") houseId: string, @Req() req: Request) {
+    const house = await this.housesService.reactivate({ userId: membership.userId, tenantId: membership.tenantId }, houseId, requestContext(req));
     return { house };
   }
 

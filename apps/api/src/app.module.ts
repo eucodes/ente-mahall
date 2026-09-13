@@ -15,6 +15,10 @@ import { PermissionsModule } from "./permissions/permissions.module";
 import { MembershipsModule } from "./memberships/memberships.module";
 import { TenantsModule } from "./tenants/tenants.module";
 import { PlatformModule } from "./platform/platform.module";
+import { FormsModule } from "./forms/forms.module";
+import { FeaturesModule } from "./features/features.module";
+import { BillingModule } from "./billing/billing.module";
+import { AnalyticsModule } from "./analytics/analytics.module";
 import { MembersModule } from "./members/members.module";
 import { MemberAuthModule } from "./member-auth/member-auth.module";
 import { FamiliesModule } from "./families/families.module";
@@ -62,6 +66,10 @@ import { CsrfGuard } from "./common/guards/csrf.guard";
     MembershipsModule,
     TenantsModule,
     PlatformModule,
+    FormsModule,
+    FeaturesModule,
+    BillingModule,
+    AnalyticsModule,
     MembersModule,
     MemberAuthModule,
     FamiliesModule,
@@ -91,3 +99,4 @@ import { CsrfGuard } from "./common/guards/csrf.guard";
   ]
 })
 export class AppModule {}
+

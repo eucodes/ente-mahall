@@ -194,10 +194,26 @@ export class FinanceService {
   }
 
   async createDue(actor: ActorContext, dto: CreateDueDto, context: RequestContext): Promise<Due> {
-    const member = await this.prisma.member.findFirst({ where: { id: dto.memberId, tenantId: actor.tenantId } });
-    if (!member) throw new NotFoundException("Member not found");
+    let memberId = dto.memberId;
+    if (!memberId && dto.familyId) {
+      const anyMember = await this.prisma.member.findFirst({ where: { familyId: dto.familyId, tenantId: actor.tenantId } });
+      if (anyMember) memberId = anyMember.id;
+    }
+    if (!memberId) {
+      const member = await this.prisma.member.findFirst({ where: { tenantId: actor.tenantId } });
+      if (member) memberId = member.id;
+      else throw new NotFoundException("No member found to assign due.");
+    }
     const { dueDate, ...rest } = dto;
-    const due = await this.prisma.due.create({ data: { ...rest, dueDate: new Date(dueDate), tenantId: actor.tenantId } });
+    const due = await this.prisma.due.create({
+      data: {
+        ...rest,
+        memberId,
+        amount: new Prisma.Decimal(dto.amount),
+        dueDate: new Date(dueDate),
+        tenantId: actor.tenantId
+      }
+    });
     await this.audit.record({
       actorUserId: actor.userId,
       tenantId: actor.tenantId,
@@ -403,6 +419,132 @@ export class FinanceService {
       totalIncome: totalIncome.toFixed(2),
       totalExpense: totalExpense.toFixed(2),
       netPosition: totalIncome.minus(totalExpense).toFixed(2)
+    };
+  }
+
+  // --- Overview Dashboard Metrics ---------------------------------------------
+
+  async getFinanceOverview(tenantId: string) {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+
+    const [
+      todayCollectionsAgg,
+      todayPaymentsAgg,
+      monthlyIncomeAgg,
+      monthlyExpenseAgg,
+      pendingDues,
+      cashAccounts,
+      bankAccounts,
+      currentFy,
+      recentCollections,
+      recentReceipts,
+      recentPayments,
+      recentPendingDues
+    ] = await Promise.all([
+      this.prisma.financeCollection.aggregate({
+        where: { tenantId, status: "COMPLETED", date: { gte: startOfToday, lte: endOfToday } },
+        _sum: { amount: true }
+      }),
+      this.prisma.voucher.aggregate({
+        where: { tenantId, type: "PAYMENT", status: "PAID", date: { gte: startOfToday, lte: endOfToday } },
+        _sum: { amount: true }
+      }),
+      this.prisma.financeCollection.aggregate({
+        where: { tenantId, status: "COMPLETED", date: { gte: startOfMonth } },
+        _sum: { amount: true }
+      }),
+      this.prisma.voucher.aggregate({
+        where: { tenantId, type: "PAYMENT", status: "PAID", date: { gte: startOfMonth } },
+        _sum: { amount: true }
+      }),
+      this.prisma.due.findMany({
+        where: { tenantId, status: "PENDING" },
+        select: { amount: true, paidAmount: true }
+      }),
+      this.prisma.account.findMany({
+        where: { tenantId, isActive: true, type: "ASSET", OR: [{ code: "1100" }, { name: { contains: "Cash", mode: "insensitive" } }] }
+      }),
+      this.prisma.financeBankAccount.findMany({
+        where: { tenantId, isActive: true }
+      }),
+      this.prisma.financialYear.findFirst({
+        where: { tenantId, isCurrent: true }
+      }),
+      this.prisma.financeCollection.findMany({
+        where: { tenantId },
+        orderBy: { date: "desc" },
+        take: 5,
+        include: { category: true, member: true, family: true }
+      }),
+      this.prisma.financeReceipt.findMany({
+        where: { tenantId },
+        orderBy: { date: "desc" },
+        take: 5
+      }),
+      this.prisma.voucher.findMany({
+        where: { tenantId, type: "PAYMENT" },
+        orderBy: { date: "desc" },
+        take: 5,
+        include: { expenseCategory: true, account: true }
+      }),
+      this.prisma.due.findMany({
+        where: { tenantId, status: "PENDING" },
+        orderBy: { dueDate: "asc" },
+        take: 5,
+        include: { member: true, family: true }
+      })
+    ]);
+
+    const outstandingDues = pendingDues.reduce(
+      (sum, d) => sum.plus(d.amount.minus(d.paidAmount)),
+      new Prisma.Decimal(0)
+    );
+
+    const cashBalance = cashAccounts.reduce((sum, a) => sum.plus(a.currentBalance), new Prisma.Decimal(0));
+    const bankBalance = bankAccounts.reduce((sum, b) => sum.plus(b.currentBalance), new Prisma.Decimal(0));
+
+    // 6-Month Monthly Trend
+    const trend: { month: string; collections: number; expenses: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const nextD = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      const mLabel = d.toLocaleString("default", { month: "short", year: "2-digit" });
+
+      const [cAgg, eAgg] = await Promise.all([
+        this.prisma.financeCollection.aggregate({
+          where: { tenantId, status: "COMPLETED", date: { gte: d, lt: nextD } },
+          _sum: { amount: true }
+        }),
+        this.prisma.voucher.aggregate({
+          where: { tenantId, type: "PAYMENT", status: "PAID", date: { gte: d, lt: nextD } },
+          _sum: { amount: true }
+        })
+      ]);
+
+      trend.push({
+        month: mLabel,
+        collections: parseFloat(cAgg._sum.amount?.toFixed(2) ?? "0"),
+        expenses: parseFloat(eAgg._sum.amount?.toFixed(2) ?? "0")
+      });
+    }
+
+    return {
+      todayCollections: todayCollectionsAgg._sum.amount?.toFixed(2) ?? "0.00",
+      todayPayments: todayPaymentsAgg._sum.amount?.toFixed(2) ?? "0.00",
+      thisMonthIncome: monthlyIncomeAgg._sum.amount?.toFixed(2) ?? "0.00",
+      thisMonthExpenditure: monthlyExpenseAgg._sum.amount?.toFixed(2) ?? "0.00",
+      outstandingDues: outstandingDues.toFixed(2),
+      cashBalance: cashBalance.toFixed(2),
+      bankBalance: bankBalance.toFixed(2),
+      currentFinancialYear: currentFy ? currentFy.name : "None",
+      recentCollections,
+      recentReceipts,
+      recentPayments,
+      recentPendingDues,
+      trend
     };
   }
 }
