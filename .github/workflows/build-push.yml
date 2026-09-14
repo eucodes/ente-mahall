@@ -50,6 +50,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Lowercase Repository Owner
+        run: |
+          echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       # -----------------------------------------------------------------------
       # Build & Push API image
       # -----------------------------------------------------------------------
@@ -60,8 +64,8 @@ jobs:
           file: apps/api/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/mahalle-api:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/mahalle-api:staging
+            ghcr.io/${{ env.OWNER_LC }}/mahalle-api:${{ github.sha }}
+            ghcr.io/${{ env.OWNER_LC }}/mahalle-api:staging
           # Layer cache → GitHub Actions cache (speeds up subsequent builds)
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
@@ -78,11 +82,11 @@ jobs:
           file: apps/web/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/mahalle-web:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/mahalle-web:staging
+            ghcr.io/${{ env.OWNER_LC }}/mahalle-web:${{ github.sha }}
+            ghcr.io/${{ env.OWNER_LC }}/mahalle-web:staging
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
-            NEXT_PUBLIC_ROOT_DOMAIN=${{ secrets.NEXT_PUBLIC_ROOT_DOMAIN }}
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.mahallapp.eucodes.tech/api/v1' }}
+            NEXT_PUBLIC_ROOT_DOMAIN=${{ secrets.NEXT_PUBLIC_ROOT_DOMAIN || 'mahallapp.eucodes.tech' }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
 
@@ -91,6 +95,7 @@ jobs:
       # Pulls the new images and restarts only the changed containers.
       # -----------------------------------------------------------------------
       - name: Deploy to Staging (VPS)
+        if: ${{ secrets.VPS_HOST != '' }}
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}

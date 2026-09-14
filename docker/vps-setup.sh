@@ -12,7 +12,8 @@ set -euo pipefail
 
 DEPLOY_USER="mahalle"
 DEPLOY_PATH="/var/www/mahalle"
-REPO_URL="https://github.com/eucodes/ente-mahall.git"
+DOMAIN="mahallapp.eucodes.tech"
+REPO_URL="https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME.git"
 
 echo "=== [1/7] System update ==="
 apt-get update -y && apt-get upgrade -y

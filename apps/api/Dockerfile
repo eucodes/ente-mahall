@@ -24,6 +24,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json                ./apps/api/
 COPY database/package.json                ./database/
+COPY database/prisma                      ./database/prisma/
 COPY packages/types/package.json          ./packages/types/
 COPY packages/config/package.json         ./packages/config/
 COPY packages/validation/package.json     ./packages/validation/
@@ -50,6 +51,7 @@ COPY --from=deps /app/packages/config/node_modules ./packages/config/node_module
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json                ./apps/api/
 COPY database/package.json                ./database/
+COPY database/prisma                      ./database/prisma/
 COPY packages/types/package.json          ./packages/types/
 COPY packages/config/package.json         ./packages/config/
 COPY packages/validation/package.json     ./packages/validation/
@@ -61,7 +63,8 @@ COPY packages/types/   ./packages/types/
 COPY packages/config/  ./packages/config/
 COPY packages/validation/ ./packages/validation/
 
-# 1. Compile @mahalle/database → CJS so NestJS can require() it at runtime
+# 1. Generate prisma client & compile @mahalle/database → CJS so NestJS can require() it at runtime
+RUN pnpm --filter @mahalle/database prisma generate
 RUN pnpm --filter @mahalle/database run build:cjs
 
 # 2. Build the API (nest build → dist/)

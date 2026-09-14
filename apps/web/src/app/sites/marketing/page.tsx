@@ -238,7 +238,7 @@ export default async function MarketingHomePage() {
               <div className="space-y-2 text-muted-foreground">
                 <p><span className="text-primary font-bold">SELECT</span> * FROM &ldquo;members&rdquo;</p>
                 <p><span className="text-primary font-bold">WHERE</span> &ldquo;tenantId&rdquo; = :currentMahalleId</p>
-                <p><span className="text-slate-400 dark:text-slate-500">// Zero cross-tenant leakage guaranteed</span></p>
+                <p><span className="text-slate-400 dark:text-slate-500">{"// Zero cross-tenant leakage guaranteed"}</span></p>
               </div>
               <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px] text-muted-foreground font-sans">
                 <span>PostgreSQL + Prisma Engine</span>
