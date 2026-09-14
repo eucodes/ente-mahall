@@ -36,19 +36,19 @@ FROM base AS deployer
 WORKDIR /app
 COPY --from=builder /app ./
 RUN pnpm deploy --filter @mahalle/api --prod /deploy && \
-    cp -r /app/node_modules/.prisma /deploy/node_modules/.prisma
+    test -d /deploy/node_modules/@prisma/client
 
 FROM node:20-alpine AS runner
-RUN apk add --no-cache libc6-compat dumb-init && npm install -g prisma@6.2.1
+RUN apk add --no-cache libc6-compat dumb-init && npm install -g prisma@6.19.3
 # Fail the image build instead of publishing an image with a missing migration
 # CLI. This also documents the absolute path used by production migrations.
 RUN test -x /usr/local/bin/prisma
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=deployer /deploy ./
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/database/prisma ./prisma
-RUN mkdir -p uploads && chown node:node uploads
+RUN prisma generate --schema ./prisma/schema.prisma && \
+    mkdir -p uploads && chown node:node uploads
 EXPOSE 4007
 USER node
 ENTRYPOINT ["dumb-init", "--"]
