@@ -85,7 +85,6 @@ WORKDIR /app
 COPY --from=builder /app/ .
 
 RUN pnpm deploy --filter @mahalle/api --prod /deploy
-RUN cp -r /app/node_modules/.prisma /deploy/node_modules/.prisma
 
 # ---------------------------------------------------------------------------
 # Stage 4 — runner (final production image)
@@ -100,12 +99,8 @@ ENV NODE_ENV=production
 # Copy self-contained deployment produced by pnpm deploy
 COPY --from=deployer /deploy .
 
-# Copy generated prisma client into runner node_modules
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-
-# Prisma: we need the schema file and compiled seed script so migrations / seed can run
+# Prisma: keep schema available in the runtime image for migrate/seed commands
 COPY --from=builder /app/database/prisma ./prisma
-COPY --from=builder /app/database/dist/prisma ./dist/prisma
 
 # Create uploads directory (normally mounted as a volume in production)
 RUN mkdir -p uploads && chown node:node uploads
