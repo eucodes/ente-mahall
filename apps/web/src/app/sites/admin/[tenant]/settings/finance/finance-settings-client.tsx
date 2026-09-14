@@ -36,6 +36,9 @@ import {
   MapPin,
   Tag,
   Users,
+  SettingsRow,
+  SettingsSection,
+  Tabs,
   useToast
 } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -581,75 +584,63 @@ export function FinanceSettingsClient({
 
   return (
     <div className="space-y-6">
-      {/* Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border/70 pb-3">
-        <Button
-          size="sm"
-          variant={activeTab === "general" ? "secondary" : "ghost"}
-          onClick={() => setActiveTab("general")}
-          className="rounded-xl text-xs gap-1.5"
-        >
-          <Settings className="h-3.5 w-3.5" />
-          General & Numbering
-        </Button>
-        <Button
-          size="sm"
-          variant={activeTab === "banks" ? "secondary" : "ghost"}
-          onClick={() => setActiveTab("banks")}
-          className="rounded-xl text-xs gap-1.5"
-        >
-          <Building2 className="h-3.5 w-3.5" />
-          Bank Accounts ({bankAccounts.length})
-        </Button>
-        <Button
-          size="sm"
-          variant={activeTab === "categories" ? "secondary" : "ghost"}
-          onClick={() => setActiveTab("categories")}
-          className="rounded-xl text-xs gap-1.5"
-        >
-          <Layers className="h-3.5 w-3.5" />
-          Categories ({collectionCategories.length + expenseCategories.length})
-        </Button>
-        <Button
-          size="sm"
-          variant={activeTab === "methods" ? "secondary" : "ghost"}
-          onClick={() => setActiveTab("methods")}
-          className="rounded-xl text-xs gap-1.5"
-        >
-          <CreditCard className="h-3.5 w-3.5" />
-          Payment Methods ({paymentMethods.length})
-        </Button>
-      </div>
+      <Tabs
+        variant="underline"
+        activeTab={activeTab}
+        onChange={(tab) => setActiveTab(tab as typeof activeTab)}
+        tabs={[
+          { id: "general", label: "Numbering", icon: <Settings className="h-4 w-4" /> },
+          { id: "banks", label: "Bank accounts", icon: <Building2 className="h-4 w-4" />, count: bankAccounts.length },
+          {
+            id: "categories",
+            label: "Categories",
+            icon: <Layers className="h-4 w-4" />,
+            count: collectionCategories.length + expenseCategories.length
+          },
+          { id: "methods", label: "Payment methods", icon: <CreditCard className="h-4 w-4" />, count: paymentMethods.length }
+        ]}
+      />
 
-      {/* General Tab */}
       {activeTab === "general" && (
-        <Card className="max-w-2xl rounded-2xl border border-border/80 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">General Finance Configuration</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSaveGeneral} className="space-y-4">
-              <FormField label="Currency Code" required>
-                <Input value={currency} onChange={(e) => setCurrency(e.target.value)} required />
-              </FormField>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label="Receipt Number Prefix" required>
-                  <Input value={receiptPrefix} onChange={(e) => setReceiptPrefix(e.target.value)} required />
-                </FormField>
-                <FormField label="Voucher Number Prefix" required>
-                  <Input value={voucherPrefix} onChange={(e) => setVoucherPrefix(e.target.value)} required />
-                </FormField>
-              </div>
-
-              <div className="pt-3">
-                <Button type="submit" disabled={isSavingGeneral} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                  {isSavingGeneral ? "Saving..." : "Save Settings"}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+        <form onSubmit={handleSaveGeneral} className="max-w-5xl">
+          <SettingsSection
+            title="Currency & numbering"
+            description="The currency used across finance records, and the prefixes placed before receipt and voucher numbers."
+            footer={
+              <Button type="submit" size="sm" isLoading={isSavingGeneral}>
+                Save changes
+              </Button>
+            }
+          >
+            <SettingsRow label="Currency" description="ISO currency code, e.g. INR." htmlFor="finance-currency">
+              <Input
+                id="finance-currency"
+                className="font-mono md:max-w-[160px]"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                required
+              />
+            </SettingsRow>
+            <SettingsRow label="Receipt prefix" description="Placed before every collection receipt number." htmlFor="finance-receipt-prefix">
+              <Input
+                id="finance-receipt-prefix"
+                className="font-mono md:max-w-[200px]"
+                value={receiptPrefix}
+                onChange={(e) => setReceiptPrefix(e.target.value)}
+                required
+              />
+            </SettingsRow>
+            <SettingsRow label="Voucher prefix" description="Placed before every payment voucher number." htmlFor="finance-voucher-prefix">
+              <Input
+                id="finance-voucher-prefix"
+                className="font-mono md:max-w-[200px]"
+                value={voucherPrefix}
+                onChange={(e) => setVoucherPrefix(e.target.value)}
+                required
+              />
+            </SettingsRow>
+          </SettingsSection>
+        </form>
       )}
 
       {/* Banks Tab */}

@@ -1,22 +1,46 @@
 import { redirect } from "next/navigation";
-import { Card, CardContent, EmptyState, PageHeader, Pagination } from "@mahalle/ui";
+import { Avatar, Cog, PageHeader, Pagination, SettingsSection } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
-import { getActivity } from "@/lib/activity";
+import { getActivity, type ActivityEntry } from "@/lib/activity";
 
 const PAGE_SIZE = 30;
 
+const VERB_LABELS: Record<string, string> = {
+  create: "created",
+  update: "updated",
+  delete: "removed",
+  paid: "recorded a payment for",
+  issue: "issued a certificate for"
+};
+
+function words(value: string): string {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[-_]/g, " ")
+    .toLowerCase();
+}
+
 function describe(action: string): string {
-  const [resource, verb] = action.split(".").length >= 2 ? [action.split(".").slice(0, -1).join(" "), action.split(".").pop()!] : [action, ""];
-  const VERB_LABELS: Record<string, string> = {
-    create: "Created",
-    update: "Updated",
-    delete: "Removed",
-    paid: "Recorded a payment for",
-    issue: "Issued a certificate for"
-  };
-  const label = VERB_LABELS[verb] ?? verb;
-  return `${label} ${resource.replace(/-/g, " ")}`.trim();
+  const parts = action.split(".");
+  if (parts.length < 2) return words(action);
+  const verb = parts.pop() ?? "";
+  const resource = words(parts.join(" "));
+  return `${VERB_LABELS[verb] ?? words(verb)} ${resource}`.trim();
+}
+
+function groupByDay(entries: ActivityEntry[]): [string, ActivityEntry[]][] {
+  const groups = new Map<string, ActivityEntry[]>();
+  for (const entry of entries) {
+    const day = new Date(entry.createdAt).toLocaleDateString("en-IN", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
+    groups.set(day, [...(groups.get(day) ?? []), entry]);
+  }
+  return [...groups.entries()];
 }
 
 export default async function ActivityPage({
@@ -38,36 +62,53 @@ export default async function ActivityPage({
   const result = await getActivity(slug, page, PAGE_SIZE);
 
   return (
-    <>
-      <PageHeader title="Activity" description="A timeline of changes made across this Mahallu's records." />
+    <div className="max-w-5xl space-y-6">
+      <PageHeader title="Activity log" description="Every change made across this Mahallu's records, newest first." />
 
       {result === null ? (
-        <Card>
-          <CardContent className="p-0">
-            <EmptyState
-              title="You don't have permission to view activity"
-              description={`Your role (${membership.role.name}) doesn't include audit.view.`}
-            />
-          </CardContent>
-        </Card>
+        <SettingsSection
+          title="You don't have access to the activity log"
+          description={`Your role (${membership.role.name}) doesn't include audit.view.`}
+        />
       ) : result.entries.length === 0 ? (
-        <EmptyState title="No activity yet" description="Changes made across the app will show up here." />
+        <SettingsSection title="No activity yet" description="Changes made across the app will show up here." />
       ) : (
-        <div className="space-y-6">
-          <ol className="space-y-1 border-l border-border pl-4">
-            {result.entries.map((entry) => (
-              <li key={entry.id} className="relative py-2 text-sm">
-                <span className="absolute -left-[21px] top-3.5 h-2 w-2 rounded-full bg-border" aria-hidden />
-                <p>
-                  <span className="font-medium">{entry.actor?.fullName ?? "System"}</span> · {describe(entry.action)}
-                </p>
-                <p className="text-xs text-muted-foreground">{new Date(entry.createdAt).toLocaleString("en-IN")}</p>
-              </li>
-            ))}
-          </ol>
+        <>
+          {groupByDay(result.entries).map(([day, entries]) => (
+            <SettingsSection
+              key={day}
+              title={day}
+              description={`${entries.length} change${entries.length === 1 ? "" : "s"}`}
+              flush
+            >
+              <ol className="divide-y divide-border/60">
+                {entries.map((entry) => (
+                  <li key={entry.id} className="flex items-start gap-3 px-6 py-3.5">
+                    {entry.actor ? (
+                      <Avatar name={entry.actor.fullName} size="sm" className="mt-0.5" />
+                    ) : (
+                      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                        <Cog className="h-3.5 w-3.5" />
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-foreground">
+                        <span className="font-semibold">{entry.actor?.fullName ?? "System"}</span>{" "}
+                        <span className="text-muted-foreground">{describe(entry.action)}</span>
+                      </p>
+                      <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground/80">{entry.action}</p>
+                    </div>
+                    <time dateTime={entry.createdAt} className="shrink-0 pt-0.5 text-xs tabular-nums text-muted-foreground">
+                      {new Date(entry.createdAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}
+                    </time>
+                  </li>
+                ))}
+              </ol>
+            </SettingsSection>
+          ))}
           <Pagination page={page} pageSize={PAGE_SIZE} total={result.total} hrefForPage={(p) => `/${slug}/activity?page=${p}`} />
-        </div>
+        </>
       )}
-    </>
+    </div>
   );
 }

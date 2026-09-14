@@ -485,33 +485,33 @@ export function AdminShell({
   const settingsNavItems: SubNavItem[] = useMemo(
     () => [
       {
-        label: "Settings Hub",
+        label: "General",
         href: `${base}/settings`,
         icon: <Settings className="h-4 w-4" />,
         exact: true
       },
       {
-        label: "Structure & Wards",
+        label: "Mahallu structure",
         href: `${base}/settings/structure`,
         icon: <Layers className="h-4 w-4" />
       },
       {
-        label: "Finance Settings",
+        label: "Finance",
         href: `${base}/settings/finance`,
         icon: <Wallet className="h-4 w-4" />
       },
       {
-        label: "Notification Settings",
+        label: "Notifications",
         href: `${base}/settings/notifications`,
         icon: <Bell className="h-4 w-4" />
       },
       {
-        label: "Administration Users",
+        label: "Users & roles",
         href: `${base}/admins`,
         icon: <ShieldCheck className="h-4 w-4" />
       },
       {
-        label: "Audit & Activity Logs",
+        label: "Activity log",
         href: `${base}/activity`,
         icon: <Clock className="h-4 w-4" />
       }
@@ -719,7 +719,9 @@ export function AdminShell({
     } else if (subPath.startsWith("/settings")) {
       items.push({ label: "Settings", href: `/${slug}/settings` });
       if (subPath.includes("/structure")) {
-        items.push({ label: "Mahall Structure", isLast: true });
+        items.push({ label: "Mahallu structure", isLast: true });
+      } else if (subPath.includes("/finance")) {
+        items.push({ label: "Finance", isLast: true });
       } else if (subPath.includes("/notifications")) {
         items.push({ label: "Notifications", isLast: true });
       }

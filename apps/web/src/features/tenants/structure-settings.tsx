@@ -5,23 +5,19 @@ import { useRouter } from "next/navigation";
 import {
   Badge,
   Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  ChevronDown,
+  ChevronUp,
   EmptyState,
-  FormField,
+  Home,
   Input,
+  MapPin,
   Pencil,
-  Select,
+  Plus,
+  SettingsRow,
+  SettingsSection,
   StatCard,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Switch,
+  cn,
   useToast
 } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -37,22 +33,39 @@ export interface StructureSettingsProps {
   summary: StructureSummary | null;
 }
 
+function initialNumberingPerDivision(structure: Structure): boolean {
+  if (structure.houseNumberingMethod === "PER_DIVISION") return true;
+  if (structure.houseNumberingMethod === "GLOBAL") return false;
+  return !structure.houseNumberPrefix;
+}
+
+function statusBadgeStyle(color?: string | null) {
+  switch (color) {
+    case "emerald":
+      return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800";
+    case "blue":
+      return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800";
+    case "amber":
+      return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800";
+    case "purple":
+      return "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800";
+    case "rose":
+      return "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800";
+    default:
+      return "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-800";
+  }
+}
+
 export function StructureSettings({ slug, structure, divisions, familyStatuses = [], summary }: StructureSettingsProps) {
   const router = useRouter();
   const { toast } = useToast();
 
   const [hasDivisions, setHasDivisions] = useState(structure.hasDivisions);
   const [divisionTerm, setDivisionTerm] = useState(structure.divisionTerm ?? "Division");
-  const [isNumberingPerDivision, setIsNumberingPerDivision] = useState(() => {
-    if (structure.houseNumberingMethod === "PER_DIVISION") return true;
-    if (structure.houseNumberingMethod === "GLOBAL") return false;
-    if (structure.houseNumberPrefix) return false;
-    return true; // default to different per division
-  });
+  const [isNumberingPerDivision, setIsNumberingPerDivision] = useState(() => initialNumberingPerDivision(structure));
   const [houseNumberPrefix, setHouseNumberPrefix] = useState(structure.houseNumberPrefix ?? "");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Family Status Division State
   const [hasFamilyStatuses, setHasFamilyStatuses] = useState(structure.hasFamilyStatuses ?? false);
   const [familyStatusTerm, setFamilyStatusTerm] = useState(structure.familyStatusTerm ?? "Category");
   const [isSavingStatusSettings, setIsSavingStatusSettings] = useState(false);
@@ -64,14 +77,23 @@ export function StructureSettings({ slug, structure, divisions, familyStatuses =
   const [editingDivision, setEditingDivision] = useState<Division | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const label = divisionTerm || "division";
-  const statusLabel = familyStatusTerm || "Category";
-  const activeDivisions = divisions.filter((d) => d.isActive);
-  const inactiveDivisions = divisions.filter((d) => !d.isActive);
-  const sortedActive = [...activeDivisions].sort((a, b) => a.order - b.order);
+  // Lists and stats follow the saved structure, so toggling a switch doesn't reveal a list before it's saved.
+  const savedLabel = structure.divisionTerm || "Division";
+  const savedStatusLabel = structure.familyStatusTerm || "Category";
+  const draftLabel = (divisionTerm.trim() || "division").toLowerCase();
 
-  const activeFamilyStatuses = familyStatuses.filter((s) => s.isActive);
-  const sortedActiveStatuses = [...activeFamilyStatuses].sort((a, b) => a.order - b.order);
+  const sortedActive = divisions.filter((d) => d.isActive).sort((a, b) => a.order - b.order);
+  const inactiveDivisions = divisions.filter((d) => !d.isActive);
+  const sortedActiveStatuses = familyStatuses.filter((s) => s.isActive).sort((a, b) => a.order - b.order);
+  const inactiveStatuses = familyStatuses.filter((s) => !s.isActive);
+
+  const organizationDirty =
+    hasDivisions !== structure.hasDivisions ||
+    divisionTerm !== (structure.divisionTerm ?? "Division") ||
+    isNumberingPerDivision !== initialNumberingPerDivision(structure) ||
+    houseNumberPrefix !== (structure.houseNumberPrefix ?? "");
+  const statusDirty =
+    hasFamilyStatuses !== (structure.hasFamilyStatuses ?? false) || familyStatusTerm !== (structure.familyStatusTerm ?? "Category");
 
   async function handleSaveSettings() {
     setIsSaving(true);
@@ -81,8 +103,12 @@ export function StructureSettings({ slug, structure, divisions, familyStatuses =
         divisionTerm: hasDivisions ? divisionTerm.trim() : "",
         houseNumberingMethod: hasDivisions ? (isNumberingPerDivision ? "PER_DIVISION" : "GLOBAL") : "GLOBAL",
         houseNumberPrefix: hasDivisions
-          ? (!isNumberingPerDivision && houseNumberPrefix.trim() ? houseNumberPrefix.trim().toUpperCase() : null)
-          : (houseNumberPrefix.trim() ? houseNumberPrefix.trim().toUpperCase() : null)
+          ? !isNumberingPerDivision && houseNumberPrefix.trim()
+            ? houseNumberPrefix.trim().toUpperCase()
+            : null
+          : houseNumberPrefix.trim()
+            ? houseNumberPrefix.trim().toUpperCase()
+            : null
       });
       toast({ title: "Structure settings saved", variant: "success" });
       router.refresh();
@@ -111,8 +137,7 @@ export function StructureSettings({ slug, structure, divisions, familyStatuses =
 
   async function handleMove(division: Division, direction: -1 | 1) {
     const index = sortedActive.findIndex((d) => d.id === division.id);
-    const swapWith = sortedActive[index + direction];
-    if (!swapWith) return;
+    if (!sortedActive[index + direction]) return;
     const reordered = [...sortedActive];
     [reordered[index], reordered[index + direction]] = [reordered[index + direction], reordered[index]];
     setBusyId(division.id);
@@ -134,10 +159,10 @@ export function StructureSettings({ slug, structure, divisions, familyStatuses =
         hasFamilyStatuses,
         familyStatusTerm: hasFamilyStatuses ? familyStatusTerm.trim() : "Category"
       });
-      toast({ title: "Family status settings saved", variant: "success" });
+      toast({ title: "Family category settings saved", variant: "success" });
       router.refresh();
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Couldn't save family status settings.";
+      const message = err instanceof ApiError ? err.message : "Couldn't save family category settings.";
       toast({ title: "Something went wrong", description: message, variant: "destructive" });
     } finally {
       setIsSavingStatusSettings(false);
@@ -161,8 +186,7 @@ export function StructureSettings({ slug, structure, divisions, familyStatuses =
 
   async function handleMoveStatus(status: FamilyStatus, direction: -1 | 1) {
     const index = sortedActiveStatuses.findIndex((s) => s.id === status.id);
-    const swapWith = sortedActiveStatuses[index + direction];
-    if (!swapWith) return;
+    if (!sortedActiveStatuses[index + direction]) return;
     const reordered = [...sortedActiveStatuses];
     [reordered[index], reordered[index + direction]] = [reordered[index + direction], reordered[index]];
     setBusyStatusId(status.id);
@@ -170,186 +194,107 @@ export function StructureSettings({ slug, structure, divisions, familyStatuses =
       await apiClient.post(`/tenants/${slug}/structure/family-statuses/reorder`, { orderedIds: reordered.map((s) => s.id) });
       router.refresh();
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Couldn't reorder statuses.";
+      const message = err instanceof ApiError ? err.message : "Couldn't reorder categories.";
       toast({ title: "Something went wrong", description: message, variant: "destructive" });
     } finally {
       setBusyStatusId(null);
     }
   }
 
-  const getStatusBadgeStyle = (color?: string | null) => {
-    switch (color) {
-      case "emerald":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800";
-      case "blue":
-        return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800";
-      case "amber":
-        return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800";
-      case "purple":
-        return "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800";
-      case "rose":
-        return "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800";
-      default:
-        return "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/40 dark:text-slate-300 dark:border-slate-800";
-    }
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="max-w-5xl space-y-6">
       {summary && (
-        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <StatCard label={hasDivisions ? `Total ${label.toLowerCase()}s` : "Total divisions"} value={summary.totalDivisions} tone="violet" />
-          <StatCard label="Total houses" value={summary.totalHouses} tone="blue" />
-          <StatCard label="Active houses" value={summary.activeHouses} tone="green" />
-          <StatCard label="Inactive houses" value={summary.inactiveHouses} />
-          {hasDivisions && <StatCard label="Unassigned houses" value={summary.unassignedHouses} />}
+        <div className={cn("grid gap-3", structure.hasDivisions ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+          {structure.hasDivisions && (
+            <StatCard label={`${savedLabel}s`} value={summary.totalDivisions} tone="violet" icon={<MapPin />} />
+          )}
+          <StatCard
+            label="Houses"
+            value={summary.totalHouses}
+            tone="blue"
+            icon={<Home />}
+            hint={`${summary.activeHouses} active · ${summary.inactiveHouses} inactive`}
+          />
+          {structure.hasDivisions ? (
+            <StatCard
+              label="Unassigned houses"
+              value={summary.unassignedHouses}
+              tone="amber"
+              hint={`Not placed in a ${savedLabel.toLowerCase()}`}
+            />
+          ) : (
+            <StatCard label="Active houses" value={summary.activeHouses} tone="green" icon={<Home />} />
+          )}
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>How is this Mahallu organized?</CardTitle>
-          <CardDescription>
-            This shapes how families and houses are grouped throughout the app — change it any time.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <FormField label="Does this Mahallu have divisions, wards, or areas?" htmlFor="settings-has-divisions">
-            <Select
-              id="settings-has-divisions"
-              value={hasDivisions ? "yes" : "no"}
-              onChange={(e) => setHasDivisions(e.target.value === "yes")}
-              className="max-w-xs"
-            >
-              <option value="no">No subdivisions</option>
-              <option value="yes">Subdivisions enabled</option>
-            </Select>
-          </FormField>
+      <SettingsSection
+        title="Organization"
+        description="How families and houses are grouped throughout the app. You can change this at any time."
+        footerHint={organizationDirty ? "You have unsaved changes." : undefined}
+        footer={
+          <Button size="sm" onClick={() => void handleSaveSettings()} isLoading={isSaving} disabled={!organizationDirty}>
+            Save
+          </Button>
+        }
+      >
+        <SettingsRow label="Divisions" description="Split the Mahallu into wards, areas, or zones.">
+          <Switch checked={hasDivisions} onCheckedChange={setHasDivisions} aria-label="Split the Mahallu into divisions" />
+        </SettingsRow>
 
-          {hasDivisions ? (
-            <>
-              <FormField
-                label="What do you call these divisions?"
-                htmlFor="settings-division-term"
-                hint="e.g. Division, Ward, Area, Zone, Mohalla, Unit"
-              >
-                <Input
-                  id="settings-division-term"
-                  placeholder="e.g. Division, Ward, Area, Zone"
-                  value={divisionTerm}
-                  onChange={(e) => setDivisionTerm(e.target.value)}
-                  className="max-w-md"
-                />
-              </FormField>
+        {hasDivisions && (
+          <SettingsRow
+            label="What do you call them?"
+            description="Used everywhere in the app, e.g. Ward, Area, Zone, or Mohalla."
+            htmlFor="settings-division-term"
+          >
+            <Input
+              id="settings-division-term"
+              className="md:max-w-xs"
+              placeholder="e.g. Ward"
+              value={divisionTerm}
+              onChange={(e) => setDivisionTerm(e.target.value)}
+            />
+          </SettingsRow>
+        )}
 
-              <div className="space-y-3 pt-2 border-t border-border">
-                <FormField
-                  label={`Is house numbering different in each ${label.toLowerCase()}?`}
-                  htmlFor="numbering-scope"
-                  hint={`Determine whether each ${label.toLowerCase()} has its own prefix code or if one global code is used`}
-                >
-                  <div className="flex flex-col sm:flex-row gap-3 max-w-xl">
-                    <label
-                      className={`flex-1 flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
-                        isNumberingPerDivision
-                          ? "border-primary bg-primary/5 text-foreground"
-                          : "border-border hover:bg-muted/40 text-muted-foreground"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        id="numbering-scope-div"
-                        name="numbering-scope"
-                        checked={isNumberingPerDivision}
-                        onChange={() => setIsNumberingPerDivision(true)}
-                        className="mt-0.5 text-primary focus:ring-primary"
-                      />
-                      <div className="flex flex-col text-xs">
-                        <span className="font-semibold text-foreground">Yes, different per {label.toLowerCase()}</span>
-                        <span className="text-muted-foreground mt-0.5">
-                          Each {label.toLowerCase()} defines its own code (e.g. Kambalakkad = KBD → KBD01)
-                        </span>
-                      </div>
-                    </label>
-
-                    <label
-                      className={`flex-1 flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
-                        !isNumberingPerDivision
-                          ? "border-primary bg-primary/5 text-foreground"
-                          : "border-border hover:bg-muted/40 text-muted-foreground"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        id="numbering-scope-global"
-                        name="numbering-scope"
-                        checked={!isNumberingPerDivision}
-                        onChange={() => setIsNumberingPerDivision(false)}
-                        className="mt-0.5 text-primary focus:ring-primary"
-                      />
-                      <div className="flex flex-col text-xs">
-                        <span className="font-semibold text-foreground">No, same globally</span>
-                        <span className="text-muted-foreground mt-0.5">
-                          Use the same prefix code for all houses across the Mahallu
-                        </span>
-                      </div>
-                    </label>
-                  </div>
-                </FormField>
-
-                {!isNumberingPerDivision && (
-                  <div className="p-3.5 rounded-xl bg-muted/30 border border-border/80 max-w-md space-y-2 animate-in fade-in-50 duration-150">
-                    <FormField
-                      label="Global House Number Prefix / Code"
-                      htmlFor="global-house-prefix"
-                      hint="Prefix code used before house numbers across the entire Mahallu (e.g. MH, KBD)"
-                    >
-                      <Input
-                        id="global-house-prefix"
-                        placeholder="e.g. MH"
-                        value={houseNumberPrefix}
-                        onChange={(e) => setHouseNumberPrefix(e.target.value.toUpperCase())}
-                        className="font-mono uppercase max-w-xs"
-                      />
-                    </FormField>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            /* When divisions are disabled: ask house number code globally */
-            <div className="space-y-3 pt-2 border-t border-border max-w-md animate-in fade-in-50 duration-150">
-              <FormField
-                label="House Number Prefix / Code"
-                htmlFor="disabled-div-house-prefix"
-                hint="Prefix code used before house numbers across this Mahallu (e.g. MH for MH01, MH02)"
-              >
-                <Input
-                  id="disabled-div-house-prefix"
-                  placeholder="e.g. MH"
-                  value={houseNumberPrefix}
-                  onChange={(e) => setHouseNumberPrefix(e.target.value.toUpperCase())}
-                  className="font-mono uppercase max-w-xs"
-                />
-              </FormField>
+        {hasDivisions && (
+          <SettingsRow label="House numbering" description={`Whether each ${draftLabel} uses its own code, or one code covers the whole Mahallu.`}>
+            <div role="radiogroup" aria-label="House numbering" className="grid w-full gap-2 md:max-w-sm">
+              <NumberingOption
+                selected={isNumberingPerDivision}
+                onSelect={() => setIsNumberingPerDivision(true)}
+                title={`Separate code per ${draftLabel}`}
+                example={`Each ${draftLabel} sets its own code, e.g. KBD01, KBD02`}
+              />
+              <NumberingOption
+                selected={!isNumberingPerDivision}
+                onSelect={() => setIsNumberingPerDivision(false)}
+                title="One code for the whole Mahallu"
+                example="The same code everywhere, e.g. MH01, MH02"
+              />
             </div>
-          )}
+          </SettingsRow>
+        )}
 
-          <div className="pt-2">
-            <Button isLoading={isSaving} onClick={handleSaveSettings}>
-              Save
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        {(!hasDivisions || !isNumberingPerDivision) && (
+          <SettingsRow label="House number prefix" description="The code placed before every house number." htmlFor="house-number-prefix">
+            <Input
+              id="house-number-prefix"
+              className="font-mono uppercase md:max-w-[180px]"
+              placeholder="e.g. MH"
+              value={houseNumberPrefix}
+              onChange={(e) => setHouseNumberPrefix(e.target.value.toUpperCase())}
+            />
+          </SettingsRow>
+        )}
+      </SettingsSection>
 
-      {hasDivisions && (
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle className="capitalize">{label}s</CardTitle>
-              <CardDescription>Add, edit, reorder, or deactivate the {label.toLowerCase()}s this Mahallu is split into.</CardDescription>
-            </div>
+      {structure.hasDivisions && (
+        <SettingsSection
+          title={`${savedLabel}s`}
+          description={`Add, rename, reorder, or deactivate the ${savedLabel.toLowerCase()}s this Mahallu is split into.`}
+          actions={
             <Button
               size="sm"
               onClick={() => {
@@ -357,161 +302,77 @@ export function StructureSettings({ slug, structure, divisions, familyStatuses =
                 setFormOpen(true);
               }}
             >
-              Add {label}
+              <Plus className="h-4 w-4" />
+              Add {savedLabel.toLowerCase()}
             </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            {divisions.length === 0 ? (
-              <EmptyState title={`No ${label.toLowerCase()}s yet`} description="Add the first one above." />
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Code / Prefix</TableHead>
-                    <TableHead>Houses</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[...sortedActive, ...inactiveDivisions].map((division, idx) => (
-                    <TableRow key={division.id}>
-                      <TableCell className="text-muted-foreground">
-                        {division.isActive && (
-                          <div className="flex gap-0.5">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={idx === 0 || busyId === division.id}
-                              onClick={() => handleMove(division, -1)}
-                              aria-label={`Move ${division.name} up`}
-                            >
-                              ↑
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={idx === sortedActive.length - 1 || busyId === division.id}
-                              onClick={() => handleMove(division, 1)}
-                              aria-label={`Move ${division.name} down`}
-                            >
-                              ↓
-                            </Button>
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-medium">{division.name}</TableCell>
-                      <TableCell>
-                        {division.code ? (
-                          <span className="font-mono font-semibold px-2 py-0.5 rounded bg-muted text-foreground text-xs border border-border">
-                            {division.code}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">—</TableCell>
-                      <TableCell>
-                        <Badge variant={division.isActive ? "secondary" : "outline"}>{division.isActive ? "Active" : "Inactive"}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEditingDivision(division);
-                              setFormOpen(true);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            isLoading={busyId === division.id}
-                            onClick={() => handleToggleActive(division)}
-                          >
-                            {division.isActive ? "Deactivate" : "Reactivate"}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+          }
+          flush
+        >
+          {divisions.length === 0 ? (
+            <EmptyState title={`No ${savedLabel.toLowerCase()}s yet`} description={`Add the first ${savedLabel.toLowerCase()} to start grouping houses.`} />
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {[...sortedActive, ...inactiveDivisions].map((division) => {
+                const activeIndex = sortedActive.findIndex((d) => d.id === division.id);
+                return (
+                  <ListRow
+                    key={division.id}
+                    busy={busyId === division.id}
+                    isActive={division.isActive}
+                    canMoveUp={activeIndex > 0}
+                    canMoveDown={activeIndex !== -1 && activeIndex < sortedActive.length - 1}
+                    onMoveUp={() => void handleMove(division, -1)}
+                    onMoveDown={() => void handleMove(division, 1)}
+                    onEdit={() => {
+                      setEditingDivision(division);
+                      setFormOpen(true);
+                    }}
+                    onToggleActive={() => void handleToggleActive(division)}
+                    name={division.name}
+                    code={division.code}
+                    description={division.description}
+                  />
+                );
+              })}
+            </ul>
+          )}
+        </SettingsSection>
       )}
 
-      <DivisionFormDialog slug={slug} open={formOpen} onOpenChange={setFormOpen} editingDivision={editingDivision} divisionTerm={label} />
-
-      {/* ========================================================================= */}
-      {/* 2. Family Status Division Settings (e.g. Category A, B, Welfare, etc.)    */}
-      {/* ========================================================================= */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Family Status Division</CardTitle>
-          <CardDescription>
-            Group and classify households into socioeconomic tiers or administrative categories (e.g. Category A, Category B, Welfare, Zakat Eligible).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between p-4 rounded-xl border border-border/70 bg-muted/20">
-            <div className="space-y-0.5">
-              <label htmlFor="has-family-statuses" className="text-sm font-semibold text-foreground cursor-pointer">
-                Enable Family Status Division
-              </label>
-              <p className="text-xs text-muted-foreground">
-                When enabled, family adding, editing, and family registry tables will show and filter by this status tier.
-              </p>
-            </div>
-            <input
-              id="has-family-statuses"
-              type="checkbox"
-              className="h-5 w-5 rounded border-input text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
-              checked={hasFamilyStatuses}
-              onChange={(e) => setHasFamilyStatuses(e.target.checked)}
+      <SettingsSection
+        title="Family categories"
+        description="Classify households into tiers or groups, e.g. Category A, Category B, Welfare, or Zakat eligible."
+        footerHint={statusDirty ? "You have unsaved changes." : undefined}
+        footer={
+          <Button size="sm" onClick={() => void handleSaveStatusSettings()} isLoading={isSavingStatusSettings} disabled={!statusDirty}>
+            Save
+          </Button>
+        }
+      >
+        <SettingsRow
+          label="Use family categories"
+          description="When on, categories appear when adding or editing a family, and in the family registry."
+        >
+          <Switch checked={hasFamilyStatuses} onCheckedChange={setHasFamilyStatuses} aria-label="Use family categories" />
+        </SettingsRow>
+        {hasFamilyStatuses && (
+          <SettingsRow label="What do you call them?" description="e.g. Category, Status, Slab, or Class." htmlFor="status-term">
+            <Input
+              id="status-term"
+              className="md:max-w-xs"
+              placeholder="e.g. Category"
+              value={familyStatusTerm}
+              onChange={(e) => setFamilyStatusTerm(e.target.value)}
             />
-          </div>
+          </SettingsRow>
+        )}
+      </SettingsSection>
 
-          {hasFamilyStatuses && (
-            <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t border-border/50">
-              <FormField label="Terminology for Status" htmlFor="status-term">
-                <Input
-                  id="status-term"
-                  placeholder="e.g. Category, Status, Slab, Class"
-                  value={familyStatusTerm}
-                  onChange={(e) => setFamilyStatusTerm(e.target.value)}
-                />
-              </FormField>
-            </div>
-          )}
-
-          <div className="flex justify-end pt-2">
-            <Button
-              type="button"
-              isLoading={isSavingStatusSettings}
-              onClick={handleSaveStatusSettings}
-            >
-              Save Family Status Settings
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {hasFamilyStatuses && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle>{statusLabel} List</CardTitle>
-              <CardDescription>
-                Define the available {statusLabel.toLowerCase()} values for households.
-              </CardDescription>
-            </div>
+      {structure.hasFamilyStatuses && (
+        <SettingsSection
+          title={`${savedStatusLabel} list`}
+          description={`The ${savedStatusLabel.toLowerCase()} values a household can be given.`}
+          actions={
             <Button
               size="sm"
               onClick={() => {
@@ -519,116 +380,183 @@ export function StructureSettings({ slug, structure, divisions, familyStatuses =
                 setStatusFormOpen(true);
               }}
             >
-              Add {statusLabel}
+              <Plus className="h-4 w-4" />
+              Add {savedStatusLabel.toLowerCase()}
             </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            {familyStatuses.length === 0 ? (
-              <EmptyState
-                title={`No ${statusLabel.toLowerCase()}s defined yet`}
-                description={`Click 'Add ${statusLabel}' to configure your first household category.`}
-              />
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">Order</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Badge Preview</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>State</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {familyStatuses.map((status, idx) => (
-                    <TableRow key={status.id}>
-                      <TableCell className="text-muted-foreground">
-                        {status.isActive && (
-                          <div className="flex gap-0.5">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={idx === 0 || busyStatusId === status.id}
-                              onClick={() => handleMoveStatus(status, -1)}
-                              aria-label={`Move ${status.name} up`}
-                            >
-                              ↑
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={idx === sortedActiveStatuses.length - 1 || busyStatusId === status.id}
-                              onClick={() => handleMoveStatus(status, 1)}
-                              aria-label={`Move ${status.name} down`}
-                            >
-                              ↓
-                            </Button>
-                          </div>
+          }
+          flush
+        >
+          {familyStatuses.length === 0 ? (
+            <EmptyState
+              title={`No ${savedStatusLabel.toLowerCase()}s yet`}
+              description={`Add your first ${savedStatusLabel.toLowerCase()} to start classifying households.`}
+            />
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {[...sortedActiveStatuses, ...inactiveStatuses].map((status) => {
+                const activeIndex = sortedActiveStatuses.findIndex((s) => s.id === status.id);
+                return (
+                  <ListRow
+                    key={status.id}
+                    busy={busyStatusId === status.id}
+                    isActive={status.isActive}
+                    canMoveUp={activeIndex > 0}
+                    canMoveDown={activeIndex !== -1 && activeIndex < sortedActiveStatuses.length - 1}
+                    onMoveUp={() => void handleMoveStatus(status, -1)}
+                    onMoveDown={() => void handleMoveStatus(status, 1)}
+                    onEdit={() => {
+                      setEditingStatus(status);
+                      setStatusFormOpen(true);
+                    }}
+                    onToggleActive={() => void handleToggleStatusActive(status)}
+                    name={
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+                          statusBadgeStyle(status.color)
                         )}
-                      </TableCell>
-                      <TableCell className="font-semibold">{status.name}</TableCell>
-                      <TableCell>
-                        {status.code ? (
-                          <span className="font-mono font-semibold px-2 py-0.5 rounded bg-muted text-foreground text-xs border border-border">
-                            {status.code}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getStatusBadgeStyle(status.color)}`}>
-                          {status.name}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
-                        {status.description || "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={status.isActive ? "secondary" : "outline"}>
-                          {status.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEditingStatus(status);
-                              setStatusFormOpen(true);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            isLoading={busyStatusId === status.id}
-                            onClick={() => handleToggleStatusActive(status)}
-                          >
-                            {status.isActive ? "Deactivate" : "Reactivate"}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                      >
+                        {status.name}
+                      </span>
+                    }
+                    code={status.code}
+                    description={status.description}
+                  />
+                );
+              })}
+            </ul>
+          )}
+        </SettingsSection>
       )}
 
+      <DivisionFormDialog
+        slug={slug}
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        editingDivision={editingDivision}
+        divisionTerm={savedLabel}
+      />
       <FamilyStatusFormDialog
         slug={slug}
         open={statusFormOpen}
         onOpenChange={setStatusFormOpen}
         editingStatus={editingStatus}
-        statusTerm={statusLabel}
+        statusTerm={savedStatusLabel}
       />
     </div>
+  );
+}
+
+function NumberingOption({
+  selected,
+  onSelect,
+  title,
+  example
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  title: string;
+  example: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={cn(
+        "flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        selected ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:bg-muted/40"
+      )}
+    >
+      <span
+        className={cn(
+          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+          selected ? "border-primary" : "border-input"
+        )}
+      >
+        {selected && <span className="h-2 w-2 rounded-full bg-primary" />}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-foreground">{title}</span>
+        <span className="block text-xs text-muted-foreground">{example}</span>
+      </span>
+    </button>
+  );
+}
+
+function ListRow({
+  name,
+  code,
+  description,
+  isActive,
+  busy,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
+  onEdit,
+  onToggleActive
+}: {
+  name: React.ReactNode;
+  code: string | null;
+  description: string | null;
+  isActive: boolean;
+  busy: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onEdit: () => void;
+  onToggleActive: () => void;
+}) {
+  const label = typeof name === "string" ? name : "entry";
+  return (
+    <li className="flex items-center gap-3 px-4 py-3 sm:px-6">
+      <div className="flex w-7 shrink-0 flex-col items-center">
+        {isActive && (
+          <>
+            <button
+              type="button"
+              onClick={onMoveUp}
+              disabled={!canMoveUp || busy}
+              aria-label={`Move ${label} up`}
+              className="rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onMoveDown}
+              disabled={!canMoveDown || busy}
+              aria-label={`Move ${label} down`}
+              className="rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          </>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={cn("truncate text-sm font-medium", isActive ? "text-foreground" : "text-muted-foreground")}>{name}</span>
+          {code && (
+            <code className="rounded-md border border-border/70 bg-muted/50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-foreground">
+              {code}
+            </code>
+          )}
+          {!isActive && <Badge variant="outline">Inactive</Badge>}
+        </div>
+        {description && <p className="mt-0.5 truncate text-xs text-muted-foreground">{description}</p>}
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <Button variant="ghost" size="icon-sm" onClick={onEdit} aria-label={`Edit ${label}`}>
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="sm" isLoading={busy} onClick={onToggleActive}>
+          {isActive ? "Deactivate" : "Reactivate"}
+        </Button>
+      </div>
+    </li>
   );
 }

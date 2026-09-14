@@ -87,7 +87,8 @@ jobs:
           if [ -z "$ROOT_DOM" ]; then ROOT_DOM="mahallapp.eucodes.tech"; fi
           echo "BUILT_ROOT_DOMAIN=$ROOT_DOM" >> $GITHUB_ENV
           VPS_HOST="${{ secrets.VPS_HOST }}"
-          if [ -n "$VPS_HOST" ]; then
+          VPS_KEY="${{ secrets.VPS_SSH_KEY }}"
+          if [ -n "$VPS_HOST" ] && [ -n "$VPS_KEY" ]; then
             echo "HAS_VPS=true" >> $GITHUB_ENV
           else
             echo "HAS_VPS=false" >> $GITHUB_ENV

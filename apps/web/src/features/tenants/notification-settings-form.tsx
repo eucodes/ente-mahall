@@ -1,42 +1,59 @@
 "use client";
 
-import { useState, useEffect, type FormEvent } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Checkbox, FormField, Input, useToast } from "@mahalle/ui";
+import { Input, SettingsRow, SettingsSection, Switch, useToast } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { NotificationSettings } from "@/lib/notifications";
+import { UnsavedChangesBar } from "@/features/settings/unsaved-changes-bar";
+
+interface FormValues {
+  notifyOnNewServiceRequest: boolean;
+  notifyOnNewDue: boolean;
+  eventReminderDaysBefore: string;
+  smsEnabled: boolean;
+  smsProviderName: string;
+  smsSenderId: string;
+}
+
+function toFormValues(settings: NotificationSettings): FormValues {
+  return {
+    notifyOnNewServiceRequest: settings.notifyOnNewServiceRequest,
+    notifyOnNewDue: settings.notifyOnNewDue,
+    eventReminderDaysBefore: settings.eventReminderDaysBefore?.toString() ?? "",
+    smsEnabled: settings.smsEnabled,
+    smsProviderName: settings.smsProviderName ?? "",
+    smsSenderId: settings.smsSenderId ?? ""
+  };
+}
 
 export function NotificationSettingsForm({ slug, settings }: { slug: string; settings: NotificationSettings }) {
   const router = useRouter();
   const { toast } = useToast();
-  const [notifyOnNewServiceRequest, setNotifyOnNewServiceRequest] = useState(settings.notifyOnNewServiceRequest);
-  const [notifyOnNewDue, setNotifyOnNewDue] = useState(settings.notifyOnNewDue);
-  const [eventReminderDaysBefore, setEventReminderDaysBefore] = useState(settings.eventReminderDaysBefore?.toString() ?? "");
-  const [smsEnabled, setSmsEnabled] = useState(settings.smsEnabled);
-  const [smsProviderName, setSmsProviderName] = useState(settings.smsProviderName ?? "");
-  const [smsSenderId, setSmsSenderId] = useState(settings.smsSenderId ?? "");
+  // After a save, router.refresh() hands back settings equal to what's in the form, so the bar clears itself.
+  const initial = useMemo(() => toFormValues(settings), [settings]);
+  const [values, setValues] = useState<FormValues>(initial);
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    setNotifyOnNewServiceRequest(settings.notifyOnNewServiceRequest);
-    setNotifyOnNewDue(settings.notifyOnNewDue);
-    setEventReminderDaysBefore(settings.eventReminderDaysBefore?.toString() ?? "");
-    setSmsEnabled(settings.smsEnabled);
-    setSmsProviderName(settings.smsProviderName ?? "");
-    setSmsSenderId(settings.smsSenderId ?? "");
-  }, [settings]);
+  const isDirty = (Object.keys(initial) as (keyof FormValues)[]).some((key) => initial[key] !== values[key]);
+  const reminderDays = Number(values.eventReminderDaysBefore);
+  const reminderInvalid =
+    values.eventReminderDaysBefore !== "" && !(Number.isInteger(reminderDays) && reminderDays >= 0 && reminderDays <= 30);
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  function update<K extends keyof FormValues>(key: K, value: FormValues[K]) {
+    setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  async function handleSave() {
     setIsSaving(true);
     try {
       await apiClient.patch(`/tenants/${slug}/settings/notifications`, {
-        notifyOnNewServiceRequest,
-        notifyOnNewDue,
-        eventReminderDaysBefore: eventReminderDaysBefore ? Number(eventReminderDaysBefore) : undefined,
-        smsEnabled,
-        smsProviderName: smsProviderName || undefined,
-        smsSenderId: smsSenderId || undefined
+        notifyOnNewServiceRequest: values.notifyOnNewServiceRequest,
+        notifyOnNewDue: values.notifyOnNewDue,
+        eventReminderDaysBefore: values.eventReminderDaysBefore ? reminderDays : undefined,
+        smsEnabled: values.smsEnabled,
+        smsProviderName: values.smsProviderName || undefined,
+        smsSenderId: values.smsSenderId || undefined
       });
       toast({ title: "Notification settings saved", variant: "success" });
       router.refresh();
@@ -49,63 +66,83 @@ export function NotificationSettingsForm({ slug, settings }: { slug: string; set
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>In-app notifications</CardTitle>
-          <CardDescription>What the admin dashboard should surface as new activity.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={notifyOnNewServiceRequest} onChange={(e) => setNotifyOnNewServiceRequest(e.target.checked)} />
-            New service request submitted
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={notifyOnNewDue} onChange={(e) => setNotifyOnNewDue(e.target.checked)} />
-            New due assigned to a member
-          </label>
-          <FormField label="Remind before an event" htmlFor="reminder-days" hint="Days before an event to surface a reminder — leave blank to disable">
+    <div className="max-w-5xl space-y-6">
+      <SettingsSection title="In-app alerts" description="What the admin dashboard surfaces as new activity for your team.">
+        <SettingsRow label="New service requests" description="Alert when a member submits a service request.">
+          <Switch
+            checked={values.notifyOnNewServiceRequest}
+            onCheckedChange={(checked) => update("notifyOnNewServiceRequest", checked)}
+            aria-label="Alert on new service requests"
+          />
+        </SettingsRow>
+        <SettingsRow label="New dues" description="Alert when a due is assigned to a member.">
+          <Switch
+            checked={values.notifyOnNewDue}
+            onCheckedChange={(checked) => update("notifyOnNewDue", checked)}
+            aria-label="Alert on new dues"
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="Event reminders"
+          description="How many days before an event to show a reminder. Leave blank to turn reminders off."
+          htmlFor="reminder-days"
+        >
+          <div className="flex items-center gap-2">
             <Input
               id="reminder-days"
               type="number"
               min={0}
               max={30}
-              className="max-w-[120px]"
-              value={eventReminderDaysBefore}
-              onChange={(e) => setEventReminderDaysBefore(e.target.value)}
+              inputMode="numeric"
+              className="w-24"
+              invalid={reminderInvalid}
+              value={values.eventReminderDaysBefore}
+              onChange={(e) => update("eventReminderDaysBefore", e.target.value)}
             />
-          </FormField>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>SMS</CardTitle>
-          <CardDescription>
-            Configuration only — this deployment isn&apos;t connected to an SMS provider yet. Choosing a provider (and, in India,
-            registering DLT templates) is a decision for your Mahallu to make; these fields just record the intent so it&apos;s ready
-            once a provider is wired up.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={smsEnabled} onChange={(e) => setSmsEnabled(e.target.checked)} />
-            Enable SMS notifications (once connected)
-          </label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="Provider name" htmlFor="sms-provider" hint="e.g. MSG91, Twilio">
-              <Input id="sms-provider" value={smsProviderName} onChange={(e) => setSmsProviderName(e.target.value)} />
-            </FormField>
-            <FormField label="Sender ID" htmlFor="sms-sender">
-              <Input id="sms-sender" value={smsSenderId} onChange={(e) => setSmsSenderId(e.target.value)} />
-            </FormField>
+            <span className="text-sm text-muted-foreground">days before</span>
           </div>
-        </CardContent>
-      </Card>
+          {reminderInvalid && <p className="mt-1.5 text-xs text-destructive">Enter a whole number from 0 to 30.</p>}
+        </SettingsRow>
+      </SettingsSection>
 
-      <Button type="submit" isLoading={isSaving}>
-        Save
-      </Button>
-    </form>
+      <SettingsSection
+        title="SMS"
+        description="This deployment isn't connected to an SMS provider yet. These settings record your choice, so everything is ready once a provider is connected."
+      >
+        <SettingsRow label="SMS notifications" description="Send notifications by SMS once a provider is connected.">
+          <Switch checked={values.smsEnabled} onCheckedChange={(checked) => update("smsEnabled", checked)} aria-label="Enable SMS notifications" />
+        </SettingsRow>
+        <SettingsRow label="Provider" description="The SMS gateway your Mahallu has chosen, e.g. MSG91 or Twilio." htmlFor="sms-provider">
+          <Input
+            id="sms-provider"
+            className="md:max-w-xs"
+            placeholder="e.g. MSG91"
+            value={values.smsProviderName}
+            onChange={(e) => update("smsProviderName", e.target.value)}
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="Sender ID"
+          description="The name recipients see. In India this must match your DLT-registered sender ID."
+          htmlFor="sms-sender"
+        >
+          <Input
+            id="sms-sender"
+            className="font-mono md:max-w-xs"
+            placeholder="e.g. MAHALL"
+            value={values.smsSenderId}
+            onChange={(e) => update("smsSenderId", e.target.value)}
+          />
+        </SettingsRow>
+      </SettingsSection>
+
+      <UnsavedChangesBar
+        visible={isDirty}
+        saving={isSaving}
+        disabled={reminderInvalid}
+        onDiscard={() => setValues(initial)}
+        onSave={() => void handleSave()}
+      />
+    </div>
   );
 }

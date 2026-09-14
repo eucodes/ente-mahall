@@ -1,50 +1,59 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useBreadcrumb } from "@/features/navigation/admin-shell";
 import {
   Avatar,
-  Badge,
+  Briefcase,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CreditCard,
+  Cake,
+  ChevronRight,
+  DetailGrid,
+  DetailItem,
   Droplet,
+  EmptyState,
+  Eye,
+  EyeOff,
+  GraduationCap,
   HeartHandshake,
+  HeartPulse,
+  Home,
+  IdCard,
   Mail,
-  MapPin,
-  MessageSquare,
+  MessageCircle,
   Pencil,
   Phone,
   Plane,
-  RefreshCw,
+  Receipt,
   ShieldCheck,
+  Sparkles,
+  StickyNote,
+  Tabs,
   User,
-  Users,
-  Eye,
-  EyeOff,
-  ChevronLeft,
-  ChevronRight,
-  School,
-  Briefcase,
-  GraduationCap,
-  Heart,
-  Activity,
-  ExternalLink
+  Users
 } from "@mahalle/ui";
 import {
   BLOOD_GROUP_LABELS,
   MOVEMENT_STATUS_LABELS,
-  RELATION_TO_HEAD_LABELS
+  RELATION_TO_HEAD_LABELS,
+  type MovementStatus
 } from "@/lib/member-constants";
-import type { Member } from "@/lib/members";
+import type { HealthConditionStatus, Member } from "@/lib/members";
 import type { Family } from "@/lib/business-resources";
 import { MemberFormDialog } from "./member-form-dialog";
-import { apiClient } from "@/lib/api-client";
+import { ContributionHistory } from "./contribution-history";
+import {
+  RecordBackLink,
+  RecordChip,
+  RecordHeader,
+  RecordLayout,
+  RecordPanel,
+  type RecordChipTone,
+  type RecordMetaItem
+} from "./record-layout";
+import { calculateAge, formatDate, humanize, maskId, telHref, whatsappHref } from "./record-utils";
+import { useRecordTab } from "./use-record-tab";
 
 export interface MemberDetailViewProps {
   slug: string;
@@ -53,128 +62,40 @@ export interface MemberDetailViewProps {
   families: Family[];
 }
 
-function calculateAge(dob: string | null): number | null {
-  if (!dob) return null;
-  const birth = new Date(dob);
-  if (isNaN(birth.getTime())) return null;
-  const diff = Date.now() - birth.getTime();
-  const age = Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
-  return age >= 0 ? age : null;
+const MEMBER_TABS = ["overview", "work", "health", "contributions"] as const;
+
+const MOVEMENT_TONE: Record<MovementStatus, RecordChipTone> = {
+  RESIDENT: "emerald",
+  MIGRATED: "amber",
+  MOVED_OUT: "amber",
+  DECEASED: "muted"
+};
+
+const HEALTH_STATUS_LABELS: Record<HealthConditionStatus, string> = {
+  NO_KNOWN_CONDITION: "No known condition",
+  HAS_CONDITION: "Has a medical condition",
+  NOT_DISCLOSED: "Not disclosed"
+};
+
+const notRecorded = <span className="font-normal text-muted-foreground/70">Not recorded</span>;
+
+function yesNo(value: boolean) {
+  return value ? "Yes" : "No";
 }
 
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" });
-}
-
-function maskId(idNumber: string | null, isRevealed: boolean): string {
-  if (!idNumber) return "—";
-  if (isRevealed) return idNumber;
-  if (idNumber.length <= 4) return idNumber;
-  return `${idNumber.slice(0, 4)}••••••${idNumber.slice(-2)}`;
-}
-
-interface MemberPaymentRecord {
-  id: string;
-  receiptNumber?: string | null;
-  date: string;
-  amount: string | number;
-  paymentMethod?: string | null;
-  description?: string | null;
-  category?: { name: string } | null;
-}
-
-function MemberPaymentHistoryCard({ slug, memberId }: { slug: string; memberId: string }) {
-  const [records, setRecords] = useState<MemberPaymentRecord[]>([]);
-  const [totalPaid, setTotalPaid] = useState<number>(0);
-  const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  const fetchRecords = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await apiClient.get<{ collections: MemberPaymentRecord[]; total: number }>(
-        `/tenants/${slug}/finance/collections?memberId=${memberId}&page=1&pageSize=20`
-      );
-      const cols = res?.collections ?? [];
-      setRecords(cols);
-      setTotalPaid(cols.reduce((sum, c) => sum + Number(c.amount), 0));
-    } catch {
-      setRecords([]);
-    } finally {
-      setLoading(false);
-      setLoaded(true);
-    }
-  }, [slug, memberId]);
-
-  useEffect(() => {
-    fetchRecords();
-  }, [fetchRecords]);
-
+function PhoneLink({ phone }: { phone: string | null | undefined }) {
+  if (!phone) return null;
   return (
-    <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
-      <CardHeader className="border-b border-border/60 px-6 py-4 flex flex-row items-center justify-between">
-        <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-          <CreditCard className="h-4 w-4 text-muted-foreground" />
-          <span>Contribution History</span>
-        </CardTitle>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={fetchRecords}
-          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-          title="Refresh"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-        </Button>
-      </CardHeader>
-      {loaded && totalPaid > 0 && (
-        <div className="px-6 py-3 border-b border-border/60 bg-muted/20">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Total Contributed</p>
-          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">₹{totalPaid.toLocaleString("en-IN")}</p>
-        </div>
-      )}
-      <CardContent className="p-0">
-        {loading && !loaded ? (
-          <p className="px-6 py-4 text-xs text-muted-foreground">Loading contribution history...</p>
-        ) : records.length === 0 ? (
-          <p className="px-6 py-4 text-xs text-muted-foreground italic">No contributions recorded for this member yet.</p>
-        ) : (
-          <div className="divide-y divide-border/60">
-            {records.map((rec) => (
-              <div key={rec.id} className="flex items-center justify-between px-6 py-3 gap-4 hover:bg-muted/20 transition-colors">
-                <div className="flex flex-col gap-0.5 min-w-0">
-                  <span className="text-xs font-semibold text-foreground truncate">
-                    {rec.category?.name || "Collection"}
-                    {rec.description && (
-                      <span className="font-normal text-muted-foreground ml-1">— {rec.description}</span>
-                    )}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground font-mono">
-                    {rec.receiptNumber ? `#${rec.receiptNumber}` : rec.id.slice(0, 8).toUpperCase()}
-                    {" · "}
-                    {new Date(rec.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                    {rec.paymentMethod && ` · ${rec.paymentMethod}`}
-                  </span>
-                </div>
-                <span className="shrink-0 font-bold text-sm text-foreground">
-                  ₹{Number(rec.amount).toLocaleString("en-IN")}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <a href={telHref(phone)} className="font-mono hover:underline">
+      {phone}
+    </a>
   );
 }
 
 export function MemberDetailView({ slug, member, familyMembers, families }: MemberDetailViewProps) {
-  const router = useRouter();
-  const [showId, setShowId] = useState(false);
+  const [tab, setTab] = useRecordTab(MEMBER_TABS, "overview");
   const [formOpen, setFormOpen] = useState(false);
+  const [showId, setShowId] = useState(false);
   const { setDetailTitle } = useBreadcrumb();
 
   useEffect(() => {
@@ -183,498 +104,443 @@ export function MemberDetailView({ slug, member, familyMembers, families }: Memb
   }, [member.fullName, setDetailTitle]);
 
   const age = calculateAge(member.dateOfBirth);
-  const otherFamilyMembers = familyMembers.filter((m) => m.id !== member.id);
-  const linkedFamily = families.find((f) => f.id === member.familyId);
-  const familyName = linkedFamily?.name || member.family?.name;
-  const familyId = linkedFamily?.id || member.family?.id;
+  const linkedFamily = families.find((f) => f.id === member.familyId) ?? null;
+  const familyId = linkedFamily?.id ?? member.family?.id ?? null;
+  const familyName = linkedFamily?.name ?? member.family?.name ?? null;
+  const householdPeers = familyMembers.filter((m) => m.id !== member.id);
+  const relation = member.relationToHead ? RELATION_TO_HEAD_LABELS[member.relationToHead] : null;
+  const movementLabel = MOVEMENT_STATUS_LABELS[member.movementStatus] ?? humanize(member.movementStatus);
+  const health = member.healthProfile ?? null;
+  const educationHistory = member.educationHistory ?? [];
+  const skills = member.skills ?? [];
+  const dateOfBirth = formatDate(member.dateOfBirth);
+
+  const meta: RecordMetaItem[] = [
+    { key: "age", icon: <Cake />, label: "Age", value: age !== null ? `${age} years` : notRecorded },
+    { key: "phone", icon: <Phone />, label: "Phone", value: member.phone ?? notRecorded },
+    { key: "email", icon: <Mail />, label: "Email", value: member.email ?? notRecorded },
+    {
+      key: "household",
+      icon: <Home />,
+      label: "Household",
+      value:
+        familyId && familyName ? (
+          <Link href={`/${slug}/families/${familyId}`} className="hover:underline">
+            {familyName}
+          </Link>
+        ) : (
+          <span className="font-normal text-muted-foreground/70">Not linked</span>
+        )
+    }
+  ];
+
+  let tabContent: ReactNode;
+  if (tab === "work") {
+    tabContent = (
+      <>
+        <RecordPanel title="Employment" icon={<Briefcase />}>
+          <DetailGrid>
+            <DetailItem label="Employment status">{humanize(member.employmentStatus)}</DetailItem>
+            <DetailItem label="Job title / occupation">{member.jobTitle || member.occupation}</DetailItem>
+            <DetailItem label="Employer or business" wide>
+              {member.employerOrBusiness}
+            </DetailItem>
+          </DetailGrid>
+        </RecordPanel>
+
+        <RecordPanel title="Education" icon={<GraduationCap />}>
+          <DetailGrid>
+            <DetailItem label="Highest education">{humanize(member.educationLevel)}</DetailItem>
+            <DetailItem label="Institution">{member.institution}</DetailItem>
+            {member.educationDetails && (
+              <DetailItem label="Details" wide>
+                {member.educationDetails}
+              </DetailItem>
+            )}
+          </DetailGrid>
+
+          {educationHistory.length > 0 && (
+            <div className="mt-6 border-t border-border/60 pt-5">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">History</p>
+              <ol className="space-y-4 border-l border-border pl-5">
+                {educationHistory.map((item, index) => (
+                  <li key={item.id ?? index} className="relative">
+                    <span
+                      className="absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-primary"
+                      aria-hidden
+                    />
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="text-sm font-medium text-foreground">
+                        {item.degree || humanize(item.level) || "Qualification"}
+                      </p>
+                      {item.year && <span className="font-mono text-xs text-muted-foreground">{item.year}</span>}
+                    </div>
+                    {item.institution && <p className="text-xs text-muted-foreground">{item.institution}</p>}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </RecordPanel>
+
+        <RecordPanel title="Skills" icon={<Sparkles />}>
+          {skills.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {skills.map((skill) => (
+                <RecordChip key={skill}>{skill}</RecordChip>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No skills recorded.</p>
+          )}
+        </RecordPanel>
+      </>
+    );
+  } else if (tab === "health") {
+    tabContent = (
+      <>
+        <RecordPanel title="Residency" icon={<Home />}>
+          <DetailGrid>
+            <DetailItem label="Status">{movementLabel}</DetailItem>
+            <DetailItem label="Since">{formatDate(member.movementDate)}</DetailItem>
+          </DetailGrid>
+        </RecordPanel>
+
+        {health ? (
+          <>
+            <RecordPanel title="Health" icon={<HeartPulse />}>
+              <DetailGrid>
+                <DetailItem label="Condition">{HEALTH_STATUS_LABELS[health.status]}</DetailItem>
+                <DetailItem label="Disability">
+                  {health.hasDisability
+                    ? [humanize(health.disabilityType) ?? "Yes", health.disabilityPercentage ? `${health.disabilityPercentage}%` : null]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : "None recorded"}
+                </DetailItem>
+                {health.hasDisability && (
+                  <DetailItem label="Disability certificate">
+                    {health.disabilityCertificate ? (health.disabilityCertificateNo ?? "Yes") : "No"}
+                  </DetailItem>
+                )}
+                <DetailItem label="Chronic illness">
+                  {health.hasChronicIllness
+                    ? health.chronicConditions.length > 0
+                      ? health.chronicConditions.join(", ")
+                      : "Yes"
+                    : "None recorded"}
+                </DetailItem>
+                {health.chronicDetails && (
+                  <DetailItem label="Illness details" wide>
+                    {health.chronicDetails}
+                  </DetailItem>
+                )}
+                <DetailItem label="Ongoing treatment">{yesNo(health.treatmentRequired)}</DetailItem>
+                <DetailItem label="Regular medication">{yesNo(health.regularMedicationRequired)}</DetailItem>
+                {health.requiresMentalHealthSupport && (
+                  <DetailItem label="Mental health support">{health.mentalHealthSupportType ?? "Required"}</DetailItem>
+                )}
+              </DetailGrid>
+            </RecordPanel>
+
+            {(health.requiresAssistance || health.primaryCaregiverName || health.emergencyContactName) && (
+              <RecordPanel title="Care & emergency contact" icon={<ShieldCheck />}>
+                <DetailGrid>
+                  {health.requiresAssistance && (
+                    <DetailItem label="Assistance needed" wide>
+                      {health.assistanceTypes.length > 0 ? health.assistanceTypes.map((type) => humanize(type)).join(", ") : "Yes"}
+                    </DetailItem>
+                  )}
+                  <DetailItem label="Primary caregiver">
+                    {health.primaryCaregiverName
+                      ? `${health.primaryCaregiverName}${health.caregiverRelationship ? ` (${health.caregiverRelationship})` : ""}`
+                      : null}
+                  </DetailItem>
+                  <DetailItem label="Emergency contact">
+                    {health.emergencyContactName
+                      ? `${health.emergencyContactName}${health.emergencyContactPhone ? ` · ${health.emergencyContactPhone}` : ""}`
+                      : null}
+                  </DetailItem>
+                </DetailGrid>
+              </RecordPanel>
+            )}
+
+            <RecordPanel title="Community support" icon={<HeartHandshake />}>
+              {health.requiresCommunitySupport ? (
+                <DetailGrid>
+                  <DetailItem label="Status">{humanize(health.supportStatus)}</DetailItem>
+                  <DetailItem label="Category">{health.supportCategory}</DetailItem>
+                  <DetailItem label="Last support">{formatDate(health.lastSupportDate)}</DetailItem>
+                  {health.supportNotes && (
+                    <DetailItem label="Notes" wide>
+                      {health.supportNotes}
+                    </DetailItem>
+                  )}
+                </DetailGrid>
+              ) : (
+                <p className="text-sm text-muted-foreground">This member isn&apos;t marked as receiving community support.</p>
+              )}
+            </RecordPanel>
+          </>
+        ) : (
+          <RecordPanel title="Health" icon={<HeartPulse />}>
+            <EmptyState
+              className="py-8"
+              title="No health details recorded"
+              description="Nothing about health, disability, or community support has been recorded for this member."
+              action={
+                <Button size="sm" variant="outline" className="mt-2" onClick={() => setFormOpen(true)}>
+                  <Pencil className="h-4 w-4" />
+                  Edit member
+                </Button>
+              }
+            />
+          </RecordPanel>
+        )}
+      </>
+    );
+  } else if (tab === "contributions") {
+    tabContent = <ContributionHistory slug={slug} kind="member" id={member.id} />;
+  } else {
+    tabContent = (
+      <>
+        <RecordPanel title="Personal details" icon={<User />}>
+          <DetailGrid>
+            <DetailItem label="Full name">{member.fullName}</DetailItem>
+            <DetailItem label="Relation to head">{relation}</DetailItem>
+            <DetailItem label="Gender">{humanize(member.gender)}</DetailItem>
+            <DetailItem label="Date of birth">
+              {dateOfBirth ? `${dateOfBirth}${age !== null ? ` · ${age} yrs` : ""}` : null}
+            </DetailItem>
+            <DetailItem label="Marital status">{humanize(member.maritalStatus)}</DetailItem>
+            <DetailItem label="Blood group">{member.bloodGroup ? BLOOD_GROUP_LABELS[member.bloodGroup] : null}</DetailItem>
+            <DetailItem label="National ID" icon={<IdCard />}>
+              {member.idNumber ? (
+                <span className="inline-flex items-center gap-1.5 font-mono">
+                  {maskId(member.idNumber, showId)}
+                  <button
+                    type="button"
+                    onClick={() => setShowId((v) => !v)}
+                    className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label={showId ? "Hide ID number" : "Show ID number"}
+                  >
+                    {showId ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                </span>
+              ) : null}
+            </DetailItem>
+          </DetailGrid>
+        </RecordPanel>
+
+        <RecordPanel title="Contact" icon={<Phone />}>
+          <DetailGrid>
+            <DetailItem label="Phone">
+              <PhoneLink phone={member.phone} />
+            </DetailItem>
+            <DetailItem label="Email">
+              {member.email ? (
+                <a href={`mailto:${member.email}`} className="hover:underline">
+                  {member.email}
+                </a>
+              ) : null}
+            </DetailItem>
+            <DetailItem label="Residential address" wide>
+              {member.address}
+            </DetailItem>
+          </DetailGrid>
+        </RecordPanel>
+
+        {member.isYatheem && (
+          <RecordPanel title="Guardian" icon={<ShieldCheck />}>
+            <DetailGrid>
+              <DetailItem label="Guardian name">{member.guardianName}</DetailItem>
+              <DetailItem label="Guardian phone">
+                <PhoneLink phone={member.guardianPhone} />
+              </DetailItem>
+            </DetailGrid>
+          </RecordPanel>
+        )}
+
+        {member.isExpatriate && (
+          <RecordPanel title="Living abroad" icon={<Plane />}>
+            <DetailGrid>
+              <DetailItem label="Country">{member.expatriateCountry}</DetailItem>
+              <DetailItem label="Occupation abroad">{member.expatriateOccupation}</DetailItem>
+              <DetailItem label="Contact abroad" wide>
+                {member.expatriateContact}
+              </DetailItem>
+            </DetailGrid>
+          </RecordPanel>
+        )}
+      </>
+    );
+  }
+
+  const aside = (
+    <>
+      <RecordPanel
+        title="Household"
+        icon={<Users />}
+        flush
+        action={
+          familyId ? (
+            <Link href={`/${slug}/families/${familyId}`} className="text-xs font-semibold text-primary hover:underline">
+              View family
+            </Link>
+          ) : undefined
+        }
+      >
+        {familyId && familyName ? (
+          <>
+            <div className="flex items-center gap-3 px-5 py-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Home className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">{familyName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {linkedFamily?.house ? `House #${linkedFamily.house.displayNumber}` : "No house assigned"} ·{" "}
+                  {Math.max(familyMembers.length, 1)} member{Math.max(familyMembers.length, 1) === 1 ? "" : "s"}
+                </p>
+              </div>
+            </div>
+            {householdPeers.length > 0 ? (
+              <ul className="divide-y divide-border/60 border-t border-border/60">
+                {householdPeers.map((peer) => {
+                  const peerAge = calculateAge(peer.dateOfBirth);
+                  return (
+                    <li key={peer.id}>
+                      <Link
+                        href={`/${slug}/members/${peer.id}`}
+                        className="group flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-muted/40"
+                      >
+                        <Avatar name={peer.fullName} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-foreground">{peer.fullName}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {peer.relationToHead ? RELATION_TO_HEAD_LABELS[peer.relationToHead] : "Member"}
+                            {peerAge !== null ? ` · ${peerAge} yrs` : ""}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5" />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="border-t border-border/60 px-5 py-4 text-xs text-muted-foreground">No other members in this household.</p>
+            )}
+          </>
+        ) : (
+          <div className="px-5 py-6 text-center">
+            <p className="text-sm text-muted-foreground">Not linked to a household.</p>
+            <Button size="sm" variant="outline" className="mt-3" onClick={() => setFormOpen(true)}>
+              Link a family
+            </Button>
+          </div>
+        )}
+      </RecordPanel>
+
+      {member.movementNotes && (
+        <RecordPanel title="Notes" icon={<StickyNote />}>
+          <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">{member.movementNotes}</p>
+        </RecordPanel>
+      )}
+    </>
+  );
 
   return (
-    <div className="space-y-6 max-w-6xl">
-      {/* 1. Header with Back Navigation & Action Buttons */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => router.push(`/${slug}/members`)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/80 bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shadow-2xs group"
-            title="Back to Members"
-          >
-            <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
-          </button>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">
-            Member Profile
-          </h1>
-        </div>
+    <div className="max-w-6xl space-y-5">
+      <RecordBackLink href={`/${slug}/members`} label="Members" />
 
-        <div className="flex items-center gap-2">
-          {member.phone && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => window.open(`https://wa.me/${member.phone?.replace(/[^0-9]/g, "")}`, "_blank")}
-              className="rounded-xl text-xs font-semibold h-9 px-3.5 gap-1.5 border-border/80"
-            >
-              <MessageSquare className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>WhatsApp</span>
-            </Button>
-          )}
-
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => setFormOpen(true)}
-            className="rounded-xl text-xs font-semibold h-9 px-4 gap-1.5"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            <span>Edit Member</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* 2. Hero Profile Card - Minimal & Clean */}
-      <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
-        <CardContent className="p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
-            <div className="flex items-start sm:items-center gap-4">
-              <Avatar name={member.fullName} size="lg" className="ring-2 ring-border/60" />
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h2 className="text-xl font-bold text-foreground">
-                    {member.fullName}
-                  </h2>
-                  <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
-                    {member.relationToHead
-                      ? (RELATION_TO_HEAD_LABELS[member.relationToHead] ?? member.relationToHead)
-                      : "Member"}
-                  </span>
-                  <Badge variant={member.movementStatus === "RESIDENT" ? "secondary" : "outline"} className="text-xs">
-                    {MOVEMENT_STATUS_LABELS[member.movementStatus] ?? member.movementStatus}
-                  </Badge>
-                  {member.bloodGroup && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-400">
-                      <Droplet className="h-3 w-3" />
-                      {BLOOD_GROUP_LABELS[member.bloodGroup]}
-                    </span>
-                  )}
-                  {member.isExpatriate && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400">
-                      <Plane className="h-3 w-3" />
-                      NRI ({member.expatriateCountry || "Abroad"})
-                    </span>
-                  )}
-                  {member.isYatheem && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                      <HeartHandshake className="h-3 w-3" />
-                      Yatheem
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                  {age !== null && <span>{age} years old</span>}
-                  {familyName && familyId && (
-                    <>
-                      <span>•</span>
-                      <Link
-                        href={`/${slug}/families/${familyId}`}
-                        className="text-foreground hover:underline font-medium flex items-center gap-1"
-                      >
-                        <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>{familyName} Household</span>
-                      </Link>
-                    </>
-                  )}
-                  {linkedFamily?.house && (
-                    <>
-                      <span>•</span>
-                      <span>House #{linkedFamily.house.displayNumber}</span>
-                    </>
-                  )}
-                  {member.phone && (
-                    <>
-                      <span>•</span>
-                      <span className="font-mono">{member.phone}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="font-mono text-xs text-muted-foreground bg-muted/40 border border-border/60 px-3 py-1.5 rounded-xl self-start sm:self-auto">
-              #MEM-{member.id.slice(0, 8).toUpperCase()}
-            </div>
+      <RecordHeader
+        media={
+          <div className="rounded-full bg-card p-1 shadow-sm">
+            <Avatar name={member.fullName} size="lg" className="h-20 w-20 text-2xl sm:h-24 sm:w-24" />
           </div>
-        </CardContent>
-      </Card>
-
-      {/* 3. Main Grid: 8 Cols (Details & Education/Work) + 4 Cols (Household & Welfare) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (8 cols) */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* Card 1: Personal & Demographics */}
-          <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
-            <CardHeader className="border-b border-border/60 px-6 py-4">
-              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span>Personal & Demographics</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-sm">
-                <div>
-                  <span className="block text-xs text-muted-foreground">Full Name</span>
-                  <span className="font-medium text-foreground">{member.fullName}</span>
-                </div>
-
-                <div>
-                  <span className="block text-xs text-muted-foreground">Gender</span>
-                  <span className="font-medium text-foreground">
-                    {member.gender ? `${member.gender[0]}${member.gender.slice(1).toLowerCase()}` : "—"}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="block text-xs text-muted-foreground">Date of Birth / Age</span>
-                  <span className="font-medium text-foreground">
-                    {formatDate(member.dateOfBirth)} {age !== null ? `(${age} yrs)` : ""}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="block text-xs text-muted-foreground">Marital Status</span>
-                  <span className="font-medium text-foreground">
-                    {member.maritalStatus ? `${member.maritalStatus[0]}${member.maritalStatus.slice(1).toLowerCase()}` : "—"}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="block text-xs text-muted-foreground">Blood Group</span>
-                  <span className="font-medium text-foreground">
-                    {member.bloodGroup ? BLOOD_GROUP_LABELS[member.bloodGroup] : "—"}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="block text-xs text-muted-foreground">National ID (Aadhaar)</span>
-                  <div className="flex items-center gap-2 font-mono font-medium text-foreground">
-                    <span>{maskId(member.idNumber, showId)}</span>
-                    {member.idNumber && (
-                      <button
-                        type="button"
-                        onClick={() => setShowId(!showId)}
-                        className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
-                        title={showId ? "Hide ID" : "Show ID"}
-                      >
-                        {showId ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <span className="block text-xs text-muted-foreground">Phone Number</span>
-                  <span className="font-medium text-foreground font-mono">
-                    {member.phone || "—"}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="block text-xs text-muted-foreground">Email Address</span>
-                  <span className="font-medium text-foreground">
-                    {member.email || "—"}
-                  </span>
-                </div>
-
-                {member.address && (
-                  <div className="sm:col-span-2">
-                    <span className="block text-xs text-muted-foreground">Residential Address</span>
-                    <span className="font-medium text-foreground leading-snug">{member.address}</span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 2: Education & Employment */}
-          <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
-            <CardHeader className="border-b border-border/60 px-6 py-4 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-muted-foreground" />
-                <span>Education & Employment</span>
-              </CardTitle>
-              {member.isJobSeeker && (
-                <Badge variant="outline" className="text-xs border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold">
-                  Job Seeker
-                </Badge>
-              )}
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-sm">
-                <div>
-                  <span className="block text-xs text-muted-foreground">Occupation / Role</span>
-                  <span className="font-medium text-foreground">
-                    {member.jobTitle || member.occupation || "—"}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="block text-xs text-muted-foreground">Employer / Workplace</span>
-                  <span className="font-medium text-foreground">
-                    {member.employerOrBusiness || "—"}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="block text-xs text-muted-foreground">Employment Status</span>
-                  <span className="font-medium text-foreground">
-                    {member.employmentStatus ? member.employmentStatus.replace("_", " ") : "—"}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="block text-xs text-muted-foreground">Highest Education</span>
-                  <span className="font-medium text-foreground">
-                    {member.educationLevel ? member.educationLevel.replace("_", " ") : "—"}
-                  </span>
-                </div>
-
-                {member.institution && (
-                  <div className="sm:col-span-2">
-                    <span className="block text-xs text-muted-foreground">Institution / College</span>
-                    <span className="font-medium text-foreground">{member.institution}</span>
-                  </div>
-                )}
-
-                {member.educationDetails && (
-                  <div className="sm:col-span-2">
-                    <span className="block text-xs text-muted-foreground">Education Details</span>
-                    <span className="font-medium text-foreground">{member.educationDetails}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Education History List (if any) */}
-              {member.educationHistory && member.educationHistory.length > 0 && (
-                <div className="pt-3 border-t border-border/60 space-y-2">
-                  <span className="block text-xs text-muted-foreground font-semibold">
-                    Education History ({member.educationHistory.length})
-                  </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {member.educationHistory.map((item, idx) => (
-                      <div key={idx} className="p-3 rounded-2xl bg-muted/30 border border-border/60 text-xs space-y-0.5">
-                        <div className="flex items-center justify-between font-semibold text-foreground">
-                          <span>{item.degree || item.level || "Qualification"}</span>
-                          {item.year && <span className="text-muted-foreground font-mono font-normal">{item.year}</span>}
-                        </div>
-                        {item.institution && <p className="text-muted-foreground">{item.institution}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Skills Bank */}
-              {member.skills && member.skills.length > 0 && (
-                <div className="pt-3 border-t border-border/60 space-y-2">
-                  <span className="block text-xs text-muted-foreground font-semibold">
-                    Skills & Competencies ({member.skills.length})
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {member.skills.map((skill, idx) => (
-                      <span
-                        key={idx}
-                        className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground border border-border/40"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Card 3: Health & Welfare Profile (if recorded) */}
-          {(member.healthProfile || member.isYatheem || member.isExpatriate) && (
-            <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
-              <CardHeader className="border-b border-border/60 px-6 py-4">
-                <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <Heart className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-                  <span>Welfare & Health Information</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-sm">
-                  <div>
-                    <span className="block text-xs text-muted-foreground">Residency Movement</span>
-                    <span className="font-medium text-foreground">
-                      {MOVEMENT_STATUS_LABELS[member.movementStatus] ?? member.movementStatus}
-                      {member.movementDate && ` (since ${formatDate(member.movementDate)})`}
-                    </span>
-                  </div>
-
-                  {member.isExpatriate && (
-                    <div>
-                      <span className="block text-xs text-muted-foreground">Expatriate Country</span>
-                      <span className="font-medium text-foreground">
-                        {member.expatriateCountry || "Overseas"}
-                      </span>
-                    </div>
-                  )}
-
-                  {member.isYatheem && (
-                    <div>
-                      <span className="block text-xs text-muted-foreground">Yatheem Support</span>
-                      <span className="font-medium text-amber-700 dark:text-amber-300">Enrolled</span>
-                    </div>
-                  )}
-
-                  {member.healthProfile && (
-                    <>
-                      <div>
-                        <span className="block text-xs text-muted-foreground">Health Condition</span>
-                        <span className="font-medium text-foreground">
-                          {member.healthProfile.status === "HAS_CONDITION"
-                            ? "Reported Medical Condition"
-                            : member.healthProfile.status === "NOT_DISCLOSED"
-                            ? "Not Disclosed"
-                            : "No Known Condition"}
-                        </span>
-                      </div>
-
-                      {member.healthProfile.hasDisability && (
-                        <div>
-                          <span className="block text-xs text-muted-foreground">Disability Details</span>
-                          <span className="font-medium text-foreground">
-                            {member.healthProfile.disabilityType || "Disability"}
-                            {member.healthProfile.disabilityPercentage ? ` (${member.healthProfile.disabilityPercentage}%)` : ""}
-                          </span>
-                        </div>
-                      )}
-
-                      {member.healthProfile.requiresCommunitySupport && (
-                        <div>
-                          <span className="block text-xs text-muted-foreground">Community Support Status</span>
-                          <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                            {member.healthProfile.supportStatus || "Active"}
-                          </span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* Right Column (4 cols): Household & Family Members */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* Linked Household Card */}
-          <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
-            <CardHeader className="border-b border-border/60 px-6 py-4 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <span>Household Unit</span>
-              </CardTitle>
-              {familyId && (
-                <Link
-                  href={`/${slug}/families/${familyId}`}
-                  className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5"
-                >
-                  <span>View Family</span>
-                  <ExternalLink className="h-3 w-3" />
-                </Link>
-              )}
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              {familyName ? (
-                <>
-                  <div className="space-y-1">
-                    <span className="text-xs text-muted-foreground">Family Name</span>
-                    <p className="font-semibold text-foreground text-sm">
-                      {familyName} Household
-                    </p>
-                  </div>
-
-                  {linkedFamily?.house && (
-                    <div className="space-y-1">
-                      <span className="text-xs text-muted-foreground">Assigned House</span>
-                      <p className="font-medium text-foreground text-sm">
-                        House #{linkedFamily.house.displayNumber}
-                      </p>
-                    </div>
-                  )}
-
-                  {otherFamilyMembers.length > 0 && (
-                    <div className="space-y-2 pt-3 border-t border-border/60">
-                      <span className="text-xs text-muted-foreground font-semibold block">
-                        Family Members ({otherFamilyMembers.length})
-                      </span>
-                      <div className="divide-y divide-border/40">
-                        {otherFamilyMembers.map((fm) => {
-                          const fmAge = calculateAge(fm.dateOfBirth);
-                          return (
-                            <Link
-                              key={fm.id}
-                              href={`/${slug}/members/${fm.id}`}
-                              className="flex items-center justify-between py-2.5 group hover:bg-muted/30 -mx-2 px-2 rounded-2xl transition-colors"
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <Avatar name={fm.fullName} size="sm" />
-                                <div className="truncate">
-                                  <span className="font-medium text-xs text-foreground group-hover:underline truncate block">
-                                    {fm.fullName}
-                                  </span>
-                                  <span className="text-[11px] text-muted-foreground">
-                                    {fm.relationToHead
-                                      ? (RELATION_TO_HEAD_LABELS[fm.relationToHead] ?? fm.relationToHead)
-                                      : "Member"}
-                                    {fmAge !== null ? ` • ${fmAge} yrs` : ""}
-                                  </span>
-                                </div>
-                              </div>
-                              <ChevronRight className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground" />
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-xs text-muted-foreground">No household linked to this member.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Member Contribution / Payment History */}
-          <MemberPaymentHistoryCard slug={slug} memberId={member.id} />
-
-          {/* Movement / Additional Notes */}
-          {member.movementNotes && (
-            <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
-              <CardHeader className="border-b border-border/60 px-6 py-4">
-                <CardTitle className="text-sm font-bold text-foreground">Administrative Notes</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {member.movementNotes}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
-
-      {/* Edit Member Dialog */}
-      <MemberFormDialog
-        slug={slug}
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        editingMember={member}
-        families={families}
+        }
+        title={member.fullName}
+        reference={`MEM-${member.id.slice(0, 8).toUpperCase()}`}
+        subtitle={
+          <>
+            {relation ?? "Member"}
+            {linkedFamily?.house ? ` · House #${linkedFamily.house.displayNumber}` : ""}
+          </>
+        }
+        chips={
+          <>
+            <RecordChip tone={MOVEMENT_TONE[member.movementStatus]}>{movementLabel}</RecordChip>
+            {member.bloodGroup && (
+              <RecordChip tone="rose" icon={<Droplet />}>
+                {BLOOD_GROUP_LABELS[member.bloodGroup]}
+              </RecordChip>
+            )}
+            {member.isExpatriate && (
+              <RecordChip tone="sky" icon={<Plane />}>
+                NRI{member.expatriateCountry ? ` · ${member.expatriateCountry}` : ""}
+              </RecordChip>
+            )}
+            {member.isYatheem && (
+              <RecordChip tone="amber" icon={<HeartHandshake />}>
+                Yatheem
+              </RecordChip>
+            )}
+            {member.isJobSeeker && (
+              <RecordChip tone="violet" icon={<Briefcase />}>
+                Job seeker
+              </RecordChip>
+            )}
+          </>
+        }
+        actions={
+          <>
+            {member.phone && (
+              <>
+                <Button asChild variant="outline" size="sm">
+                  <a href={telHref(member.phone)}>
+                    <Phone className="h-4 w-4" />
+                    Call
+                  </a>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <a href={whatsappHref(member.phone)} target="_blank" rel="noreferrer">
+                    <MessageCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    WhatsApp
+                  </a>
+                </Button>
+              </>
+            )}
+            <Button size="sm" onClick={() => setFormOpen(true)}>
+              <Pencil className="h-4 w-4" />
+              Edit member
+            </Button>
+          </>
+        }
+        meta={meta}
       />
+
+      <RecordLayout
+        main={
+          <>
+            <Tabs
+              variant="underline"
+              activeTab={tab}
+              onChange={setTab}
+              tabs={[
+                { id: "overview", label: "Overview", icon: <User className="h-4 w-4" /> },
+                { id: "work", label: "Education & work", icon: <GraduationCap className="h-4 w-4" /> },
+                { id: "health", label: "Health & welfare", icon: <HeartPulse className="h-4 w-4" /> },
+                { id: "contributions", label: "Contributions", icon: <Receipt className="h-4 w-4" /> }
+              ]}
+            />
+            {tabContent}
+          </>
+        }
+        aside={aside}
+      />
+
+      <MemberFormDialog slug={slug} open={formOpen} onOpenChange={setFormOpen} editingMember={member} families={families} />
     </div>
   );
 }

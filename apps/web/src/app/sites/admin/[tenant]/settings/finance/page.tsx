@@ -43,8 +43,8 @@ export default async function FinanceSettingsPage({
   return (
     <>
       <PageHeader
-        title="Finance Settings & Configuration"
-        description="Configure accounting parameters, bank accounts, collection heads, and payment modes."
+        title="Finance"
+        description="Receipt numbering, bank accounts, collection and expense heads, and payment methods."
       />
       <FinanceSettingsClient
         slug={slug}
