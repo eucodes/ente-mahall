@@ -40,6 +40,9 @@ RUN pnpm deploy --filter @mahalle/api --prod /deploy && \
 
 FROM node:20-alpine AS runner
 RUN apk add --no-cache libc6-compat dumb-init && npm install -g prisma@6.2.1
+# Fail the image build instead of publishing an image with a missing migration
+# CLI. This also documents the absolute path used by production migrations.
+RUN test -x /usr/local/bin/prisma
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=deployer /deploy ./
