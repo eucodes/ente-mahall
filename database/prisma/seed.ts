@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import * as bcrypt from "bcryptjs";
 import { PERMISSIONS } from "@mahalle/types";
 
 const prisma = new PrismaClient();
@@ -16,13 +16,14 @@ async function main() {
 
   console.log("Seeding platform super admin (Control Admin)...");
   const platformAdminEmail = "platform-admin@mahalle.local";
+  const hashFn = (bcrypt as any).hash ?? (bcrypt as any).default?.hash ?? bcrypt;
   const platformAdmin = await prisma.user.upsert({
     where: { email: platformAdminEmail },
     update: {},
     create: {
       email: platformAdminEmail,
       fullName: "Platform Super Admin",
-      passwordHash: await bcrypt.hash("ChangeMe123!", 12)
+      passwordHash: await hashFn("ChangeMe123!", 12)
     }
   });
   await prisma.platformMembership.upsert({

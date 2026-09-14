@@ -91,7 +91,8 @@ RUN cp -r /app/node_modules/.prisma /deploy/node_modules/.prisma
 # Stage 4 — runner (final production image)
 # ---------------------------------------------------------------------------
 FROM node:20-alpine AS runner
-RUN apk add --no-cache libc6-compat dumb-init
+RUN apk add --no-cache libc6-compat dumb-init && \
+    npm install -g prisma@6.2.1
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -102,9 +103,9 @@ COPY --from=deployer /deploy .
 # Copy generated prisma client into runner node_modules
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Prisma: we need the schema file so migrations / generate can run in the
-# container if needed (e.g. `docker exec api npx prisma migrate deploy`)
+# Prisma: we need the schema file and compiled seed script so migrations / seed can run
 COPY --from=builder /app/database/prisma ./prisma
+COPY --from=builder /app/database/dist/prisma ./dist/prisma
 
 # Create uploads directory (normally mounted as a volume in production)
 RUN mkdir -p uploads && chown node:node uploads
