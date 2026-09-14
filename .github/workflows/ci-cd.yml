@@ -11,7 +11,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
@@ -77,9 +77,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Lowercase Repository Owner
+      - name: Prepare Environment Variables
         run: |
           echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          API_URL="${{ secrets.NEXT_PUBLIC_API_URL }}"
+          if [ -z "$API_URL" ]; then API_URL="https://api.mahallapp.eucodes.tech/api/v1"; fi
+          echo "BUILT_API_URL=$API_URL" >> $GITHUB_ENV
+          ROOT_DOM="${{ secrets.NEXT_PUBLIC_ROOT_DOMAIN }}"
+          if [ -z "$ROOT_DOM" ]; then ROOT_DOM="mahallapp.eucodes.tech"; fi
+          echo "BUILT_ROOT_DOMAIN=$ROOT_DOM" >> $GITHUB_ENV
+          VPS_HOST="${{ secrets.VPS_HOST }}"
+          if [ -n "$VPS_HOST" ]; then
+            echo "HAS_VPS=true" >> $GITHUB_ENV
+          else
+            echo "HAS_VPS=false" >> $GITHUB_ENV
+          fi
 
       # -----------------------------------------------------------------------
       # Build & Push API Image
@@ -111,8 +123,8 @@ jobs:
             ghcr.io/${{ env.OWNER_LC }}/mahalle-web:staging
             ghcr.io/${{ env.OWNER_LC }}/mahalle-web:latest
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL || 'https://api.mahallapp.eucodes.tech/api/v1' }}
-            NEXT_PUBLIC_ROOT_DOMAIN=${{ secrets.NEXT_PUBLIC_ROOT_DOMAIN || 'mahallapp.eucodes.tech' }}
+            NEXT_PUBLIC_API_URL=${{ env.BUILT_API_URL }}
+            NEXT_PUBLIC_ROOT_DOMAIN=${{ env.BUILT_ROOT_DOMAIN }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
 
@@ -120,7 +132,7 @@ jobs:
       # Auto-Deploy to Staging VPS (only if VPS_HOST secret is configured)
       # -----------------------------------------------------------------------
       - name: Deploy to VPS (Staging)
-        if: ${{ secrets.VPS_HOST != '' }}
+        if: env.HAS_VPS == 'true'
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
