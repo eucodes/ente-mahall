@@ -8,6 +8,7 @@ import { CurrentMembership } from "../tenants/decorators/current-membership.deco
 import type { MembershipWithRole } from "../memberships/memberships.service";
 import { StructureService } from "./structure.service";
 import { CreateDivisionDto, UpdateDivisionDto } from "./dto/division.dto";
+import { CreateFamilyStatusDto, UpdateFamilyStatusDto } from "./dto/family-status.dto";
 import { UpdateStructureDto } from "./dto/update-structure.dto";
 import { ReorderDivisionsDto } from "./dto/reorder-divisions.dto";
 
@@ -24,6 +25,8 @@ function publicStructure(tenant: {
   houseNumberStartAt: number | null;
   houseNumberMinDigits: number | null;
   houseNumberAllowManual: boolean;
+  hasFamilyStatuses: boolean;
+  familyStatusTerm: string | null;
 }) {
   return {
     hasDivisions: tenant.hasDivisions,
@@ -33,7 +36,9 @@ function publicStructure(tenant: {
     houseNumberSuffix: tenant.houseNumberSuffix,
     houseNumberStartAt: tenant.houseNumberStartAt,
     houseNumberMinDigits: tenant.houseNumberMinDigits,
-    houseNumberAllowManual: tenant.houseNumberAllowManual
+    houseNumberAllowManual: tenant.houseNumberAllowManual,
+    hasFamilyStatuses: tenant.hasFamilyStatuses,
+    familyStatusTerm: tenant.familyStatusTerm
   };
 }
 
@@ -45,8 +50,8 @@ export class StructureController {
   @Get()
   @RequirePermission("structure.view")
   async get(@CurrentMembership() membership: MembershipWithRole) {
-    const { tenant, divisions } = await this.structureService.get(membership.tenantId);
-    return { structure: publicStructure(tenant), divisions };
+    const { tenant, divisions, familyStatuses } = await this.structureService.get(membership.tenantId);
+    return { structure: publicStructure(tenant), divisions, familyStatuses };
   }
 
   @Get("summary")
@@ -137,5 +142,83 @@ export class StructureController {
       requestContext(req)
     );
     return { division };
+  }
+
+  @Get("family-statuses/active")
+  async listActiveFamilyStatuses(@CurrentMembership() membership: MembershipWithRole) {
+    const familyStatuses = await this.structureService.listActiveFamilyStatuses(membership.tenantId);
+    return { familyStatuses };
+  }
+
+  @Post("family-statuses")
+  @RequirePermission("structure.update")
+  async createFamilyStatus(@CurrentMembership() membership: MembershipWithRole, @Body() dto: CreateFamilyStatusDto, @Req() req: Request) {
+    const familyStatus = await this.structureService.createFamilyStatus(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      dto,
+      requestContext(req)
+    );
+    return { familyStatus };
+  }
+
+  @Post("family-statuses/reorder")
+  @RequirePermission("structure.update")
+  async reorderFamilyStatuses(@CurrentMembership() membership: MembershipWithRole, @Body() dto: ReorderDivisionsDto, @Req() req: Request) {
+    const familyStatuses = await this.structureService.reorderFamilyStatuses(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      dto,
+      requestContext(req)
+    );
+    return { familyStatuses };
+  }
+
+  @Patch("family-statuses/:statusId")
+  @RequirePermission("structure.update")
+  @HttpCode(HttpStatus.OK)
+  async updateFamilyStatus(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("statusId") statusId: string,
+    @Body() dto: UpdateFamilyStatusDto,
+    @Req() req: Request
+  ) {
+    const familyStatus = await this.structureService.updateFamilyStatus(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      statusId,
+      dto,
+      requestContext(req)
+    );
+    return { familyStatus };
+  }
+
+  @Patch("family-statuses/:statusId/deactivate")
+  @RequirePermission("structure.update")
+  @HttpCode(HttpStatus.OK)
+  async deactivateFamilyStatus(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("statusId") statusId: string,
+    @Req() req: Request
+  ) {
+    const familyStatus = await this.structureService.deactivateFamilyStatus(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      statusId,
+      requestContext(req)
+    );
+    return { familyStatus };
+  }
+
+  @Patch("family-statuses/:statusId/reactivate")
+  @RequirePermission("structure.update")
+  @HttpCode(HttpStatus.OK)
+  async reactivateFamilyStatus(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("statusId") statusId: string,
+    @Req() req: Request
+  ) {
+    const familyStatus = await this.structureService.reactivateFamilyStatus(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      statusId,
+      requestContext(req)
+    );
+    return { familyStatus };
   }
 }

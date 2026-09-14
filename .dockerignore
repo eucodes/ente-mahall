@@ -1,0 +1,37 @@
+# Build artifacts
+.next/
+dist/
+build/
+out/
+
+# Dependencies (will be installed in the image)
+node_modules/
+.pnpm-store/
+
+# Turborepo cache
+.turbo/
+*.tsbuildinfo
+
+# Environment / secrets — never bake into an image
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.github/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.log
+
+# Mobile (not needed for backend/web images)
+mobile/
+
+# API uploads (persisted via Docker volume)
+apps/api/uploads/
+
+# Docker files themselves
+docker/docker-compose.yml

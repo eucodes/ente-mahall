@@ -26,8 +26,9 @@ export function RegisterForm({ redirectTo }: RegisterFormProps) {
     try {
       await apiClient.post<{ user: UserModel }>("/auth/register", { email, password, fullName });
       toast({ title: "Account created", description: "Welcome to Mahalle.", variant: "success" });
-      router.push(redirectTo);
-      router.refresh();
+      if (typeof window !== "undefined") {
+        window.location.href = redirectTo || "/";
+      }
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
       setError(message);

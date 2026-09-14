@@ -150,7 +150,7 @@ export function DivisionsRegistry({
               <UsersRound className="h-5 w-5 text-emerald-600 dark:text-emerald-400 opacity-80" />
             </div>
             <span className="text-[11px] text-muted-foreground mt-1 block">
-              Assigned family households
+              Assigned families
             </span>
           </CardContent>
         </Card>

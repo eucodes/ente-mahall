@@ -16,6 +16,12 @@ export const PERMISSIONS = [
   "families.update",
   "families.delete",
 
+  "education.view",
+  "education.manage",
+
+  "health.view",
+  "health.manage",
+
   "events.view",
   "events.create",
   "events.update",

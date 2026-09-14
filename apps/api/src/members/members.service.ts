@@ -7,7 +7,10 @@ import type { CreateMemberDto } from "./dto/create-member.dto";
 import type { UpdateMemberDto } from "./dto/update-member.dto";
 import type { ListMembersQueryDto } from "./dto/list-members-query.dto";
 
-const FAMILY_INCLUDE = { family: { select: { id: true, name: true } } } as const;
+const FAMILY_INCLUDE = {
+  family: { select: { id: true, name: true } },
+  healthProfile: true
+} as const;
 
 export type MemberWithFamily = Prisma.MemberGetPayload<{ include: typeof FAMILY_INCLUDE }>;
 
@@ -22,9 +25,10 @@ interface ActorContext {
 }
 
 /** DTOs carry dateOfBirth/movementDate as plain "YYYY-MM-DD" strings (from @IsDateString) — Prisma's DateTime columns need a real Date. */
-function toMemberData<T extends { dateOfBirth?: string; movementDate?: string }>(dto: T) {
+function toMemberData<T extends { dateOfBirth?: string; movementDate?: string; healthProfile?: any }>(dto: T) {
+  const { healthProfile: _hp, ...rest } = dto;
   return {
-    ...dto,
+    ...rest,
     dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : dto.dateOfBirth,
     movementDate: dto.movementDate ? new Date(dto.movementDate) : dto.movementDate
   };
@@ -123,8 +127,22 @@ export class MembersService {
 
   async create(actor: ActorContext, dto: CreateMemberDto, context: RequestContext): Promise<MemberWithFamily> {
     await this.assertFamilyInTenant(actor.tenantId, dto.familyId);
+    const { healthProfile, ...memberFields } = dto;
     const member = await this.prisma.member.create({
-      data: { ...toMemberData(dto), tenantId: actor.tenantId },
+      data: {
+        ...toMemberData(memberFields),
+        tenantId: actor.tenantId,
+        ...(healthProfile
+          ? {
+              healthProfile: {
+                create: {
+                  ...healthProfile,
+                  tenantId: actor.tenantId
+                }
+              }
+            }
+          : {})
+      },
       include: FAMILY_INCLUDE
     });
     await this.audit.record({
@@ -143,9 +161,25 @@ export class MembersService {
     // findOne enforces the tenant scope before the update ever runs.
     await this.findOne(actor.tenantId, memberId);
     await this.assertFamilyInTenant(actor.tenantId, dto.familyId);
+    const { healthProfile, ...memberFields } = dto;
     const member = await this.prisma.member.update({
       where: { id: memberId },
-      data: toMemberData(dto),
+      data: {
+        ...toMemberData(memberFields),
+        ...(healthProfile
+          ? {
+              healthProfile: {
+                upsert: {
+                  create: {
+                    ...healthProfile,
+                    tenantId: actor.tenantId
+                  },
+                  update: healthProfile
+                }
+              }
+            }
+          : {})
+      },
       include: FAMILY_INCLUDE
     });
     await this.audit.record({

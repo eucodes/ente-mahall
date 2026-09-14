@@ -60,8 +60,9 @@ export function MemberOtpLoginForm({ tenantSlug, redirectTo }: MemberOtpLoginFor
     try {
       await apiClient.post(`/tenants/${encodeURIComponent(tenantSlug)}/member-auth/otp/verify`, { phone, code });
       toast({ title: "Welcome back", variant: "success" });
-      router.push(redirectTo);
-      router.refresh();
+      if (typeof window !== "undefined") {
+        window.location.href = redirectTo || "/";
+      }
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
       setError(message);

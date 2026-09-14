@@ -273,6 +273,8 @@ export class CollectionsService {
           reference: dto.reference ?? null,
           description: dto.description ?? null,
           notes: dto.notes ?? null,
+          attachmentUrl: dto.attachmentUrl ?? null,
+          customFields: dto.customFields ?? null,
           status: "COMPLETED",
           receiptId: receipt.id,
           journalEntryId

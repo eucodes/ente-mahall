@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
   Download,
+  DropdownMenu,
   Eye,
   MoreHorizontal,
   MoreVertical,
@@ -102,9 +103,6 @@ export function MembersRegistry({
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-  const [activeMenuMemberId, setActiveMenuMemberId] = useState<string | null>(
-    null
-  );
 
   // Bulk actions states (Clean & focused)
   const [bulkFamilyModalOpen, setBulkFamilyModalOpen] = useState(false);
@@ -142,13 +140,10 @@ export function MembersRegistry({
       if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
         setMoreMenuOpen(false);
       }
-      if (activeMenuMemberId) {
-        setActiveMenuMemberId(null);
-      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [activeMenuMemberId]);
+  }, []);
 
   // Filter & Sort logic
   const filteredAndSorted = useMemo(() => {
@@ -719,7 +714,7 @@ export function MembersRegistry({
 
       {/* 3. Data Table Container */}
       <div className="rounded-2xl border border-border/80 bg-card shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-[360px]">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-border/70 bg-muted/20 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -758,10 +753,9 @@ export function MembersRegistry({
                   </td>
                 </tr>
               ) : (
-                paginatedMembers.map((member) => {
+                paginatedMembers.map((member, index) => {
                   const age = calculateAge(member.dateOfBirth);
                   const isSelected = selectedMemberIds.has(member.id);
-                  const isMenuOpen = activeMenuMemberId === member.id;
                   const memberCode = `#${member.id.slice(0, 4).toUpperCase()}`;
 
                   return (
@@ -815,8 +809,8 @@ export function MembersRegistry({
 
                       {/* Column 2: Section / Ward Capsule Badge */}
                       <td className="py-3 px-4">
-                        <div className="inline-flex items-center gap-1.5 rounded-full border border-border/80 px-3 py-0.5 bg-background text-[11px] font-medium text-foreground/80 shadow-2xs">
-                          <span>
+                        <div className="inline-flex items-center max-w-[220px] gap-1.5 rounded-full border border-border/80 px-3 py-0.5 bg-background text-[11px] font-medium text-foreground/80 shadow-2xs">
+                          <span className="truncate">
                             {member.family?.name
                               ? `Family: ${member.family.name}`
                               : member.address
@@ -873,63 +867,40 @@ export function MembersRegistry({
 
                       {/* Column 6: Row Action Menu */}
                       <td
-                        className="py-3 px-4 text-right relative"
+                        className="py-3 px-4 text-right"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setActiveMenuMemberId(
-                              isMenuOpen ? null : member.id
-                            )
+                        <DropdownMenu
+                          align="right"
+                          direction={index >= paginatedMembers.length - 2 && paginatedMembers.length > 2 ? "up" : "down"}
+                          trigger={
+                            <button
+                              type="button"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ml-auto cursor-pointer"
+                              aria-label="Actions"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
                           }
-                          className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ml-auto"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-
-                        {isMenuOpen && (
-                          <div
-                            className="absolute right-4 top-10 z-50 w-44 rounded-2xl border border-border bg-card p-1.5 shadow-xl ring-1 ring-black/10 animate-in fade-in zoom-in-95 duration-100 text-left"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveMenuMemberId(null);
-                                router.push(`/${slug}/members/${member.id}`);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
-                            >
-                              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                              View Profile
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveMenuMemberId(null);
-                                openEditForm(member);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
-                            >
-                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                              Edit Member
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveMenuMemberId(null);
-                                setRemoveTarget(member);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/30 transition-colors"
-                            >
-                              <Trash className="h-3.5 w-3.5" />
-                              Delete Member
-                            </button>
-                          </div>
-                        )}
+                          items={[
+                            {
+                              label: "View Profile",
+                              icon: <Eye className="h-3.5 w-3.5" />,
+                              onClick: () => router.push(`/${slug}/members/${member.id}`),
+                            },
+                            {
+                              label: "Edit Member",
+                              icon: <Pencil className="h-3.5 w-3.5" />,
+                              onClick: () => openEditForm(member),
+                            },
+                            {
+                              label: "Delete Member",
+                              icon: <Trash className="h-3.5 w-3.5 text-rose-600" />,
+                              variant: "destructive",
+                              onClick: () => setRemoveTarget(member),
+                            },
+                          ]}
+                        />
                       </td>
                     </tr>
                   );

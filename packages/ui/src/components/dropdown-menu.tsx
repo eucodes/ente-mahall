@@ -16,10 +16,17 @@ export interface DropdownMenuProps {
   trigger: React.ReactNode;
   items: DropdownMenuItem[];
   align?: "left" | "right";
+  direction?: "down" | "up";
   className?: string;
 }
 
-export function DropdownMenu({ trigger, items, align = "right", className }: DropdownMenuProps) {
+export function DropdownMenu({
+  trigger,
+  items,
+  align = "right",
+  direction = "down",
+  className
+}: DropdownMenuProps) {
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -36,13 +43,26 @@ export function DropdownMenu({ trigger, items, align = "right", className }: Dro
   }, [open]);
 
   return (
-    <div ref={containerRef} className="relative inline-block text-left">
-      <div onClick={() => setOpen((o) => !o)}>{trigger}</div>
+    <div
+      ref={containerRef}
+      className="relative inline-block text-left"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+      >
+        {trigger}
+      </div>
 
       {open && (
         <div
+          onClick={(e) => e.stopPropagation()}
           className={cn(
-            "absolute z-50 mt-2 min-w-56 rounded-2xl border border-border/80 bg-card p-1.5 shadow-2xl ring-1 ring-black/10 dark:ring-white/10 animate-in fade-in-0 zoom-in-95 focus:outline-hidden",
+            "absolute z-50 min-w-44 rounded-2xl border border-border/80 bg-card p-1.5 shadow-2xl ring-1 ring-black/10 dark:ring-white/10 animate-in fade-in-0 zoom-in-95 focus:outline-hidden",
+            direction === "up" ? "bottom-full mb-1.5" : "top-full mt-1.5",
             align === "right" ? "right-0" : "left-0",
             className
           )}
@@ -69,7 +89,10 @@ export function DropdownMenu({ trigger, items, align = "right", className }: Dro
                   key={index}
                   href={item.href}
                   className={itemClass}
-                  onClick={() => setOpen(false)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpen(false);
+                  }}
                 >
                   {content}
                 </a>
@@ -81,7 +104,8 @@ export function DropdownMenu({ trigger, items, align = "right", className }: Dro
                 key={index}
                 type="button"
                 className={itemClass}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setOpen(false);
                   item.onClick?.();
                 }}

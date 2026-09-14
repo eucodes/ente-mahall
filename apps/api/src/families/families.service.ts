@@ -8,7 +8,10 @@ import type { CreateFamilyDto } from "./dto/create-family.dto";
 import type { UpdateFamilyDto } from "./dto/update-family.dto";
 import type { ListFamiliesQueryDto } from "./dto/list-families-query.dto";
 
-const HOUSE_INCLUDE = { house: { select: { id: true, displayNumber: true, divisionId: true } } } as const;
+const HOUSE_INCLUDE = {
+  house: { select: { id: true, displayNumber: true, divisionId: true } },
+  familyStatus: { select: { id: true, name: true, code: true, color: true } }
+} as const;
 
 export type FamilyWithHouse = Prisma.FamilyGetPayload<{ include: typeof HOUSE_INCLUDE }>;
 

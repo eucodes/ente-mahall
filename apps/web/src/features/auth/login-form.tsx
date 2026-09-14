@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, FormField, Input, Mail, PasswordInput, useToast } from "@mahalle/ui";
+import { Alert, AlertDescription, AlertTitle, Button, Clock, FormField, Input, Mail, PasswordInput, useToast } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { User } from "@mahalle/types";
 
@@ -11,9 +11,19 @@ export interface LoginFormProps {
   redirectTo: string;
   defaultEmail?: string;
   defaultPassword?: string;
+  /** Whether the user was automatically logged out due to inactivity. */
+  inactivityNotice?: boolean;
+  /** Whether the user's session expired. */
+  sessionExpiredNotice?: boolean;
 }
 
-export function LoginForm({ redirectTo, defaultEmail = "", defaultPassword = "" }: LoginFormProps) {
+export function LoginForm({
+  redirectTo,
+  defaultEmail = "",
+  defaultPassword = "",
+  inactivityNotice = false,
+  sessionExpiredNotice = false
+}: LoginFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState(defaultEmail);
@@ -28,8 +38,9 @@ export function LoginForm({ redirectTo, defaultEmail = "", defaultPassword = "" 
     try {
       await apiClient.post<{ user: User }>("/auth/login", { email, password });
       toast({ title: "Welcome back", variant: "success" });
-      router.push(redirectTo);
-      router.refresh();
+      if (typeof window !== "undefined") {
+        window.location.href = redirectTo || "/";
+      }
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
       setError(message);
@@ -40,6 +51,29 @@ export function LoginForm({ redirectTo, defaultEmail = "", defaultPassword = "" 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      {inactivityNotice && (
+        <Alert variant="warning" className="flex items-start gap-3">
+          <Clock className="h-4 w-4 mt-0.5 shrink-0" />
+          <div>
+            <AlertTitle className="font-semibold">Session Expired</AlertTitle>
+            <AlertDescription>
+              You were automatically logged out due to inactivity. Please log in again to continue.
+            </AlertDescription>
+          </div>
+        </Alert>
+      )}
+
+      {sessionExpiredNotice && !inactivityNotice && (
+        <Alert variant="warning" className="flex items-start gap-3">
+          <Clock className="h-4 w-4 mt-0.5 shrink-0" />
+          <div>
+            <AlertTitle className="font-semibold">Session Expired</AlertTitle>
+            <AlertDescription>
+              Your session has expired. Please log in again to continue.
+            </AlertDescription>
+          </div>
+        </Alert>
+      )}
       <FormField label="Email" htmlFor="login-email" required>
         <Input
           id="login-email"

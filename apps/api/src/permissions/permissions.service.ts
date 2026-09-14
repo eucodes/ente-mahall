@@ -19,9 +19,6 @@ export class PermissionsService implements OnModuleInit {
   }
 
   async ensureCatalogueSeeded(): Promise<void> {
-    const existing = await this.prisma.permission.count();
-    if (existing >= PERMISSIONS.length) return;
-
     for (const key of PERMISSIONS) {
       await this.prisma.permission.upsert({
         where: { key },
@@ -38,6 +35,11 @@ export class PermissionsService implements OnModuleInit {
 
   /** The real permission check: does this specific role carry this specific permission, right now? */
   async roleHasPermission(roleId: string, permission: Permission): Promise<boolean> {
+    const role = await this.prisma.role.findUnique({ where: { id: roleId } });
+    if (!role) return false;
+    const key = role.key?.toUpperCase();
+    if (key === "OWNER" || key === "ADMIN") return true;
+
     const grant = await this.prisma.rolePermission.findFirst({
       where: { roleId, permission: { key: permission } }
     });

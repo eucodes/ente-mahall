@@ -4,6 +4,41 @@ import type { BloodGroup, Gender, MaritalStatus, MovementStatus, RelationToHead 
 
 export type { Gender, MaritalStatus, BloodGroup, RelationToHead, MovementStatus } from "./member-constants";
 
+export type HealthConditionStatus = "NO_KNOWN_CONDITION" | "HAS_CONDITION" | "NOT_DISCLOSED";
+export type DisabilityType = "PHYSICAL" | "VISUAL" | "HEARING" | "SPEECH" | "INTELLECTUAL" | "MULTIPLE" | "OTHER";
+export type SupportStatus = "ACTIVE" | "MONITORING" | "RESOLVED";
+export type EmploymentStatus = "EMPLOYED" | "SELF_EMPLOYED" | "BUSINESS" | "GOVERNMENT_SERVICE" | "PRIVATE_SECTOR" | "DAILY_WAGE" | "JOB_SEEKER" | "STUDENT" | "HOMEMAKER" | "RETIRED" | "UNABLE_TO_WORK";
+export type EducationLevel = "NONE" | "PRIMARY" | "SECONDARY_SSLC" | "HIGHER_SECONDARY" | "DIPLOMA" | "GRADUATE" | "POST_GRADUATE" | "DOCTORATE" | "MADRASSA_ISLAMIC" | "VOCATIONAL" | "OTHER";
+
+export interface MemberHealthProfile {
+  id: string;
+  memberId: string;
+  status: HealthConditionStatus;
+  hasDisability: boolean;
+  disabilityType: DisabilityType | null;
+  disabilityPercentage: number | null;
+  disabilityCertificate: boolean;
+  disabilityCertificateNo: string | null;
+  hasChronicIllness: boolean;
+  chronicConditions: string[];
+  chronicDetails: string | null;
+  treatmentRequired: boolean;
+  regularMedicationRequired: boolean;
+  requiresMentalHealthSupport: boolean;
+  mentalHealthSupportType: string | null;
+  requiresAssistance: boolean;
+  assistanceTypes: string[];
+  primaryCaregiverName: string | null;
+  caregiverRelationship: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  requiresCommunitySupport: boolean;
+  supportCategory: string | null;
+  supportStatus: SupportStatus;
+  supportNotes: string | null;
+  lastSupportDate: string | null;
+}
+
 export interface Member {
   id: string;
   fullName: string;
@@ -29,6 +64,25 @@ export interface Member {
   expatriateCountry: string | null;
   expatriateOccupation: string | null;
   expatriateContact: string | null;
+  educationLevel?: EducationLevel | null;
+  educationDetails?: string | null;
+  institution?: string | null;
+  employmentStatus?: EmploymentStatus | null;
+  jobTitle?: string | null;
+  employerOrBusiness?: string | null;
+  skills?: string[];
+  isJobSeeker?: boolean;
+  educationHistory?: EducationHistoryItem[] | null;
+  healthProfile?: MemberHealthProfile | null;
+}
+
+export interface EducationHistoryItem {
+  id: string;
+  level?: string;
+  degree?: string;
+  institution?: string;
+  year?: string;
+  grade?: string;
 }
 
 export interface MemberFilters {

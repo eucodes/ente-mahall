@@ -31,6 +31,11 @@ import {
   Settings,
   Pencil,
   Trash2,
+  RefreshCw,
+  Globe,
+  MapPin,
+  Tag,
+  Users,
   useToast
 } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -39,7 +44,8 @@ import type {
   FinanceBankAccount,
   FinancePaymentMethod,
   CollectionCategory,
-  ExpenseCategory
+  ExpenseCategory,
+  CollectionFormConfig
 } from "@/lib/finance";
 
 interface Props {
@@ -50,6 +56,48 @@ interface Props {
   collectionCategories: CollectionCategory[];
   expenseCategories: ExpenseCategory[];
   divisions?: { id: string; name: string; code: string | null }[];
+}
+
+
+function FormConfigRow({
+  label,
+  enabled,
+  required,
+  onEnabledChange,
+  onRequiredChange
+}: {
+  label: string;
+  enabled: boolean;
+  required: boolean;
+  onEnabledChange: (v: boolean) => void;
+  onRequiredChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors">
+      <span className="text-xs font-medium text-foreground">{label}</span>
+      <div className="flex items-center gap-4">
+        <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+          <Checkbox
+            checked={enabled}
+            onChange={(e) => {
+              onEnabledChange(e.target.checked);
+              if (!e.target.checked) onRequiredChange(false);
+            }}
+          />
+          <span className="text-muted-foreground">Enable</span>
+        </label>
+        {enabled && (
+          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+            <Checkbox
+              checked={required}
+              onChange={(e) => onRequiredChange(e.target.checked)}
+            />
+            <span className="text-muted-foreground">Required</span>
+          </label>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function FinanceSettingsClient({
@@ -99,10 +147,12 @@ export function FinanceSettingsClient({
   const [catCode, setCatCode] = useState("");
   const [catTargetType, setCatTargetType] = useState<"ALL_FAMILIES" | "SPECIFIC_DIVISIONS" | "CATEGORY_BASED" | "GENERAL">("ALL_FAMILIES");
   const [catIsRecurring, setCatIsRecurring] = useState(false);
+  const [catIsSubscription, setCatIsSubscription] = useState(false);
   const [catRecurrenceFrequency, setCatRecurrenceFrequency] = useState<"MONTHLY" | "ANNUAL" | "ONE_TIME">("MONTHLY");
   const [catEconomicCategory, setCatEconomicCategory] = useState("ALL");
   const [catTargetDivisions, setCatTargetDivisions] = useState<string[]>([]);
   const [catDefaultAmount, setCatDefaultAmount] = useState("");
+  const [catTargetAmount, setCatTargetAmount] = useState("");
   const [isSavingCat, setIsSavingCat] = useState(false);
 
   // Category Edit & Delete State
@@ -114,10 +164,12 @@ export function FinanceSettingsClient({
   const [editCatCode, setEditCatCode] = useState("");
   const [editCatTargetType, setEditCatTargetType] = useState<"ALL_FAMILIES" | "SPECIFIC_DIVISIONS" | "CATEGORY_BASED" | "GENERAL">("ALL_FAMILIES");
   const [editCatIsRecurring, setEditCatIsRecurring] = useState(false);
+  const [editCatIsSubscription, setEditCatIsSubscription] = useState(false);
   const [editCatRecurrenceFrequency, setEditCatRecurrenceFrequency] = useState<"MONTHLY" | "ANNUAL" | "ONE_TIME">("MONTHLY");
   const [editCatEconomicCategory, setEditCatEconomicCategory] = useState("ALL");
   const [editCatTargetDivisions, setEditCatTargetDivisions] = useState<string[]>([]);
   const [editCatDefaultAmount, setEditCatDefaultAmount] = useState("");
+  const [editCatTargetAmount, setEditCatTargetAmount] = useState("");
   const [isSavingEditCat, setIsSavingEditCat] = useState(false);
 
   const [deleteCatTarget, setDeleteCatTarget] = useState<{
@@ -125,6 +177,25 @@ export function FinanceSettingsClient({
     type: "collection" | "expense";
   } | null>(null);
   const [isDeletingCat, setIsDeletingCat] = useState(false);
+
+  const defaultFormConfig: CollectionFormConfig = {
+    enableFamily: true,
+    requireFamily: true,
+    enableMember: true,
+    requireMember: false,
+    enableAmount: true,
+    requireAmount: true,
+    enablePaymentMethod: true,
+    enableDate: true,
+    enableNotes: true,
+    enableAttachment: false
+  };
+
+  // Add modal form config state
+  const [catFormConfig, setCatFormConfig] = useState<CollectionFormConfig>(defaultFormConfig);
+
+  // Edit modal form config state
+  const [editCatFormConfig, setEditCatFormConfig] = useState<CollectionFormConfig>(defaultFormConfig);
 
   // Payment Method Add Modal State
   const [methodModalOpen, setMethodModalOpen] = useState(false);
@@ -283,10 +354,13 @@ export function FinanceSettingsClient({
           code: catCode.trim() || undefined,
           targetType: catTargetType,
           isRecurring: catIsRecurring,
+          isSubscription: catIsSubscription,
           recurrenceFrequency: catIsRecurring ? catRecurrenceFrequency : undefined,
           targetEconomicCategory: catTargetType === "CATEGORY_BASED" ? catEconomicCategory : undefined,
           targetDivisionIds: catTargetType === "SPECIFIC_DIVISIONS" ? catTargetDivisions : undefined,
-          defaultAmount: catDefaultAmount ? Number(catDefaultAmount) : undefined
+          defaultAmount: catDefaultAmount ? Number(catDefaultAmount) : undefined,
+          targetAmount: catTargetAmount ? Number(catTargetAmount) : undefined,
+          formConfig: catFormConfig
         });
       } else {
         await apiClient.post(`/tenants/${slug}/finance/settings/expense-categories`, {
@@ -300,10 +374,13 @@ export function FinanceSettingsClient({
       setCatCode("");
       setCatTargetType("ALL_FAMILIES");
       setCatIsRecurring(false);
+      setCatIsSubscription(false);
       setCatRecurrenceFrequency("MONTHLY");
       setCatEconomicCategory("ALL");
       setCatTargetDivisions([]);
       setCatDefaultAmount("");
+      setCatTargetAmount("");
+      setCatFormConfig(defaultFormConfig);
       router.refresh();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Failed to add category";
@@ -321,10 +398,24 @@ export function FinanceSettingsClient({
       const col = item as CollectionCategory;
       setEditCatTargetType(col.targetType || "ALL_FAMILIES");
       setEditCatIsRecurring(Boolean(col.isRecurring));
+      setEditCatIsSubscription(Boolean(col.isSubscription));
       setEditCatRecurrenceFrequency((col.recurrenceFrequency as any) || "MONTHLY");
       setEditCatEconomicCategory(col.targetEconomicCategory || "ALL");
       setEditCatTargetDivisions(col.targetDivisionIds || []);
       setEditCatDefaultAmount(col.defaultAmount != null ? String(col.defaultAmount) : "");
+      setEditCatTargetAmount(col.targetAmount != null ? String(col.targetAmount) : "");
+      setEditCatFormConfig({
+        enableFamily: col.formConfig?.enableFamily ?? true,
+        requireFamily: col.formConfig?.requireFamily ?? true,
+        enableMember: col.formConfig?.enableMember ?? true,
+        requireMember: col.formConfig?.requireMember ?? false,
+        enableAmount: col.formConfig?.enableAmount ?? true,
+        requireAmount: col.formConfig?.requireAmount ?? true,
+        enablePaymentMethod: col.formConfig?.enablePaymentMethod ?? true,
+        enableDate: col.formConfig?.enableDate ?? true,
+        enableNotes: col.formConfig?.enableNotes ?? true,
+        enableAttachment: col.formConfig?.enableAttachment ?? false
+      });
     }
   }
 
@@ -344,10 +435,13 @@ export function FinanceSettingsClient({
           code: editCatCode.trim() || undefined,
           targetType: editCatTargetType,
           isRecurring: editCatIsRecurring,
+          isSubscription: editCatIsSubscription,
           recurrenceFrequency: editCatIsRecurring ? editCatRecurrenceFrequency : undefined,
           targetEconomicCategory: editCatTargetType === "CATEGORY_BASED" ? editCatEconomicCategory : undefined,
           targetDivisionIds: editCatTargetType === "SPECIFIC_DIVISIONS" ? editCatTargetDivisions : undefined,
-          defaultAmount: editCatDefaultAmount ? Number(editCatDefaultAmount) : null
+          defaultAmount: editCatDefaultAmount ? Number(editCatDefaultAmount) : null,
+          targetAmount: editCatTargetAmount ? Number(editCatTargetAmount) : null,
+          formConfig: editCatFormConfig
         });
       } else {
         await apiClient.patch(`/tenants/${slug}/finance/settings/expense-categories/${editCatTarget.item.id}`, {
@@ -676,8 +770,14 @@ export function FinanceSettingsClient({
                           </span>
                         )}
                         {c.isRecurring && (
-                          <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200">
-                            🔄 {c.recurrenceFrequency || "MONTHLY"}
+                          <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 gap-1">
+                            <RefreshCw className="h-2.5 w-2.5" />
+                            {c.recurrenceFrequency || "MONTHLY"}
+                          </Badge>
+                        )}
+                        {c.isSubscription && (
+                          <Badge variant="secondary" className="text-[10px] bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200">
+                            Subscription
                           </Badge>
                         )}
                         {c.defaultAmount != null && Number(c.defaultAmount) > 0 && (
@@ -685,23 +785,28 @@ export function FinanceSettingsClient({
                             ₹{Number(c.defaultAmount).toLocaleString("en-IN")}
                           </Badge>
                         )}
+                        {c.targetAmount != null && Number(c.targetAmount) > 0 && (
+                          <Badge variant="outline" className="text-[10px] font-mono font-medium text-muted-foreground">
+                            Target: ₹{Number(c.targetAmount).toLocaleString("en-IN")}
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap">
                         {c.targetType === "GENERAL" ? (
                           <span className="inline-flex items-center gap-1 text-sky-600 dark:text-sky-400 font-medium">
-                            🌐 General / Open (Donations / Hundi)
+                            <Globe className="h-3 w-3" /> General / Open (Donations / Hundi)
                           </span>
                         ) : c.targetType === "SPECIFIC_DIVISIONS" ? (
                           <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
-                            📍 Specific Divisions ({c.targetDivisionIds?.length || 0})
+                            <MapPin className="h-3 w-3" /> Specific Divisions ({c.targetDivisionIds?.length || 0})
                           </span>
                         ) : c.targetType === "CATEGORY_BASED" ? (
                           <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400 font-medium">
-                            🏷️ Economic Category: {c.targetEconomicCategory || "All"}
+                            <Tag className="h-3 w-3" /> Economic Category: {c.targetEconomicCategory || "All"}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-400 font-medium">
-                            👥 All Families
+                            <Users className="h-3 w-3" /> All Families
                           </span>
                         )}
                       </div>
@@ -1071,6 +1176,17 @@ export function FinanceSettingsClient({
                       />
                     </FormField>
 
+                    <FormField label="Collection Target (₹)">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="e.g. 50000"
+                        value={catTargetAmount}
+                        onChange={(e) => setCatTargetAmount(e.target.value)}
+                      />
+                    </FormField>
+
                     {catIsRecurring && (
                       <FormField label="Frequency">
                         <Select
@@ -1085,19 +1201,73 @@ export function FinanceSettingsClient({
                     )}
                   </div>
 
-                  <div className="pt-1">
+                  <div className="space-y-2 pt-1">
                     <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                       <Checkbox
                         checked={catIsRecurring}
                         onChange={(e) => setCatIsRecurring(e.target.checked)}
                       />
                       <span className="font-medium text-foreground">
-                        Recurring Collection (e.g. Monthly Varisa / Subscription)
+                        Recurring Collection (e.g. Monthly Varisa)
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                      <Checkbox
+                        checked={catIsSubscription}
+                        onChange={(e) => setCatIsSubscription(e.target.checked)}
+                      />
+                      <span className="font-medium text-foreground">
+                        Subscription-based (assign to specific families/members)
                       </span>
                     </label>
                   </div>
                 </div>
               </>
+            )}
+
+            {catType === "collection" && (
+              <div className="border-t border-border/60 pt-3 space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Form Field Configuration
+                </h4>
+                <p className="text-[11px] text-muted-foreground">Configure which fields appear in the collection recording form.</p>
+                <div className="space-y-2">
+                  <FormConfigRow
+                    label="Family Selection"
+                    enabled={catFormConfig.enableFamily ?? true}
+                    required={catFormConfig.requireFamily ?? false}
+                    onEnabledChange={(v) => setCatFormConfig(prev => ({ ...prev, enableFamily: v }))}
+                    onRequiredChange={(v) => setCatFormConfig(prev => ({ ...prev, requireFamily: v }))}
+                  />
+                  <FormConfigRow
+                    label="Member Selection"
+                    enabled={catFormConfig.enableMember ?? true}
+                    required={catFormConfig.requireMember ?? false}
+                    onEnabledChange={(v) => setCatFormConfig(prev => ({ ...prev, enableMember: v }))}
+                    onRequiredChange={(v) => setCatFormConfig(prev => ({ ...prev, requireMember: v }))}
+                  />
+                  <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors">
+                    <span className="text-xs font-medium text-foreground">Notes / Description</span>
+                    <label className="flex items-center gap-2 text-xs">
+                      <Checkbox
+                        checked={catFormConfig.enableNotes ?? true}
+                        onChange={(e) => setCatFormConfig(prev => ({ ...prev, enableNotes: e.target.checked }))}
+                      />
+                      <span className="text-muted-foreground">Enable</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors">
+                    <span className="text-xs font-medium text-foreground">Attachment / Receipt Upload</span>
+                    <label className="flex items-center gap-2 text-xs">
+                      <Checkbox
+                        checked={catFormConfig.enableAttachment ?? false}
+                        onChange={(e) => setCatFormConfig(prev => ({ ...prev, enableAttachment: e.target.checked }))}
+                      />
+                      <span className="text-muted-foreground">Enable</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
             )}
 
             <div className="flex justify-end gap-2 pt-3 border-t border-border/60">
@@ -1209,6 +1379,17 @@ export function FinanceSettingsClient({
                       />
                     </FormField>
 
+                    <FormField label="Collection Target (₹)">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="e.g. 50000"
+                        value={editCatTargetAmount}
+                        onChange={(e) => setEditCatTargetAmount(e.target.value)}
+                      />
+                    </FormField>
+
                     {editCatIsRecurring && (
                       <FormField label="Frequency">
                         <Select
@@ -1223,19 +1404,73 @@ export function FinanceSettingsClient({
                     )}
                   </div>
 
-                  <div className="pt-1">
+                  <div className="space-y-2 pt-1">
                     <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                       <Checkbox
                         checked={editCatIsRecurring}
                         onChange={(e) => setEditCatIsRecurring(e.target.checked)}
                       />
                       <span className="font-medium text-foreground">
-                        Recurring Collection (e.g. Monthly Varisa / Subscription)
+                        Recurring Collection (e.g. Monthly Varisa)
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                      <Checkbox
+                        checked={editCatIsSubscription}
+                        onChange={(e) => setEditCatIsSubscription(e.target.checked)}
+                      />
+                      <span className="font-medium text-foreground">
+                        Subscription-based (assign to specific families/members)
                       </span>
                     </label>
                   </div>
                 </div>
               </>
+            )}
+
+            {editCatTarget?.type === "collection" && (
+              <div className="border-t border-border/60 pt-3 space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Form Field Configuration
+                </h4>
+                <p className="text-[11px] text-muted-foreground">Configure which fields appear in the collection recording form.</p>
+                <div className="space-y-2">
+                  <FormConfigRow
+                    label="Family Selection"
+                    enabled={editCatFormConfig.enableFamily ?? true}
+                    required={editCatFormConfig.requireFamily ?? false}
+                    onEnabledChange={(v) => setEditCatFormConfig(prev => ({ ...prev, enableFamily: v }))}
+                    onRequiredChange={(v) => setEditCatFormConfig(prev => ({ ...prev, requireFamily: v }))}
+                  />
+                  <FormConfigRow
+                    label="Member Selection"
+                    enabled={editCatFormConfig.enableMember ?? true}
+                    required={editCatFormConfig.requireMember ?? false}
+                    onEnabledChange={(v) => setEditCatFormConfig(prev => ({ ...prev, enableMember: v }))}
+                    onRequiredChange={(v) => setEditCatFormConfig(prev => ({ ...prev, requireMember: v }))}
+                  />
+                  <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors">
+                    <span className="text-xs font-medium text-foreground">Notes / Description</span>
+                    <label className="flex items-center gap-2 text-xs">
+                      <Checkbox
+                        checked={editCatFormConfig.enableNotes ?? true}
+                        onChange={(e) => setEditCatFormConfig(prev => ({ ...prev, enableNotes: e.target.checked }))}
+                      />
+                      <span className="text-muted-foreground">Enable</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors">
+                    <span className="text-xs font-medium text-foreground">Attachment / Receipt Upload</span>
+                    <label className="flex items-center gap-2 text-xs">
+                      <Checkbox
+                        checked={editCatFormConfig.enableAttachment ?? false}
+                        onChange={(e) => setEditCatFormConfig(prev => ({ ...prev, enableAttachment: e.target.checked }))}
+                      />
+                      <span className="text-muted-foreground">Enable</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
             )}
 
             <div className="flex justify-end gap-2 pt-3 border-t border-border/60">

@@ -1,8 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma, type Tenant, type TenantDivision } from "@mahalle/database";
+import { Prisma, type Tenant, type TenantDivision, type TenantFamilyStatus } from "@mahalle/database";
 import { PrismaService } from "../database/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import type { CreateDivisionDto, UpdateDivisionDto } from "./dto/division.dto";
+import type { CreateFamilyStatusDto, UpdateFamilyStatusDto } from "./dto/family-status.dto";
 import type { UpdateStructureDto } from "./dto/update-structure.dto";
 import type { ReorderDivisionsDto } from "./dto/reorder-divisions.dto";
 
@@ -32,18 +33,24 @@ export class StructureService {
     private readonly audit: AuditService
   ) {}
 
-  /** Every division, active or not — the Settings > Structure management screen needs both to offer reactivation. */
-  async get(tenantId: string): Promise<{ tenant: Tenant; divisions: TenantDivision[] }> {
-    const [tenant, divisions] = await Promise.all([
+  /** Every division & family status, active or not — Settings management screen needs both. */
+  async get(tenantId: string): Promise<{ tenant: Tenant; divisions: TenantDivision[]; familyStatuses: TenantFamilyStatus[] }> {
+    const [tenant, divisions, familyStatuses] = await Promise.all([
       this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId } }),
-      this.prisma.tenantDivision.findMany({ where: { tenantId }, orderBy: { order: "asc" } })
+      this.prisma.tenantDivision.findMany({ where: { tenantId }, orderBy: { order: "asc" } }),
+      this.prisma.tenantFamilyStatus.findMany({ where: { tenantId }, orderBy: { order: "asc" } })
     ]);
-    return { tenant, divisions };
+    return { tenant, divisions, familyStatuses };
   }
 
   /** Only active divisions — for House/Family creation pickers, which shouldn't offer a deactivated division. */
   async listActive(tenantId: string): Promise<TenantDivision[]> {
     return this.prisma.tenantDivision.findMany({ where: { tenantId, isActive: true }, orderBy: { order: "asc" } });
+  }
+
+  /** Only active family statuses — for Family creation/editing pickers. */
+  async listActiveFamilyStatuses(tenantId: string): Promise<TenantFamilyStatus[]> {
+    return this.prisma.tenantFamilyStatus.findMany({ where: { tenantId, isActive: true }, orderBy: { order: "asc" } });
   }
 
   async summary(tenantId: string): Promise<StructureSummary> {
@@ -201,5 +208,120 @@ export class StructureService {
       userAgent: context.userAgent
     });
     return this.prisma.tenantDivision.findMany({ where: { tenantId: actor.tenantId }, orderBy: { order: "asc" } });
+  }
+
+  private async findFamilyStatusOrThrow(tenantId: string, statusId: string): Promise<TenantFamilyStatus> {
+    const status = await this.prisma.tenantFamilyStatus.findFirst({ where: { id: statusId, tenantId } });
+    if (!status) {
+      throw new NotFoundException("Family status not found");
+    }
+    return status;
+  }
+
+  async createFamilyStatus(actor: ActorContext, dto: CreateFamilyStatusDto, context: RequestContext): Promise<TenantFamilyStatus> {
+    const order = dto.order ?? (await this.prisma.tenantFamilyStatus.count({ where: { tenantId: actor.tenantId } }));
+    let status: TenantFamilyStatus;
+    try {
+      status = await this.prisma.tenantFamilyStatus.create({
+        data: { ...dto, order, tenantId: actor.tenantId }
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        throw new ConflictException("A family status with this name or code already exists.");
+      }
+      throw err;
+    }
+    await this.audit.record({
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      action: "structure.family_status.create",
+      targetType: "TenantFamilyStatus",
+      targetId: status.id,
+      metadata: { name: dto.name, code: dto.code },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+    return status;
+  }
+
+  async updateFamilyStatus(
+    actor: ActorContext,
+    statusId: string,
+    dto: UpdateFamilyStatusDto,
+    context: RequestContext
+  ): Promise<TenantFamilyStatus> {
+    await this.findFamilyStatusOrThrow(actor.tenantId, statusId);
+    let status: TenantFamilyStatus;
+    try {
+      status = await this.prisma.tenantFamilyStatus.update({ where: { id: statusId }, data: dto });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        throw new ConflictException("A family status with this name or code already exists.");
+      }
+      throw err;
+    }
+    await this.audit.record({
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      action: "structure.family_status.update",
+      targetType: "TenantFamilyStatus",
+      targetId: status.id,
+      metadata: { ...dto },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+    return status;
+  }
+
+  async deactivateFamilyStatus(actor: ActorContext, statusId: string, context: RequestContext): Promise<TenantFamilyStatus> {
+    const status = await this.findFamilyStatusOrThrow(actor.tenantId, statusId);
+    if (!status.isActive) return status;
+    const updated = await this.prisma.tenantFamilyStatus.update({ where: { id: statusId }, data: { isActive: false } });
+    await this.audit.record({
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      action: "structure.family_status.deactivate",
+      targetType: "TenantFamilyStatus",
+      targetId: statusId,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+    return updated;
+  }
+
+  async reactivateFamilyStatus(actor: ActorContext, statusId: string, context: RequestContext): Promise<TenantFamilyStatus> {
+    const status = await this.findFamilyStatusOrThrow(actor.tenantId, statusId);
+    if (status.isActive) return status;
+    const updated = await this.prisma.tenantFamilyStatus.update({ where: { id: statusId }, data: { isActive: true } });
+    await this.audit.record({
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      action: "structure.family_status.reactivate",
+      targetType: "TenantFamilyStatus",
+      targetId: statusId,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+    return updated;
+  }
+
+  async reorderFamilyStatuses(actor: ActorContext, dto: ReorderDivisionsDto, context: RequestContext): Promise<TenantFamilyStatus[]> {
+    const existing = await this.prisma.tenantFamilyStatus.findMany({ where: { tenantId: actor.tenantId, id: { in: dto.orderedIds } } });
+    if (existing.length !== dto.orderedIds.length) {
+      throw new BadRequestException("One or more family statuses were not found for this Mahalle.");
+    }
+    await this.prisma.$transaction(
+      dto.orderedIds.map((id, index) => this.prisma.tenantFamilyStatus.update({ where: { id }, data: { order: index } }))
+    );
+    await this.audit.record({
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      action: "structure.family_status.reorder",
+      targetType: "TenantFamilyStatus",
+      metadata: { orderedIds: dto.orderedIds },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+    return this.prisma.tenantFamilyStatus.findMany({ where: { tenantId: actor.tenantId }, orderBy: { order: "asc" } });
   }
 }

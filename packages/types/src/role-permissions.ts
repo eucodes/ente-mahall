@@ -17,6 +17,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<TenantRole, readonly string[] | "*
   [TenantRole.MODERATOR]: [
     "members.view",
     "families.view",
+    "education.view",
+    "education.manage",
+    "health.view",
+    "health.manage",
     "houses.view",
     "events.view",
     "events.update",

@@ -5,6 +5,7 @@ import { getMyTenantMembership } from "@/lib/tenants";
 import { getFamilies, getFamilySummary } from "@/lib/business-resources";
 import { getMembers } from "@/lib/members";
 import { getHouses } from "@/lib/houses";
+import { getStructure } from "@/lib/structure";
 import { FamiliesRegistry } from "@/features/tenants/families-registry";
 
 // The API's own pageSize ceiling — see the equivalent note on the Members page.
@@ -18,11 +19,12 @@ export default async function FamiliesPage({ params }: { params: Promise<{ tenan
   const membership = await getMyTenantMembership(slug);
   if (!membership) redirect("/");
 
-  const [result, membersResult, housesResult, summary] = await Promise.all([
+  const [result, membersResult, housesResult, summary, structureResult] = await Promise.all([
     getFamilies(slug, 1, PAGE_SIZE, { status: "all" }),
     getMembers(slug, 1, PAGE_SIZE),
     getHouses(slug, 1, PAGE_SIZE),
-    getFamilySummary(slug)
+    getFamilySummary(slug),
+    getStructure(slug).catch(() => null)
   ]);
 
   if (result === null) {
@@ -49,6 +51,8 @@ export default async function FamiliesPage({ params }: { params: Promise<{ tenan
       houses={housesResult?.items ?? []}
       total={result.total}
       summary={summary}
+      familyStatuses={structureResult?.familyStatuses ?? []}
+      hasFamilyStatuses={structureResult?.structure?.hasFamilyStatuses ?? false}
     />
   );
 }

@@ -14,6 +14,11 @@ export {
   DueStatus,
   SalaryStatus,
   ServiceRequestStatus,
-  AnnouncementAudience
+  AnnouncementAudience,
+  HealthConditionStatus,
+  DisabilityType,
+  SupportStatus,
+  EmploymentStatus,
+  EducationLevel
 } from "@prisma/client";
 export type * from "@prisma/client";

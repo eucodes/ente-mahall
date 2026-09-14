@@ -12,9 +12,11 @@ import {
   DialogTitle,
   FormField,
   Input,
+  SearchableSelect,
   Textarea,
   useToast
 } from "@mahalle/ui";
+import { STATE_OPTIONS, getDistrictOptions } from "@/lib/location-data";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { PlatformTenant } from "@/lib/platform";
 
@@ -187,14 +189,31 @@ export function ProvisionTenantDialog({
                 />
               </FormField>
 
-              <FormField label="District" htmlFor="district">
-                <Input
-                  id="district"
-                  value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
-                  placeholder="e.g. Wayanad, Malappuram"
-                />
-              </FormField>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FormField label="State" htmlFor="state">
+                  <SearchableSelect
+                    id="state"
+                    value={state}
+                    onChange={(val) => setState(val)}
+                    options={STATE_OPTIONS}
+                    placeholder="Select State"
+                    searchPlaceholder="Search state..."
+                    allowCustom
+                  />
+                </FormField>
+
+                <FormField label="District" htmlFor="district">
+                  <SearchableSelect
+                    id="district"
+                    value={district}
+                    onChange={(val) => setDistrict(val)}
+                    options={getDistrictOptions(state)}
+                    placeholder="Select District"
+                    searchPlaceholder="Search district..."
+                    allowCustom
+                  />
+                </FormField>
+              </div>
 
               <FormField label="Place / Town" htmlFor="place">
                 <Input

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, FormField, Input, MapPin, Select } from "@mahalle/ui";
-import { INDIAN_STATES, KERALA_DISTRICTS, LOCAL_BODY_TYPES, type LocationData } from "../types";
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, FormField, Input, MapPin, Select, SearchableSelect } from "@mahalle/ui";
+import { LOCAL_BODY_TYPES, type LocationData } from "../types";
+import { STATE_OPTIONS, getDistrictOptions } from "@/lib/location-data";
 
 export interface LocationStepProps {
   value: LocationData;
@@ -14,7 +15,6 @@ export interface LocationStepProps {
 
 export function LocationStep({ value, errors, onChange, onBack, onSubmit }: LocationStepProps) {
   const [showCoordinates, setShowCoordinates] = useState(Boolean(value.latitude || value.longitude));
-  const isKerala = value.state === "Kerala";
 
   return (
     <Card className="overflow-hidden border-border/80 shadow-md">
@@ -41,50 +41,31 @@ export function LocationStep({ value, errors, onChange, onBack, onSubmit }: Loca
               </Select>
             </FormField>
             <FormField label="State" htmlFor="onboarding-state" required error={errors.state}>
-              <Select
+              <SearchableSelect
                 id="onboarding-state"
-                required
                 invalid={Boolean(errors.state)}
                 value={value.state}
-                onChange={(e) => onChange({ state: e.target.value, district: "" })}
-              >
-                <option value="">Select a state</option>
-                {INDIAN_STATES.map((state) => (
-                  <option key={state} value={state}>
-                    {state}
-                  </option>
-                ))}
-              </Select>
+                onChange={(val) => onChange({ state: val, district: "" })}
+                options={STATE_OPTIONS}
+                placeholder="Select a state"
+                searchPlaceholder="Search state..."
+                allowCustom
+              />
             </FormField>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="District" htmlFor="onboarding-district" required error={errors.district}>
-              {isKerala ? (
-                <Select
-                  id="onboarding-district"
-                  required
-                  invalid={Boolean(errors.district)}
-                  value={value.district}
-                  onChange={(e) => onChange({ district: e.target.value })}
-                >
-                  <option value="">Select district in Kerala</option>
-                  {KERALA_DISTRICTS.map((district) => (
-                    <option key={district} value={district}>
-                      {district}
-                    </option>
-                  ))}
-                </Select>
-              ) : (
-                <Input
-                  id="onboarding-district"
-                  required
-                  invalid={Boolean(errors.district)}
-                  placeholder="e.g. Coimbatore"
-                  value={value.district}
-                  onChange={(e) => onChange({ district: e.target.value })}
-                />
-              )}
+              <SearchableSelect
+                id="onboarding-district"
+                invalid={Boolean(errors.district)}
+                value={value.district}
+                onChange={(val) => onChange({ district: val })}
+                options={getDistrictOptions(value.state)}
+                placeholder={value.state ? `Select district in ${value.state}...` : "Select or search district..."}
+                searchPlaceholder="Search district..."
+                allowCustom
+              />
             </FormField>
             <FormField label="Local Body Type" htmlFor="onboarding-local-body-type" required>
               <Select

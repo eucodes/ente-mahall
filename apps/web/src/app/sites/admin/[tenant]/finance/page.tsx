@@ -97,30 +97,7 @@ export default async function FinanceOverviewPage({
 
       <div className="space-y-6">
         {/* Accountant Gateway Banner */}
-        <Card className="rounded-2xl border border-violet-200 dark:border-violet-900/50 bg-gradient-to-r from-violet-500/5 via-primary/5 to-transparent shadow-sm">
-          <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="rounded-xl p-2.5 bg-violet-600/10 text-violet-600 dark:text-violet-400 shrink-0">
-                <Scale className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-foreground">Accounting Workspace</span>
-                  <Badge variant="secondary" className="text-[10px]">Managed by Accountant</Badge>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  General ledger, journal vouchers, trial balance, and balance sheet are managed in the dedicated Accounting section.
-                </p>
-              </div>
-            </div>
-            <Button asChild size="sm" variant="outline" className="shrink-0 border-violet-300 dark:border-violet-800 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950 rounded-xl gap-1.5 self-start sm:self-auto">
-              <Link href={`/${slug}/accounting`}>
-                Open Accounting
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+       
 
         {/* KPI Cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

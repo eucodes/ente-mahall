@@ -6,6 +6,7 @@ import { getPublicTenant } from "@/lib/tenants";
 import { getMemberSession } from "@/lib/member-session";
 import { LogoutButton } from "@/features/auth/logout-button";
 import { HijriDateBadge } from "@/features/navigation/hijri-date-badge";
+import { IdleTimeoutProvider } from "@/features/auth/idle-timeout-provider";
 
 export default async function TenantSiteLayout({
   children,
@@ -23,7 +24,7 @@ export default async function TenantSiteLayout({
 
   const logoutEndpoint = `/tenants/${encodeURIComponent(slug)}/member-auth/logout`;
 
-  return (
+  const content = (
     <div className="flex min-h-screen flex-col bg-muted/20">
       <header className="sticky top-0 z-30 border-b border-border/70 bg-card/90 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
@@ -61,4 +62,14 @@ export default async function TenantSiteLayout({
       </footer>
     </div>
   );
+
+  if (member) {
+    return (
+      <IdleTimeoutProvider logoutEndpoint={logoutEndpoint} redirectUrl="/login?reason=inactivity">
+        {content}
+      </IdleTimeoutProvider>
+    );
+  }
+
+  return content;
 }

@@ -77,6 +77,30 @@ export interface FinanceBankAccount {
   isActive: boolean;
 }
 
+export interface CollectionCustomField {
+  id: string;
+  label: string;
+  type: "text" | "number" | "select";
+  required: boolean;
+  options?: string[];
+}
+
+export interface CollectionFormConfig {
+  enableFamily?: boolean;
+  requireFamily?: boolean;
+  enableMember?: boolean;
+  requireMember?: boolean;
+  enableAmount?: boolean;
+  requireAmount?: boolean;
+  defaultAmount?: number | string | null;
+  enablePaymentMethod?: boolean;
+  enableDate?: boolean;
+  enableNotes?: boolean;
+  enableDescription?: boolean;
+  enableAttachment?: boolean;
+  customFields?: CollectionCustomField[];
+}
+
 export interface CollectionCategory {
   id: string;
   name: string;
@@ -85,10 +109,13 @@ export interface CollectionCategory {
   incomeAccountId?: string | null;
   targetType?: "ALL_FAMILIES" | "SPECIFIC_DIVISIONS" | "CATEGORY_BASED" | "GENERAL";
   isRecurring?: boolean;
+  isSubscription?: boolean;
   recurrenceFrequency?: "MONTHLY" | "ANNUAL" | "ONE_TIME" | string | null;
   targetEconomicCategory?: string | null;
   targetDivisionIds?: string[];
+  targetAmount?: string | number | null;
   defaultAmount?: string | number | null;
+  formConfig?: CollectionFormConfig | null;
   isActive: boolean;
   displayOrder: number;
 }
@@ -123,6 +150,8 @@ export interface FinanceCollection {
   reference?: string | null;
   description?: string | null;
   notes?: string | null;
+  attachmentUrl?: string | null;
+  customFields?: Record<string, any> | null;
   status: string;
   receipt?: { id: string; receiptNumber: string; status: string } | null;
 }

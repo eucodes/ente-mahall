@@ -19,4 +19,6 @@ export class CreateCollectionDto {
   @IsOptional() @IsString() @MaxLength(255) reference?: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
+  @IsOptional() @IsString() attachmentUrl?: string;
+  @IsOptional() customFields?: any;
 }

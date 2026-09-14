@@ -19,6 +19,7 @@ apps/api/uploads/
 .env
 .env.local
 .env.*.local
+.env.prod
 
 # Logs
 *.log

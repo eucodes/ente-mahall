@@ -136,62 +136,7 @@ export const EMPTY_MANAGEMENT: ManagementData = {
   treasurerPhone: ""
 };
 
-export const INDIAN_STATES = [
-  "Andaman and Nicobar Islands",
-  "Andhra Pradesh",
-  "Arunachal Pradesh",
-  "Assam",
-  "Bihar",
-  "Chandigarh",
-  "Chhattisgarh",
-  "Dadra and Nagar Haveli and Daman and Diu",
-  "Delhi",
-  "Goa",
-  "Gujarat",
-  "Haryana",
-  "Himachal Pradesh",
-  "Jammu and Kashmir",
-  "Jharkhand",
-  "Karnataka",
-  "Kerala",
-  "Ladakh",
-  "Lakshadweep",
-  "Madhya Pradesh",
-  "Maharashtra",
-  "Manipur",
-  "Meghalaya",
-  "Mizoram",
-  "Nagaland",
-  "Odisha",
-  "Puducherry",
-  "Punjab",
-  "Rajasthan",
-  "Sikkim",
-  "Tamil Nadu",
-  "Telangana",
-  "Tripura",
-  "Uttar Pradesh",
-  "Uttarakhand",
-  "West Bengal"
-] as const;
-
-/** Kerala's 14 districts — the one state where onboarding offers a real, exact district list. Other states use free text since no reliable exhaustive dataset is available. */
-export const KERALA_DISTRICTS = [
-  "Thiruvananthapuram",
-  "Kollam",
-  "Pathanamthitta",
-  "Alappuzha",
-  "Kottayam",
-  "Idukki",
-  "Ernakulam",
-  "Thrissur",
-  "Palakkad",
-  "Malappuram",
-  "Kozhikode",
-  "Wayanad",
-  "Kannur",
-  "Kasaragod"
-] as const;
+export { INDIAN_STATES, KERALA_DISTRICTS, type IndianState } from "@/lib/location-data";
 
 export const LOCAL_BODY_TYPES = ["Grama Panchayat", "Municipality", "Corporation", "Other"] as const;
 

@@ -1,5 +1,7 @@
-import { BloodGroup, Gender, MaritalStatus, MovementStatus, RelationToHead } from "@mahalle/database";
-import { IsBoolean, IsDateString, IsEmail, IsEnum, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
+import { BloodGroup, EducationLevel, EmploymentStatus, Gender, MaritalStatus, MovementStatus, RelationToHead } from "@mahalle/database";
+import { Type } from "class-transformer";
+import { IsArray, IsBoolean, IsDateString, IsEmail, IsEnum, IsOptional, IsString, MaxLength, MinLength, ValidateNested } from "class-validator";
+import { MemberHealthProfileDto } from "./member-health-profile.dto";
 
 export class CreateMemberDto {
   @IsString()
@@ -101,4 +103,52 @@ export class CreateMemberDto {
   @IsString()
   @MaxLength(100)
   expatriateContact?: string;
+
+  // Education & Employment
+  @IsOptional()
+  @IsEnum(EducationLevel)
+  educationLevel?: EducationLevel;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  educationDetails?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  institution?: string;
+
+  @IsOptional()
+  @IsEnum(EmploymentStatus)
+  employmentStatus?: EmploymentStatus;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  jobTitle?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  employerOrBusiness?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  skills?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  isJobSeeker?: boolean;
+
+  @IsOptional()
+  educationHistory?: any;
+
+  // Health & Support Profile
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MemberHealthProfileDto)
+  healthProfile?: MemberHealthProfileDto;
 }
+

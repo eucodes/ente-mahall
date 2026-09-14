@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useBreadcrumb } from "@/features/navigation/admin-shell";
@@ -15,7 +15,6 @@ import {
   Droplet,
   HeartHandshake,
   Home,
-  Mail,
   MapPin,
   MessageSquare,
   Pencil,
@@ -26,14 +25,17 @@ import {
   ShieldCheck,
   User,
   Users,
-  UsersRound,
   Eye,
   EyeOff,
   ChevronLeft,
   ChevronRight,
-  GitFork,
+  ChevronDown,
+  DropdownMenu,
   ExternalLink,
-  School,
+  CreditCard,
+  UserPlus,
+  UserCheck,
+  RefreshCw,
   useToast
 } from "@mahalle/ui";
 import { BLOOD_GROUP_LABELS, RELATION_TO_HEAD_LABELS } from "@/lib/member-constants";
@@ -42,6 +44,108 @@ import type { Member } from "@/lib/members";
 import type { House } from "@/lib/houses";
 import { FamilyFormDialog } from "./family-form-dialog";
 import { MemberFormDialog } from "./member-form-dialog";
+import { AddExistingMemberDialog } from "./add-existing-member-dialog";
+import { apiClient } from "@/lib/api-client";
+
+interface PaymentRecord {
+  id: string;
+  receiptNumber?: string | null;
+  date: string;
+  amount: string | number;
+  paymentMethod?: string | null;
+  description?: string | null;
+  category?: { name: string } | null;
+}
+
+function PaymentHistoryCard({ slug, familyId }: { slug: string; familyId: string }) {
+  const [data, setData] = useState<{ totalPaid: string; outstandingAmount: string; collections: PaymentRecord[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchRecords = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiClient.get<{ totalPaid: string; outstandingAmount: string; collections: PaymentRecord[] }>(
+        `/tenants/${slug}/finance/collections/family/${familyId}`
+      );
+      setData(res ?? null);
+    } catch {
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [slug, familyId]);
+
+  useEffect(() => {
+    fetchRecords();
+  }, [fetchRecords]);
+
+  const records = data?.collections ?? [];
+
+  return (
+    <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+      <CardHeader className="border-b border-border/60 px-6 py-4 flex flex-row items-center justify-between">
+        <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+          <CreditCard className="h-4 w-4 text-muted-foreground" />
+          <span>Payment History</span>
+        </CardTitle>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={fetchRecords}
+          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+          title="Refresh"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+        </Button>
+      </CardHeader>
+      {data && (
+        <div className="grid grid-cols-2 gap-3 px-6 py-3 border-b border-border/60 bg-muted/20">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Total Paid</p>
+            <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">₹{Number(data.totalPaid).toLocaleString("en-IN")}</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Outstanding Dues</p>
+            <p className={`text-sm font-bold ${Number(data.outstandingAmount) > 0 ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"}`}>
+              ₹{Number(data.outstandingAmount).toLocaleString("en-IN")}
+            </p>
+          </div>
+        </div>
+      )}
+      <CardContent className="p-0">
+        {loading && !data ? (
+          <p className="px-6 py-4 text-xs text-muted-foreground">Loading payment history...</p>
+        ) : records.length === 0 ? (
+          <p className="px-6 py-4 text-xs text-muted-foreground italic">No collections recorded for this household yet.</p>
+        ) : (
+          <div className="divide-y divide-border/60">
+            {records.map((rec) => (
+              <div key={rec.id} className="flex items-center justify-between px-6 py-3 gap-4 hover:bg-muted/20 transition-colors">
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-xs font-semibold text-foreground truncate">
+                    {rec.category?.name || "Collection"}
+                    {rec.description && (
+                      <span className="font-normal text-muted-foreground ml-1">— {rec.description}</span>
+                    )}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {rec.receiptNumber ? `#${rec.receiptNumber}` : rec.id.slice(0, 8).toUpperCase()}
+                    {" · "}
+                    {new Date(rec.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                    {rec.paymentMethod && ` · ${rec.paymentMethod}`}
+                  </span>
+                </div>
+                <span className="shrink-0 font-bold text-sm text-foreground">
+                  ₹{Number(rec.amount).toLocaleString("en-IN")}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export interface FamilyDetailViewProps {
   slug: string;
@@ -49,6 +153,7 @@ export interface FamilyDetailViewProps {
   members: Member[];
   houses: House[];
   allFamilies: Family[];
+  hasFamilyStatuses?: boolean;
 }
 
 function calculateAge(dob: string | null): number | null {
@@ -67,18 +172,23 @@ function maskId(idNumber: string | null, isRevealed: boolean): string {
   return `${idNumber.slice(0, 4)}••••••${idNumber.slice(-2)}`;
 }
 
-export function FamilyDetailView({ slug, family, members, houses, allFamilies }: FamilyDetailViewProps) {
+export function FamilyDetailView({ slug, family, members, houses, allFamilies, hasFamilyStatuses = false }: FamilyDetailViewProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [showIdMap, setShowIdMap] = useState<Record<string, boolean>>({});
   const [editFamilyOpen, setEditFamilyOpen] = useState(false);
   const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [addExistingMemberOpen, setAddExistingMemberOpen] = useState(false);
   const { setDetailTitle } = useBreadcrumb();
 
   useEffect(() => {
     setDetailTitle(`${family.name} Household`);
     return () => setDetailTitle(null);
   }, [family.name, setDetailTitle]);
+
+  const linkedHouse = houses.find((h) => h.id === family.houseId) || (family.house ? houses.find((h) => h.id === family.house?.id) : null);
+  const divisionName = linkedHouse?.division?.name;
+  const divisionCode = linkedHouse?.division?.code;
 
   const headMember = members.find((m) => m.relationToHead === "HEAD") ?? members[0];
   const spouseMember = members.find((m) => m.relationToHead === "SPOUSE");
@@ -100,281 +210,329 @@ export function FamilyDetailView({ slug, family, members, houses, allFamilies }:
   };
 
   return (
-    <div className="space-y-5">
-      {/* Top Page Header with Back Navigation (Matching Reference Image 3) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 max-w-6xl">
+      {/* 1. Header with Back Navigation & Action Buttons */}
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => router.push(`/${slug}/families`)}
             className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/80 bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shadow-2xs group"
-            title="Back to Families Registry"
+            title="Back to Families"
           >
             <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
           </button>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
             Family Profile
           </h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() =>
               toast({
                 title: "Registry Certificate",
-                description: `Official Mahalle Family Certificate generated for ${family.name} Household.`
+                description: `Family Certificate generated for ${family.name} Household.`
               })
             }
-            className="rounded-xl text-xs font-semibold h-9 px-3 gap-1.5 border-border/80 text-foreground"
+            className="rounded-xl text-xs font-semibold h-9 px-3 gap-1.5 border-border/80"
           >
             <Printer className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>Print Certificate</span>
+            <span>Print</span>
           </Button>
 
           <Button
             variant="outline"
             size="sm"
             onClick={() => setEditFamilyOpen(true)}
-            className="rounded-xl text-xs font-semibold h-9 px-3 gap-1.5 border-border/80 text-foreground"
+            className="rounded-xl text-xs font-semibold h-9 px-3.5 gap-1.5 border-border/80"
           >
             <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
             <span>Edit Family</span>
           </Button>
 
-          <Button
-            size="sm"
-            onClick={() => setAddMemberOpen(true)}
-            className="rounded-xl text-xs font-bold h-9 px-3.5 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs"
-          >
-            <Plus className="h-4 w-4 stroke-[2.5]" />
-            <span>Add Member</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Hero Household Card */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm relative overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md flex-shrink-0">
-              <UsersRound className="h-7 w-7" />
-            </div>
-            <div className="flex flex-col">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">{family.name} Household</h1>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold border border-emerald-500/20">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Verified Household
-                </span>
-                {hasYatheem && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-semibold border border-amber-500/20">
-                    <HeartHandshake className="h-3 w-3" />
-                    Welfare Support Enrolled
-                  </span>
-                )}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-1.5">
-                <span className="flex items-center gap-1">
-                  <MapPin className="h-3.5 w-3.5" />
-                  {family.address ?? "No address recorded on file"}
-                </span>
-                {family.house && (
-                  <>
-                    <span>•</span>
-                    <span className="font-medium text-primary">House #{family.house.displayNumber}</span>
-                  </>
-                )}
-                <span>•</span>
-                <span>Head: {headMember?.fullName ?? "Unassigned"}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-row md:flex-col items-end justify-between md:justify-center gap-2 border-t md:border-t-0 pt-3 md:pt-0 border-border">
-            <span className="text-xs font-mono text-muted-foreground bg-muted px-2.5 py-1 rounded-md border border-border">
-              #FAM-{family.familyNumber ?? family.id.slice(0, 6).toUpperCase()}
-            </span>
-            <span className="text-[11px] text-muted-foreground">Mahallu Household Registry</span>
-          </div>
-        </div>
-
-        {/* Quick Metric Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-border">
-          <div className="p-3 rounded-xl bg-muted/40 border border-border/60 flex flex-col">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Total Residents</span>
-            <span className="text-lg font-bold text-foreground mt-0.5">{members.length}</span>
-            <span className="text-[11px] text-muted-foreground">{adultsCount} Adults, {minorsCount} Minors</span>
-          </div>
-
-          <div className="p-3 rounded-xl bg-muted/40 border border-border/60 flex flex-col">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">House Allocation</span>
-            <span className="text-lg font-bold text-primary mt-0.5">
-              {family.house ? `House ${family.house.displayNumber}` : "Unallocated"}
-            </span>
-            <span className="text-[11px] text-muted-foreground">{family.house ? "Registered Dwelling" : "General Jurisdiction"}</span>
-          </div>
-
-          <div className="p-3 rounded-xl bg-muted/40 border border-border/60 flex flex-col">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Primary Contact</span>
-            <span className="text-sm font-bold font-mono text-foreground mt-1 truncate">
-              {family.phone || headMember?.phone || "No phone"}
-            </span>
-            <span className="text-[11px] text-muted-foreground">Direct Telemetry</span>
-          </div>
-
-          <div className="p-3 rounded-xl bg-muted/40 border border-border/60 flex flex-col">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Welfare Status</span>
-            <span className="text-sm font-bold text-foreground mt-1">
-              {hasYatheem ? "Yatheem Support" : expatriatesCount > 0 ? `${expatriatesCount} NRI Member${expatriatesCount > 1 ? "s" : ""}` : "Regular Resident"}
-            </span>
-            <span className="text-[11px] text-muted-foreground">Active Classification</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Grid: Members Roster, Tree, Financials, and Household Info */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (8 cols): Members Roster & Genealogy Tree */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
-          {/* Family Members Roster Card */}
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Users className="h-4 w-4 text-primary" />
-                <span>Family Members ({members.length})</span>
-              </CardTitle>
+          <DropdownMenu
+            align="right"
+            trigger={
               <Button
                 size="sm"
-                variant="outline"
-                onClick={() => setAddMemberOpen(true)}
-                className="gap-1 h-8 text-xs"
+                variant="primary"
+                className="rounded-xl text-xs font-semibold h-9 px-3.5 gap-1.5 cursor-pointer shadow-xs"
               >
-                <Plus className="h-3 w-3" />
+                <Plus className="h-3.5 w-3.5" />
                 <span>Add Member</span>
+                <ChevronDown className="h-3 w-3 opacity-70 ml-0.5" />
               </Button>
-            </CardHeader>
-            <CardContent>
-              {members.length === 0 ? (
-                <div className="p-8 rounded-xl border border-dashed border-border text-center flex flex-col items-center justify-center gap-2">
-                  <Users className="h-8 w-8 text-muted-foreground opacity-40" />
-                  <p className="font-semibold text-foreground">No members registered in this family yet</p>
-                  <p className="text-xs text-muted-foreground">Click &quot;Add Member&quot; to link the first family resident.</p>
-                  <Button size="sm" onClick={() => setAddMemberOpen(true)} className="mt-2 text-xs">
-                    Add Family Member
+            }
+            items={[
+              {
+                label: "Add New Member",
+                icon: <UserPlus className="h-3.5 w-3.5 text-emerald-600" />,
+                onClick: () => setAddMemberOpen(true),
+              },
+              {
+                label: "Add Existing Member",
+                icon: <UserCheck className="h-3.5 w-3.5 text-sky-600" />,
+                onClick: () => setAddExistingMemberOpen(true),
+              },
+            ]}
+          />
+        </div>
+      </div>
+
+      {/* 2. Hero Household Card - Clean & Minimal */}
+      <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            <div className="flex items-start sm:items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <Users className="h-6 w-6" />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h2 className="text-xl font-bold text-foreground">
+                    {family.name} Household
+                  </h2>
+                  <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
+                    {members.length} {members.length === 1 ? "Resident" : "Residents"} ({adultsCount} Adults, {minorsCount} Minors)
+                  </span>
+                  {hasYatheem && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                      <HeartHandshake className="h-3 w-3" />
+                      Yatheem Support
+                    </span>
+                  )}
+                  {expatriatesCount > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                      <Plane className="h-3 w-3" />
+                      {expatriatesCount} NRI Member{expatriatesCount > 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {family.requiresCommunitySupport && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      Community Aid ({family.supportStatus || "Active"})
+                    </span>
+                  )}
+                  {hasFamilyStatuses && family.familyStatus && (
+                    <span
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                      style={{
+                        backgroundColor: family.familyStatus.color ? `${family.familyStatus.color}20` : undefined,
+                        color: family.familyStatus.color ?? undefined,
+                        border: family.familyStatus.color ? `1px solid ${family.familyStatus.color}50` : "1px solid var(--border)"
+                      }}
+                    >
+                      {family.familyStatus.name}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                  {headMember && <span>Head: {headMember.fullName}</span>}
+                  {family.house && (
+                    <>
+                      <span>•</span>
+                      <span className="font-medium text-foreground">House #{family.house.displayNumber}</span>
+                    </>
+                  )}
+                  {divisionName && (
+                    <>
+                      <span>•</span>
+                      <span>Ward: {divisionName} {divisionCode ? `(${divisionCode})` : ""}</span>
+                    </>
+                  )}
+                  {(family.phone || headMember?.phone) && (
+                    <>
+                      <span>•</span>
+                      <span className="font-mono">{family.phone || headMember?.phone}</span>
+                    </>
+                  )}
+                  {family.address && (
+                    <>
+                      <span>•</span>
+                      <span className="truncate max-w-[240px] sm:max-w-md">{family.address}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="font-mono text-xs text-muted-foreground bg-muted/40 border border-border/60 px-3 py-1.5 rounded-xl self-start sm:self-auto">
+              #FAM-{family.familyNumber ?? family.id.slice(0, 6).toUpperCase()}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. Main Grid: 8 Cols (Members Roster & Structure) + 4 Cols (Household Details & Notes) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column (8 cols): Roster & Household Hierarchy */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Members Roster Card */}
+          <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+            <CardHeader className="border-b border-border/60 px-6 py-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <span>Family Members ({members.length})</span>
+              </CardTitle>
+              <DropdownMenu
+                align="right"
+                trigger={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl text-xs font-semibold h-8 px-3 gap-1 cursor-pointer border-border/80"
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span>Add Member</span>
+                    <ChevronDown className="h-2.5 w-2.5 opacity-60 ml-0.5" />
                   </Button>
+                }
+                items={[
+                  {
+                    label: "Add New Member",
+                    icon: <UserPlus className="h-3.5 w-3.5 text-emerald-600" />,
+                    onClick: () => setAddMemberOpen(true),
+                  },
+                  {
+                    label: "Add Existing Member",
+                    icon: <UserCheck className="h-3.5 w-3.5 text-sky-600" />,
+                    onClick: () => setAddExistingMemberOpen(true),
+                  },
+                ]}
+              />
+            </CardHeader>
+            <CardContent className="p-0">
+              {members.length === 0 ? (
+                <div className="p-8 text-center text-xs text-muted-foreground space-y-3">
+                  <p>No members registered in this family yet.</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => setAddMemberOpen(true)}
+                      className="rounded-xl text-xs font-semibold h-8 px-3 gap-1.5"
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                      <span>Add New Member</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAddExistingMemberOpen(true)}
+                      className="rounded-xl text-xs font-semibold h-8 px-3 gap-1.5 border-border/80"
+                    >
+                      <UserCheck className="h-3.5 w-3.5" />
+                      <span>Add Existing Member</span>
+                    </Button>
+                  </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {members.map((member) => {
-                    const memberAge = calculateAge(member.dateOfBirth);
-                    const isRevealed = !!showIdMap[member.id];
-                    const isStudent =
-                      (member.occupation && member.occupation.toLowerCase().includes("student")) ||
-                      (member.movementNotes && member.movementNotes.toLowerCase().includes("[student]"));
+                <div className="divide-y divide-border/60">
+                  {members.map((m) => {
+                    const memberAge = calculateAge(m.dateOfBirth);
+                    const isRevealed = !!showIdMap[m.id];
+
                     return (
                       <div
-                        key={member.id}
-                        className="p-4 rounded-xl border border-border/80 bg-muted/30 hover:bg-muted/60 transition-all flex flex-col justify-between group"
+                        key={m.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:px-6 hover:bg-muted/20 transition-colors"
                       >
-                        <div>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 min-w-0">
-                              <Avatar name={member.fullName} size="md" />
-                              <div className="flex flex-col min-w-0">
-                                <Link
-                                  href={`/${slug}/members/${member.id}`}
-                                  className="text-sm font-bold text-foreground group-hover:text-primary transition-colors truncate"
-                                >
-                                  {member.fullName}
-                                </Link>
-                                <span className="text-xs text-muted-foreground">
-                                  {member.relationToHead
-                                    ? (RELATION_TO_HEAD_LABELS[member.relationToHead] ?? member.relationToHead)
-                                    : "Member"}{" "}
-                                  {memberAge !== null ? `• ${memberAge} yrs` : ""}
+                        <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                          <Avatar name={m.fullName} size="md" />
+                          <div className="space-y-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Link
+                                href={`/${slug}/members/${m.id}`}
+                                className="font-semibold text-sm text-foreground hover:underline truncate"
+                              >
+                                {m.fullName}
+                              </Link>
+                              <span className="rounded-full bg-muted px-2 py-0.2 text-[11px] font-medium text-foreground">
+                                {m.relationToHead
+                                  ? (RELATION_TO_HEAD_LABELS[m.relationToHead] ?? m.relationToHead)
+                                  : "Member"}
+                              </span>
+                              {m.bloodGroup && (
+                                <span className="text-rose-600 dark:text-rose-400 text-xs font-medium flex items-center gap-0.5">
+                                  <Droplet className="h-3 w-3" />
+                                  {BLOOD_GROUP_LABELS[m.bloodGroup]}
                                 </span>
-                              </div>
+                              )}
+                              {m.isExpatriate && (
+                                <span className="text-blue-600 dark:text-blue-400 text-xs font-medium flex items-center gap-0.5">
+                                  <Plane className="h-3 w-3" />
+                                  NRI
+                                </span>
+                              )}
+                              {m.isYatheem && (
+                                <span className="text-amber-600 dark:text-amber-400 text-xs font-medium flex items-center gap-0.5">
+                                  <HeartHandshake className="h-3 w-3" />
+                                  Yatheem
+                                </span>
+                              )}
                             </div>
 
-                            <span className="px-2 py-0.5 rounded-full bg-muted text-foreground text-[10px] font-semibold border border-border flex-shrink-0">
-                              {member.relationToHead === "HEAD" ? "Head" : "Resident"}
-                            </span>
-                          </div>
-
-                          <div className="mt-3 pt-2.5 border-t border-border/60 flex flex-col gap-1 text-xs text-muted-foreground">
-                            <div className="flex items-center justify-between">
-                              {isStudent ? (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                              {memberAge !== null && <span>{memberAge} yrs</span>}
+                              {m.gender && (
                                 <>
-                                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                                    <School className="h-3 w-3" />
-                                    <span>Education:</span>
-                                  </span>
-                                  <span className="text-foreground font-medium truncate max-w-[170px]" title={member.occupation ?? "Student"}>
-                                    {member.occupation?.replace(/^student\s*(•|:|-)?\s*/i, "") || "Student"}
-                                  </span>
+                                  <span>•</span>
+                                  <span>{m.gender[0] + m.gender.slice(1).toLowerCase()}</span>
                                 </>
-                              ) : (
+                              )}
+                              {m.occupation && (
                                 <>
-                                  <span>Occupation:</span>
-                                  <span className="text-foreground font-medium truncate max-w-[170px]" title={member.occupation ?? "—"}>
-                                    {member.occupation ?? "—"}
+                                  <span>•</span>
+                                  <span className="truncate max-w-[160px]">{m.occupation}</span>
+                                </>
+                              )}
+                              {m.phone && (
+                                <>
+                                  <span>•</span>
+                                  <span className="font-mono">{m.phone}</span>
+                                </>
+                              )}
+                              {m.idNumber && (
+                                <>
+                                  <span>•</span>
+                                  <span className="font-mono inline-flex items-center gap-1">
+                                    ID: {maskId(m.idNumber, isRevealed)}
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleRevealId(m.id)}
+                                      className="p-0.5 text-muted-foreground hover:text-foreground"
+                                      title={isRevealed ? "Hide ID" : "Show ID"}
+                                    >
+                                      {isRevealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                    </button>
                                   </span>
                                 </>
                               )}
                             </div>
-
-                            <div className="flex items-center justify-between">
-                              <span>Contact:</span>
-                              <span className="text-foreground font-mono">{member.phone ?? "—"}</span>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                              <span>National ID:</span>
-                              <div className="flex items-center gap-1 font-mono text-foreground">
-                                <span>{maskId(member.idNumber, isRevealed)}</span>
-                                {member.idNumber && (
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleRevealId(member.id)}
-                                    className="p-0.5 hover:text-primary text-muted-foreground transition-colors"
-                                    title={isRevealed ? "Hide ID" : "Reveal ID"}
-                                  >
-                                    {isRevealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
                           </div>
                         </div>
 
-                        <div className="mt-3 pt-2.5 border-t border-border/60 flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            {member.isYatheem && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-semibold">
-                                Yatheem
-                              </span>
-                            )}
-                            {member.isExpatriate && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-semibold">
-                                NRI
-                              </span>
-                            )}
-                            {member.bloodGroup && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px] font-semibold">
-                                {BLOOD_GROUP_LABELS[member.bloodGroup]}
-                              </span>
-                            )}
-                          </div>
-
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          {m.phone && (
+                            <a
+                              href={`https://wa.me/${m.phone.replace(/[^0-9]/g, "")}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-2 rounded-xl text-muted-foreground hover:text-emerald-600 hover:bg-muted/40 transition-colors"
+                              title="WhatsApp"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                            </a>
+                          )}
                           <Link
-                            href={`/${slug}/members/${member.id}`}
-                            className="text-xs text-primary hover:underline font-semibold flex items-center gap-0.5"
+                            href={`/${slug}/members/${m.id}`}
+                            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+                            title="View Profile"
                           >
-                            <span>Full Profile</span>
-                            <ChevronRight className="h-3.5 w-3.5" />
+                            <ChevronRight className="h-4 w-4" />
                           </Link>
                         </div>
                       </div>
@@ -385,177 +543,144 @@ export function FamilyDetailView({ slug, family, members, houses, allFamilies }:
             </CardContent>
           </Card>
 
-          {/* Household Genealogy & Relationship Tree Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <GitFork className="h-4 w-4 text-primary" />
-                <span>Household Genealogy & Dependency Tree</span>
+          {/* Household Hierarchy / Structure */}
+          <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+            <CardHeader className="border-b border-border/60 px-6 py-4">
+              <CardTitle className="text-sm font-bold text-foreground">
+                Household Structure
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center w-full py-2">
-                {/* Generation 1: Head & Spouse */}
-                <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-10 w-full z-10">
-                  {/* Head Node */}
-                  {headMember ? (
-                    <div className="w-full md:w-72 p-4 rounded-xl bg-card border-2 border-primary shadow-sm hover:shadow-md transition-all">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-primary mb-1">
-                        Head of Household
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <Avatar name={headMember.fullName} size="md" className="ring-2 ring-primary/20" />
-                        <div className="flex flex-col min-w-0">
-                          <Link href={`/${slug}/members/${headMember.id}`} className="text-sm font-bold text-foreground hover:text-primary transition-colors truncate">
-                            {headMember.fullName}
-                          </Link>
-                          <span className="text-xs text-muted-foreground">
-                            {calculateAge(headMember.dateOfBirth) !== null ? `${calculateAge(headMember.dateOfBirth)} yrs • ` : ""}
-                            {headMember.occupation ?? "Head"}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="mt-2.5 pt-2 border-t border-border flex items-center justify-between text-xs">
-                        <span className="font-mono text-muted-foreground">{headMember.phone ?? "—"}</span>
-                        <Link href={`/${slug}/members/${headMember.id}`} className="text-primary hover:underline font-semibold text-xs">
-                          Profile →
-                        </Link>
-                      </div>
+            <CardContent className="p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Head Card */}
+                {headMember ? (
+                  <div className="p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 space-y-2">
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider block">
+                      Head of Family
+                    </span>
+                    <div className="flex items-center justify-between">
+                      <Link
+                        href={`/${slug}/members/${headMember.id}`}
+                        className="font-bold text-sm text-foreground hover:underline"
+                      >
+                        {headMember.fullName}
+                      </Link>
+                      <span className="text-xs text-muted-foreground">
+                        {calculateAge(headMember.dateOfBirth) !== null ? `${calculateAge(headMember.dateOfBirth)} yrs` : ""}
+                      </span>
                     </div>
-                  ) : (
-                    <div className="p-4 rounded-xl border border-dashed border-border text-xs text-muted-foreground">
-                      No head designated
-                    </div>
-                  )}
+                    {headMember.occupation && (
+                      <p className="text-xs text-muted-foreground truncate">{headMember.occupation}</p>
+                    )}
+                    {headMember.phone && (
+                      <p className="text-xs font-mono text-muted-foreground">{headMember.phone}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-2xl border border-dashed border-border/70 text-xs text-muted-foreground flex items-center justify-center">
+                    No Head of Family designated
+                  </div>
+                )}
 
-                  {/* Spouse Node */}
-                  {spouseMember && (
-                    <div className="w-full md:w-72 p-4 rounded-xl bg-card border border-border shadow-sm hover:shadow-md transition-all">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                        Spouse / Co-Head
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <Avatar name={spouseMember.fullName} size="md" className="ring-1 ring-border" />
-                        <div className="flex flex-col min-w-0">
-                          <Link href={`/${slug}/members/${spouseMember.id}`} className="text-sm font-bold text-foreground hover:text-primary transition-colors truncate">
-                            {spouseMember.fullName}
-                          </Link>
-                          <span className="text-xs text-muted-foreground">
-                            {calculateAge(spouseMember.dateOfBirth) !== null ? `${calculateAge(spouseMember.dateOfBirth)} yrs • ` : ""}
-                            {spouseMember.occupation ?? "Spouse"}
+                {/* Spouse Card */}
+                {spouseMember ? (
+                  <div className="p-4 rounded-2xl border border-border/70 bg-card space-y-2">
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block">
+                      Spouse / Co-Head
+                    </span>
+                    <div className="flex items-center justify-between">
+                      <Link
+                        href={`/${slug}/members/${spouseMember.id}`}
+                        className="font-bold text-sm text-foreground hover:underline"
+                      >
+                        {spouseMember.fullName}
+                      </Link>
+                      <span className="text-xs text-muted-foreground">
+                        {calculateAge(spouseMember.dateOfBirth) !== null ? `${calculateAge(spouseMember.dateOfBirth)} yrs` : ""}
+                      </span>
+                    </div>
+                    {spouseMember.occupation && (
+                      <p className="text-xs text-muted-foreground truncate">{spouseMember.occupation}</p>
+                    )}
+                    {spouseMember.phone && (
+                      <p className="text-xs font-mono text-muted-foreground">{spouseMember.phone}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-2xl border border-dashed border-border/70 text-xs text-muted-foreground flex items-center justify-center">
+                    No spouse recorded on file
+                  </div>
+                )}
+              </div>
+
+              {/* Children & Dependents */}
+              {childrenAndDependents.length > 0 && (
+                <div className="pt-2 space-y-2">
+                  <span className="text-xs font-semibold text-muted-foreground block">
+                    Children & Dependents ({childrenAndDependents.length})
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {childrenAndDependents.map((child) => (
+                      <Link
+                        key={child.id}
+                        href={`/${slug}/members/${child.id}`}
+                        className="p-3 rounded-2xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors flex items-center justify-between text-xs"
+                      >
+                        <div className="truncate pr-2">
+                          <span className="font-semibold text-foreground truncate block">{child.fullName}</span>
+                          <span className="text-muted-foreground text-[11px]">
+                            {child.relationToHead ? (RELATION_TO_HEAD_LABELS[child.relationToHead] ?? child.relationToHead) : "Dependent"}
+                            {calculateAge(child.dateOfBirth) !== null ? ` • ${calculateAge(child.dateOfBirth)} yrs` : ""}
                           </span>
                         </div>
-                      </div>
-                      <div className="mt-2.5 pt-2 border-t border-border flex items-center justify-between text-xs">
-                        <span className="font-mono text-muted-foreground">{spouseMember.phone ?? "—"}</span>
-                        <Link href={`/${slug}/members/${spouseMember.id}`} className="text-primary hover:underline font-semibold text-xs">
-                          Profile →
-                        </Link>
-                      </div>
-                    </div>
-                  )}
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-
-                {/* Branch Stem */}
-                {childrenAndDependents.length > 0 && (
-                  <div className="relative w-full flex flex-col items-center my-3">
-                    <div className="w-0.5 h-6 bg-primary/40" />
-                    <div className="w-3/4 max-w-lg h-0.5 bg-primary/40 relative">
-                      <div className="absolute left-0 top-0 w-0.5 h-4 bg-primary/40" />
-                      <div className="absolute right-0 top-0 w-0.5 h-4 bg-primary/40" />
-                    </div>
-                  </div>
-                )}
-
-                {/* Generation 2: Dependents */}
-                {childrenAndDependents.length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl mt-2 z-10">
-                    {childrenAndDependents.map((child) => {
-                      const childAge = calculateAge(child.dateOfBirth);
-                      return (
-                        <div
-                          key={child.id}
-                          className="p-3.5 rounded-xl bg-card border border-border shadow-xs hover:shadow-sm transition-all"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-start gap-2.5 min-w-0">
-                              <Avatar name={child.fullName} size="sm" />
-                              <div className="flex flex-col min-w-0">
-                                <Link href={`/${slug}/members/${child.id}`} className="text-xs font-bold text-foreground hover:text-primary transition-colors truncate">
-                                  {child.fullName}
-                                </Link>
-                                <span className="text-[11px] text-muted-foreground">
-                                  {child.relationToHead ? (RELATION_TO_HEAD_LABELS[child.relationToHead] ?? child.relationToHead) : "Dependent"}{" "}
-                                  {childAge !== null ? `(${childAge} yrs)` : ""}
-                                </span>
-                              </div>
-                            </div>
-                            <Link href={`/${slug}/members/${child.id}`} className="text-primary hover:underline text-xs font-semibold">
-                              View →
-                            </Link>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Family Contributions, Donations & Dues Section Placeholder */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center justify-between">
-                <span>Family Contributions, Donations & Varisa Dues</span>
-                <Badge variant="outline" className="text-xs font-normal">Financial Ledger</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">
-              <div className="p-6 rounded-xl border border-dashed border-border text-center flex flex-col items-center justify-center gap-2">
-                <p className="font-semibold text-foreground">Household Financials & Donation Records</p>
-                <p className="max-w-md text-muted-foreground">
-                  Monthly Varisa, mosque maintenance fees, festival collections, and donation receipts for this household are maintained in the Treasury module.
-                </p>
-                <Link
-                  href={`/${slug}/finance/dues`}
-                  className="mt-2 text-primary hover:underline font-semibold flex items-center gap-1"
-                >
-                  <span>Reconcile Household Dues</span>
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Right Column (4 cols): Household Info, Notes & Actions */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
-          {/* Household Contact & Location Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <Home className="h-4 w-4 text-primary" />
+        {/* Right Column (4 cols): Household Info, Notes & Treasury */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Household Details Card */}
+          <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+            <CardHeader className="border-b border-border/60 px-6 py-4">
+              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Home className="h-4 w-4 text-muted-foreground" />
                 <span>Household Details</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col gap-3 text-xs">
-              <div className="p-3 rounded-lg bg-muted/40 flex items-center justify-between">
-                <span className="text-muted-foreground">Assigned House</span>
-                <span className="font-semibold text-primary">
+            <CardContent className="p-6 space-y-4 text-sm">
+              <div>
+                <span className="block text-xs text-muted-foreground">Assigned House</span>
+                <span className="font-semibold text-foreground">
                   {family.house ? `House #${family.house.displayNumber}` : "Not assigned"}
                 </span>
               </div>
 
-              <div className="p-3 rounded-lg bg-muted/40 flex items-center justify-between">
-                <span className="text-muted-foreground">Household Head</span>
-                <span className="font-semibold text-foreground">{headMember?.fullName ?? "Unassigned"}</span>
+              {divisionName && (
+                <div>
+                  <span className="block text-xs text-muted-foreground">Ward / Sub-division</span>
+                  <span className="font-medium text-foreground">
+                    {divisionName} {divisionCode ? `(${divisionCode})` : ""}
+                  </span>
+                </div>
+              )}
+
+              <div>
+                <span className="block text-xs text-muted-foreground">Household Head</span>
+                <span className="font-semibold text-foreground">
+                  {headMember?.fullName ?? "Unassigned"}
+                </span>
               </div>
 
-              <div className="p-3 rounded-lg bg-muted/40 flex items-center justify-between">
-                <span className="text-muted-foreground">Contact Phone</span>
+              <div>
+                <span className="block text-xs text-muted-foreground">Primary Contact</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-foreground font-medium">
+                  <span className="font-mono font-medium text-foreground">
                     {family.phone || headMember?.phone || "—"}
                   </span>
                   {(family.phone || headMember?.phone) && (
@@ -563,8 +688,8 @@ export function FamilyDetailView({ slug, family, members, houses, allFamilies }:
                       href={`https://wa.me/${(family.phone || headMember?.phone || "").replace(/[^0-9]/g, "")}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-primary hover:text-primary/80 transition-colors"
-                      title="Chat on WhatsApp"
+                      className="text-emerald-600 dark:text-emerald-400 hover:opacity-80 transition-opacity"
+                      title="WhatsApp"
                     >
                       <MessageSquare className="h-3.5 w-3.5" />
                     </a>
@@ -572,22 +697,34 @@ export function FamilyDetailView({ slug, family, members, houses, allFamilies }:
                 </div>
               </div>
 
-              <div className="p-3 rounded-lg bg-muted/40 flex flex-col gap-1">
-                <span className="text-muted-foreground">Full Physical Address</span>
-                <span className="text-foreground font-medium">
-                  {family.address ?? "No address recorded on file"}
-                </span>
-              </div>
+              {family.address && (
+                <div>
+                  <span className="block text-xs text-muted-foreground">Physical Address</span>
+                  <span className="font-medium text-foreground leading-snug">
+                    {family.address}
+                  </span>
+                </div>
+              )}
+
+              {family.requiresCommunitySupport && (
+                <div className="pt-2 border-t border-border/60">
+                  <span className="block text-xs text-muted-foreground">Community Support Status</span>
+                  <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                    {family.supportStatus || "Active"} {family.supportCategory ? `· ${family.supportCategory}` : ""}
+                  </span>
+                  {family.supportNotes && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{family.supportNotes}</p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Mahallu Administrative Notes Card */}
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                <span>Mahallu Notes & Records</span>
-              </CardTitle>
+          {/* Payment History Card */}
+          <PaymentHistoryCard slug={slug} familyId={family.id} />
+          <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+            <CardHeader className="border-b border-border/60 px-6 py-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-bold text-foreground">Administrative Notes</CardTitle>
               <Button
                 variant="outline"
                 size="sm"
@@ -595,21 +732,17 @@ export function FamilyDetailView({ slug, family, members, houses, allFamilies }:
                 className="h-7 px-2 text-xs font-semibold gap-1"
               >
                 <Pencil className="h-3 w-3" />
-                <span>{family.notes ? "Edit Note" : "Add Note"}</span>
+                <span>{family.notes ? "Edit" : "Add"}</span>
               </Button>
             </CardHeader>
-            <CardContent>
-              <div className="p-3.5 rounded-xl bg-muted/30 border border-border text-xs text-foreground min-h-[90px] flex flex-col justify-between">
-                {family.notes ? (
-                  <p className="italic text-foreground">&ldquo;{family.notes}&rdquo;</p>
-                ) : (
-                  <p className="text-muted-foreground italic">No administrative notes recorded for this household yet.</p>
-                )}
-                <div className="text-[11px] text-muted-foreground pt-2 flex items-center justify-between border-t border-border/50 mt-2">
-                  <span>Mahallu Committee Record</span>
-                  <span className="font-mono text-[10px]">#MH-{family.id.slice(0, 6).toUpperCase()}</span>
-                </div>
-              </div>
+            <CardContent className="p-6">
+              {family.notes ? (
+                <p className="text-xs text-muted-foreground leading-relaxed italic">
+                  &ldquo;{family.notes}&rdquo;
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">No notes recorded for this household.</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -625,13 +758,23 @@ export function FamilyDetailView({ slug, family, members, houses, allFamilies }:
         members={members}
       />
 
-      {/* Add Member Dialog */}
+      {/* Add New Member Dialog */}
       <MemberFormDialog
         slug={slug}
         open={addMemberOpen}
         onOpenChange={setAddMemberOpen}
         editingMember={null}
         families={allFamilies}
+        defaultFamilyId={family.id}
+      />
+
+      {/* Add Existing Member Dialog */}
+      <AddExistingMemberDialog
+        slug={slug}
+        family={family}
+        open={addExistingMemberOpen}
+        onOpenChange={setAddExistingMemberOpen}
+        currentMemberIds={members.map((m) => m.id)}
       />
     </div>
   );

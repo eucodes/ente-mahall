@@ -52,8 +52,9 @@ export function ControlTopbarActions({ fullName, email, role }: ControlTopbarAct
       // Proceed to login regardless of error
     } finally {
       toast({ title: "Logged out" });
-      router.push("/login");
-      router.refresh();
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
     }
   }
 

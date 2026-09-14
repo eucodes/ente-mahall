@@ -37,7 +37,7 @@ export function CompleteStep({ slug, onGoToDashboard }: CompleteStepProps) {
 
         <div className="space-y-2">
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-            Your Mahallu is Ready! 🎉
+            Your Mahallu is Ready!
           </h2>
           <p className="max-w-md text-sm text-muted-foreground leading-relaxed">
             Your organization workspace has been created and initialized. You can now access your administrative command center and citizen portal.

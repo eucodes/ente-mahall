@@ -13,6 +13,10 @@ export interface ApiClientOptions {
    * from window.location) rather than fixing it at construction time.
    */
   getAppScope?: () => string | undefined;
+  /** Called when the session has expired and cannot be refreshed. */
+  onSessionExpired?: () => void;
+  /** Whether to silently attempt refreshing token on 401. Defaults to true. */
+  enableAutoRefresh?: boolean;
 }
 
 export class ApiError extends Error {
@@ -38,9 +42,64 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", undefined]);
 
 /** Thin, typed wrapper over fetch. Business logic and auth checks live in the API, not here. */
 export class ApiClient {
+  private refreshPromise: Promise<boolean> | null = null;
+
   constructor(private readonly options: ApiClientOptions) {}
 
-  private async request<T>(path: string, init?: RequestInit): Promise<T> {
+  private shouldAttemptRefresh(path: string, isRetry: boolean): boolean {
+    if (this.options.enableAutoRefresh === false) return false;
+    if (isRetry) return false;
+    if (
+      path.startsWith("/auth/login") ||
+      path.startsWith("/auth/refresh") ||
+      path.startsWith("/auth/register") ||
+      path.includes("/member-auth/")
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Deduplicates concurrent refresh attempts so multiple parallel 401s don't
+   * rotate the refresh token multiple times and invalidate the token chain.
+   */
+  private async refreshSession(): Promise<boolean> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = (async () => {
+      try {
+        const appScope = this.options.getAppScope?.();
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          ...(appScope ? { "x-app": appScope } : {}),
+          ...(await this.options.getHeaders?.())
+        };
+
+        const res = await fetch(`${this.options.baseUrl}/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+          headers
+        });
+
+        if (!res.ok) return false;
+        const text = await res.text();
+        if (!text) return false;
+        const data = JSON.parse(text) as { success?: boolean };
+        return Boolean(data.success);
+      } catch {
+        return false;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
+  }
+
+  private async request<T>(path: string, init?: RequestInit, isRetry = false): Promise<T> {
     const appScope = this.options.getAppScope?.();
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -58,6 +117,23 @@ export class ApiClient {
       credentials: "include",
       headers: { ...headers, ...init?.headers }
     });
+
+    if (res.status === 401) {
+      const isAuthEndpoint =
+        path.startsWith("/auth/login") ||
+        path.startsWith("/auth/register") ||
+        path.includes("/member-auth/");
+
+      if (!isAuthEndpoint) {
+        if (this.shouldAttemptRefresh(path, isRetry)) {
+          const refreshed = await this.refreshSession();
+          if (refreshed) {
+            return this.request<T>(path, init, true);
+          }
+        }
+        this.options.onSessionExpired?.();
+      }
+    }
 
     if (res.status === 204 || res.headers.get("content-length") === "0") {
       return undefined as T;
@@ -102,7 +178,7 @@ export class ApiClient {
   }
 
   /** For multipart file uploads — omits the JSON Content-Type header so the browser can set its own multipart boundary. */
-  private async requestForm<T>(path: string, formData: FormData): Promise<T> {
+  private async requestForm<T>(path: string, formData: FormData, isRetry = false): Promise<T> {
     const appScope = this.options.getAppScope?.();
     const headers: Record<string, string> = {
       ...(appScope ? { "x-app": appScope } : {}),
@@ -117,6 +193,23 @@ export class ApiClient {
       headers,
       body: formData
     });
+
+    if (res.status === 401) {
+      const isAuthEndpoint =
+        path.startsWith("/auth/login") ||
+        path.startsWith("/auth/register") ||
+        path.includes("/member-auth/");
+
+      if (!isAuthEndpoint) {
+        if (this.shouldAttemptRefresh(path, isRetry)) {
+          const refreshed = await this.refreshSession();
+          if (refreshed) {
+            return this.requestForm<T>(path, formData, true);
+          }
+        }
+        this.options.onSessionExpired?.();
+      }
+    }
 
     if (res.status === 204 || res.headers.get("content-length") === "0") {
       return undefined as T;

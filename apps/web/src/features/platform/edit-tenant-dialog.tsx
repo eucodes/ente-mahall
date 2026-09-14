@@ -12,9 +12,11 @@ import {
   DialogTitle,
   FormField,
   Input,
+  SearchableSelect,
   Textarea,
   useToast
 } from "@mahalle/ui";
+import { STATE_OPTIONS, getDistrictOptions } from "@/lib/location-data";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { PlatformTenant } from "@/lib/platform";
 
@@ -229,17 +231,25 @@ export function EditTenantDialog({ tenant, open, onOpenChange }: EditTenantDialo
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <FormField label="State" htmlFor="edit-state">
-                <Input
+                <SearchableSelect
                   id="edit-state"
+                  placeholder="Select State"
+                  searchPlaceholder="Search state..."
                   value={state}
-                  onChange={(e) => setState(e.target.value)}
+                  onChange={(val) => setState(val)}
+                  options={STATE_OPTIONS}
+                  allowCustom
                 />
               </FormField>
               <FormField label="District" htmlFor="edit-district">
-                <Input
+                <SearchableSelect
                   id="edit-district"
+                  placeholder="Select District"
+                  searchPlaceholder="Search district..."
                   value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
+                  onChange={(val) => setDistrict(val)}
+                  options={getDistrictOptions(state)}
+                  allowCustom
                 />
               </FormField>
               <FormField label="Place / Town" htmlFor="edit-place">

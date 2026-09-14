@@ -29,9 +29,9 @@ export function TopbarQuickActions({ slug }: { slug: string }) {
       onClick: () => router.push(`/${slug}/families`)
     },
     {
-      label: "Collect Due Payment",
+      label: "Record Collection",
       icon: <Wallet className="h-4 w-4 text-teal-600" />,
-      onClick: () => router.push(`/${slug}/finance/dues`)
+      onClick: () => router.push(`/${slug}/finance/collections`)
     },
     {
       label: "Record Voucher",

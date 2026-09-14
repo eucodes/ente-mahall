@@ -9,13 +9,15 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@mahalle/types": "workspace:*"
   },
   "devDependencies": {
     "@mahalle/config": "workspace:*",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^5.0.0"
   }
 }

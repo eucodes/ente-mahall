@@ -7,7 +7,15 @@ export const apiClient = new ApiClient({
   // Computed per-request (not at module load) since the same browser bundle
   // serves every subdomain — window.location reflects whichever site is
   // actually open right now.
-  getAppScope: () => (typeof window !== "undefined" ? appScopeFromHost(window.location.host) : undefined)
+  getAppScope: () => (typeof window !== "undefined" ? appScopeFromHost(window.location.host) : undefined),
+  onSessionExpired: () => {
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname;
+      if (!path.includes("/login") && !path.includes("/register") && !path.includes("/onboarding")) {
+        window.location.href = "/login?reason=expired";
+      }
+    }
+  }
 });
 
 export { ApiError } from "@mahalle/api-client";

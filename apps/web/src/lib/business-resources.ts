@@ -11,6 +11,15 @@ export interface Family {
   isActive: boolean;
   houseId: string | null;
   house: { id: string; displayNumber: string; divisionId: string | null } | null;
+  familyStatusId?: string | null;
+  category?: string | null;
+  familyStatus?: { id: string; name: string; code: string | null; color: string | null } | null;
+  requiresCommunitySupport?: boolean;
+  supportCategory?: string | null;
+  supportStatus?: "ACTIVE" | "MONITORING" | "RESOLVED" | null;
+  supportNotes?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -13,6 +13,7 @@ import {
   SearchableSelect,
   Textarea,
   FormField,
+  RefreshCw,
   useToast
 } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -74,6 +75,7 @@ export function RecordCollectionModal({
   const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [period, setPeriod] = useState<string>("");
   const [description, setDescription] = useState<string>("");
+  const [attachmentUrl, setAttachmentUrl] = useState<string>("");
 
   // Selected category object
   const selectedCategory = useMemo(() => {
@@ -81,6 +83,7 @@ export function RecordCollectionModal({
   }, [categories, categoryId]);
 
   const isGeneral = selectedCategory?.targetType === "GENERAL";
+  const formConfig = selectedCategory?.formConfig;
 
   // Preselect first category if available
   useEffect(() => {
@@ -217,7 +220,8 @@ export function RecordCollectionModal({
       return;
     }
 
-    if (!isGeneral && !familyId) {
+    const isFamilyRequired = formConfig?.requireFamily ?? (!isGeneral && (formConfig?.enableFamily !== false));
+    if (isFamilyRequired && !familyId) {
       toast({ title: "Please select a family", variant: "destructive" });
       return;
     }
@@ -242,7 +246,8 @@ export function RecordCollectionModal({
         paymentMethod,
         date: new Date(date).toISOString(),
         description: description || (period ? `${selectedCategory?.name || ""} (${period})` : undefined),
-        notes: description || undefined
+        notes: description || undefined,
+        attachmentUrl: attachmentUrl || undefined
       };
 
       const res = await apiClient.post<any>(`/tenants/${slug}/finance/collections`, payload);
@@ -318,64 +323,80 @@ export function RecordCollectionModal({
                   </strong>
                 </span>
                 {selectedCategory.isRecurring && (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                    🔄 Recurring ({selectedCategory.recurrenceFrequency || "MONTHLY"})
+                  <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                    <RefreshCw className="h-3 w-3" />
+                    Recurring ({selectedCategory.recurrenceFrequency || "MONTHLY"})
                   </span>
                 )}
               </div>
             )}
 
-            {/* If NOT General: Family selection is required */}
-            {!isGeneral && (
-              <FormField label="Family" required>
-                <SearchableSelect
-                  options={familyOptions}
-                  value={familyId}
-                  onChange={handleFamilyChange}
-                  placeholder={familyList.length === 0 ? "No families registered yet" : "Search & select family..."}
-                  searchPlaceholder="Search family by name or #number..."
-                  emptyMessage="No matching families found"
-                />
-              </FormField>
+            {/* Family selection */}
+            {formConfig?.enableFamily !== false && (
+              <>
+                {!isGeneral && (
+                  <FormField label="Family" required={formConfig?.requireFamily ?? true}>
+                    <SearchableSelect
+                      options={familyOptions}
+                      value={familyId}
+                      onChange={handleFamilyChange}
+                      placeholder={familyList.length === 0 ? "No families registered yet" : "Search & select family..."}
+                      searchPlaceholder="Search family by name or #number..."
+                      emptyMessage="No matching families found"
+                    />
+                  </FormField>
+                )}
+
+                {isGeneral && familyList.length > 0 && (
+                  <FormField label="Associated Family (Optional)">
+                    <SearchableSelect
+                      options={familyOptions}
+                      value={familyId}
+                      onChange={handleFamilyChange}
+                      placeholder="Select family if applicable (optional)..."
+                      searchPlaceholder="Search family by name or #number..."
+                      emptyMessage="No matching families found"
+                    />
+                  </FormField>
+                )}
+              </>
             )}
 
-            {/* If General: Family selection is optional */}
-            {isGeneral && familyList.length > 0 && (
-              <FormField label="Associated Family (Optional)">
-                <SearchableSelect
-                  options={familyOptions}
-                  value={familyId}
-                  onChange={handleFamilyChange}
-                  placeholder="Select family if applicable (optional)..."
-                  searchPlaceholder="Search family by name or #number..."
-                  emptyMessage="No matching families found"
-                />
-              </FormField>
-            )}
+            {/* Member and Payer */}
+            {formConfig?.enableMember !== false ? (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Family Member (Optional)" required={formConfig?.requireMember ?? false}>
+                  <SearchableSelect
+                    options={memberOptions}
+                    value={memberId}
+                    onChange={handleMemberChange}
+                    placeholder={
+                      familyId
+                        ? filteredMembers.length === 0
+                          ? "No members in this family"
+                          : "Select family member..."
+                        : "Search & select member..."
+                    }
+                    searchPlaceholder="Search member by name or phone..."
+                    emptyMessage={
+                      familyId
+                        ? "No members found under this family"
+                        : "No matching members found"
+                    }
+                    disabled={Boolean(familyId && filteredMembers.length === 0)}
+                  />
+                </FormField>
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField label="Family Member (Optional)">
-                <SearchableSelect
-                  options={memberOptions}
-                  value={memberId}
-                  onChange={handleMemberChange}
-                  placeholder={
-                    familyId
-                      ? filteredMembers.length === 0
-                        ? "No members in this family"
-                        : "Select family member..."
-                      : "Search & select member..."
-                  }
-                  searchPlaceholder="Search member by name or phone..."
-                  emptyMessage={
-                    familyId
-                      ? "No members found under this family"
-                      : "No matching members found"
-                  }
-                  disabled={Boolean(familyId && filteredMembers.length === 0)}
-                />
-              </FormField>
-
+                <FormField label={isGeneral ? "Payer / Donor Name" : "Payer Name"} required={isGeneral}>
+                  <Input
+                    placeholder={isGeneral ? "e.g. Anonymous / Contributor Name" : "Full Name"}
+                    value={payerName}
+                    onChange={(e) => setPayerName(e.target.value)}
+                    required={isGeneral}
+                  />
+                </FormField>
+              </div>
+            ) : (
               <FormField label={isGeneral ? "Payer / Donor Name" : "Payer Name"} required={isGeneral}>
                 <Input
                   placeholder={isGeneral ? "e.g. Anonymous / Contributor Name" : "Full Name"}
@@ -384,7 +405,7 @@ export function RecordCollectionModal({
                   required={isGeneral}
                 />
               </FormField>
-            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <FormField label="Amount (₹)" required>
@@ -437,14 +458,26 @@ export function RecordCollectionModal({
               </FormField>
             </div>
 
-            <FormField label="Notes / Description">
-              <Textarea
-                placeholder="Optional notes or remarks"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-              />
-            </FormField>
+            {formConfig?.enableNotes !== false && (
+              <FormField label="Notes / Description">
+                <Textarea
+                  placeholder="Optional notes or remarks"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={2}
+                />
+              </FormField>
+            )}
+
+            {formConfig?.enableAttachment && (
+              <FormField label="Attachment URL / Receipt Reference">
+                <Input
+                  placeholder="https://... or receipt link"
+                  value={attachmentUrl}
+                  onChange={(e) => setAttachmentUrl(e.target.value)}
+                />
+              </FormField>
+            )}
 
             <div className="flex justify-end gap-3 pt-3">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

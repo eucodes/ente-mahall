@@ -32,8 +32,15 @@ export class PermissionGuard implements CanActivate {
       throw new ForbiddenException("Insufficient permissions");
     }
 
-    // Platform Super Admins and system Admin role have unrestricted operational permissions
-    if (membership.roleId === "platform-admin-role" || membership.role?.key === "admin") {
+    // Platform Super Admins and tenant Owner/Admin roles have unrestricted operational permissions
+    const roleKey = membership.role?.key?.toUpperCase();
+    if (
+      membership.roleId === "platform-admin-role" ||
+      roleKey === "OWNER" ||
+      roleKey === "ADMIN" ||
+      membership.role?.key?.toLowerCase() === "owner" ||
+      membership.role?.key?.toLowerCase() === "admin"
+    ) {
       return true;
     }
 

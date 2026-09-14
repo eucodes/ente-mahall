@@ -103,7 +103,7 @@ export function SlugField({ id, value, onChange, label = "Mahalle URL", onAvaila
         {availability === "taken"
           ? "That URL is already taken — choose another identifier."
           : availability === "available"
-            ? "✓ Perfect! This URL identifier is available."
+            ? "Perfect! This URL identifier is available."
             : "Members and admins will access your workspace via this unique subdomain."}
       </p>
     </div>

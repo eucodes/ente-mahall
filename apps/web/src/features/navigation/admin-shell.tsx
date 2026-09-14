@@ -50,6 +50,7 @@ import { CommandPalette } from "@/features/search/command-palette";
 import { TopbarQuickActions } from "@/features/navigation/topbar-quick-actions";
 import { HijriDateBadge } from "@/features/navigation/hijri-date-badge";
 import { NotificationBell } from "@/features/tenants/notification-bell";
+import { IdleTimeoutProvider } from "@/features/auth/idle-timeout-provider";
 
 export interface AdminShellProps {
   slug: string;
@@ -227,7 +228,15 @@ export function AdminShell({
                 href: `${base}/divisions`
               }
             ]
-            : [])
+            : []),
+          {
+            label: "Education & Employment",
+            href: `${base}/education-employment`
+          },
+          {
+            label: "Health & Support",
+            href: `${base}/health-support`
+          }
         ]
       }
     ];
@@ -255,24 +264,8 @@ export function AdminShell({
             href: `${base}/finance/receipts`
           },
           {
-            label: "Donations",
-            href: `${base}/finance/donations`
-          },
-          {
-            label: "Dues & Subscriptions",
-            href: `${base}/finance/dues`
-          },
-          {
             label: "Expenses & Bills",
             href: `${base}/finance/vouchers`
-          },
-          {
-            label: "Staff Salary",
-            href: `${base}/finance/salary`
-          },
-          {
-            label: "Interest-free Aid",
-            href: `${base}/finance/interest-free`
           },
           {
             label: "Finance Reports",
@@ -574,7 +567,8 @@ export function AdminShell({
       .filter((item): item is SubNavItem => item !== null);
   }, [rawSubNavItems, navSearch]);
 
-  const showSubSidebar = !isHomeActive && !sidebarCollapsed;
+  const hasSubSidebar = !isHomeActive && rawSubNavItems.length > 0;
+  const showSubSidebar = hasSubSidebar && !sidebarCollapsed;
 
   const renderNavElement = (item: SubNavItem, index: number) => {
     if (item.children && item.children.length > 0) {
@@ -776,23 +770,24 @@ export function AdminShell({
   }, [subPath, slug, detailTitle, divisionLabel]);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-transparent text-foreground">
+    <IdleTimeoutProvider>
+      <div className="flex h-screen w-full overflow-hidden bg-transparent text-foreground">
       {/* ------------------------------------------------------------- */}
-      {/* UNIFIED SEAMLESS SIDEBAR (Matching Image 1 Structure)         */}
+      {/* UNIFIED SEAMLESS SIDEBAR       */}
       {/* ------------------------------------------------------------- */}
       <aside className="relative flex shrink-0 bg-transparent z-30 select-none">
         {/* Tier 1: Primary Icon Rail */}
-        <div className="flex w-[68px] shrink-0 flex-col items-center justify-between py-4">
-          {/* Top: Sidebar Toggle */}
+        <div className="flex w-[68px] shrink-0 flex-col items-center justify-between py-5 px-11">
+          {/* Top: App Icon & Navigation Items */}
           <div className="flex flex-col items-center gap-6">
-            <button
-              type="button"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl text-foreground/80 hover:bg-muted hover:text-foreground transition-colors"
-              title="Toggle sidebar"
+            {/* App Icon */}
+            <Link
+              href={base}
+              title="Ente Mahall"
+              className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-xs hover:opacity-90 transition-opacity"
             >
-              <PanelLeft className="h-5 w-5" />
-            </button>
+              <Sparkles className="h-5 w-5" />
+            </Link>
 
             {/* Primary Rail Navigation Items */}
             <nav className="flex flex-col items-center gap-2">
@@ -863,8 +858,19 @@ export function AdminShell({
             </nav>
           </div>
 
-          {/* Bottom spacer / indicator */}
-          <div className="h-4" />
+          {/* Bottom: Sidebar Toggle (Only enabled when sub-sidebar exists) */}
+          {hasSubSidebar ? (
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl text-foreground/80 hover:bg-muted hover:text-foreground transition-colors"
+              title={sidebarCollapsed ? "Open sidebar" : "Collapse sidebar"}
+            >
+              <PanelLeft className="h-5 w-5" />
+            </button>
+          ) : (
+            <div className="h-10 w-10" />
+          )}
         </div>
 
         {/* Tier 2: Sub-Sidebar Column (Seamlessly adjacent on the same background) */}
@@ -872,9 +878,6 @@ export function AdminShell({
           <div className="hidden md:flex w-[215px] shrink-0 flex-col py-4 pr-3">
             {/* Top: Application Logo & Name (matching image 1) */}
             <div className="h-10 flex items-center gap-2.5 px-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white shadow-xs">
-                <Sparkles className="h-4 w-4" />
-              </div>
               <div className="min-w-0">
                 <span className="block text-base font-extrabold tracking-tight text-foreground leading-none">
                   ENTE MAHALL
@@ -891,7 +894,7 @@ export function AdminShell({
                   placeholder="Search navigation..."
                   value={navSearch}
                   onChange={(e) => setNavSearch(e.target.value)}
-                  className="w-full rounded-xl border border-border/80 bg-background/80 py-1.5 pl-8 pr-7 text-xs placeholder:text-muted-foreground/70 focus:border-emerald-500 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 transition-all"
+                  className="w-full rounded-xl border border-border/80 bg-background/80 py-1.5 pl-8 pr-7 text-xs placeholder:text-muted-foreground/70 outline-none focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all"
                 />
                 {navSearch && (
                   <button
@@ -1101,6 +1104,7 @@ export function AdminShell({
           </main>
         </div>
       </div>
-    </div>
+      </div>
+    </IdleTimeoutProvider>
   );
 }

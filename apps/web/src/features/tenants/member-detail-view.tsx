@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useBreadcrumb } from "@/features/navigation/admin-shell";
@@ -12,6 +12,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CreditCard,
   Droplet,
   HeartHandshake,
   Mail,
@@ -20,6 +21,7 @@ import {
   Pencil,
   Phone,
   Plane,
+  RefreshCw,
   ShieldCheck,
   User,
   Users,
@@ -27,15 +29,22 @@ import {
   EyeOff,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
   School,
-  Home,
-  useToast
+  Briefcase,
+  GraduationCap,
+  Heart,
+  Activity,
+  ExternalLink
 } from "@mahalle/ui";
-import { BLOOD_GROUP_LABELS, MOVEMENT_STATUS_LABELS, RELATION_TO_HEAD_LABELS } from "@/lib/member-constants";
+import {
+  BLOOD_GROUP_LABELS,
+  MOVEMENT_STATUS_LABELS,
+  RELATION_TO_HEAD_LABELS
+} from "@/lib/member-constants";
 import type { Member } from "@/lib/members";
 import type { Family } from "@/lib/business-resources";
 import { MemberFormDialog } from "./member-form-dialog";
+import { apiClient } from "@/lib/api-client";
 
 export interface MemberDetailViewProps {
   slug: string;
@@ -60,9 +69,110 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" });
 }
 
+function maskId(idNumber: string | null, isRevealed: boolean): string {
+  if (!idNumber) return "—";
+  if (isRevealed) return idNumber;
+  if (idNumber.length <= 4) return idNumber;
+  return `${idNumber.slice(0, 4)}••••••${idNumber.slice(-2)}`;
+}
+
+interface MemberPaymentRecord {
+  id: string;
+  receiptNumber?: string | null;
+  date: string;
+  amount: string | number;
+  paymentMethod?: string | null;
+  description?: string | null;
+  category?: { name: string } | null;
+}
+
+function MemberPaymentHistoryCard({ slug, memberId }: { slug: string; memberId: string }) {
+  const [records, setRecords] = useState<MemberPaymentRecord[]>([]);
+  const [totalPaid, setTotalPaid] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const fetchRecords = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiClient.get<{ collections: MemberPaymentRecord[]; total: number }>(
+        `/tenants/${slug}/finance/collections?memberId=${memberId}&page=1&pageSize=20`
+      );
+      const cols = res?.collections ?? [];
+      setRecords(cols);
+      setTotalPaid(cols.reduce((sum, c) => sum + Number(c.amount), 0));
+    } catch {
+      setRecords([]);
+    } finally {
+      setLoading(false);
+      setLoaded(true);
+    }
+  }, [slug, memberId]);
+
+  useEffect(() => {
+    fetchRecords();
+  }, [fetchRecords]);
+
+  return (
+    <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+      <CardHeader className="border-b border-border/60 px-6 py-4 flex flex-row items-center justify-between">
+        <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+          <CreditCard className="h-4 w-4 text-muted-foreground" />
+          <span>Contribution History</span>
+        </CardTitle>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={fetchRecords}
+          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+          title="Refresh"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+        </Button>
+      </CardHeader>
+      {loaded && totalPaid > 0 && (
+        <div className="px-6 py-3 border-b border-border/60 bg-muted/20">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Total Contributed</p>
+          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">₹{totalPaid.toLocaleString("en-IN")}</p>
+        </div>
+      )}
+      <CardContent className="p-0">
+        {loading && !loaded ? (
+          <p className="px-6 py-4 text-xs text-muted-foreground">Loading contribution history...</p>
+        ) : records.length === 0 ? (
+          <p className="px-6 py-4 text-xs text-muted-foreground italic">No contributions recorded for this member yet.</p>
+        ) : (
+          <div className="divide-y divide-border/60">
+            {records.map((rec) => (
+              <div key={rec.id} className="flex items-center justify-between px-6 py-3 gap-4 hover:bg-muted/20 transition-colors">
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-xs font-semibold text-foreground truncate">
+                    {rec.category?.name || "Collection"}
+                    {rec.description && (
+                      <span className="font-normal text-muted-foreground ml-1">— {rec.description}</span>
+                    )}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {rec.receiptNumber ? `#${rec.receiptNumber}` : rec.id.slice(0, 8).toUpperCase()}
+                    {" · "}
+                    {new Date(rec.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                    {rec.paymentMethod && ` · ${rec.paymentMethod}`}
+                  </span>
+                </div>
+                <span className="shrink-0 font-bold text-sm text-foreground">
+                  ₹{Number(rec.amount).toLocaleString("en-IN")}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function MemberDetailView({ slug, member, familyMembers, families }: MemberDetailViewProps) {
   const router = useRouter();
-  const { toast } = useToast();
   const [showId, setShowId] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const { setDetailTitle } = useBreadcrumb();
@@ -74,627 +184,490 @@ export function MemberDetailView({ slug, member, familyMembers, families }: Memb
 
   const age = calculateAge(member.dateOfBirth);
   const otherFamilyMembers = familyMembers.filter((m) => m.id !== member.id);
-
-  // Student vs Adult detection
-  const isStudent =
-    (member.occupation && member.occupation.toLowerCase().includes("student")) ||
-    (member.movementNotes && member.movementNotes.toLowerCase().includes("[student]"));
-
-  let studentInstitution = "";
-  let studentPreviousEducation = "";
-  let adultOccupation = member.occupation ?? "";
-  let adultQualifications = "";
-
-  if (isStudent && member.occupation) {
-    if (member.occupation.includes("•")) {
-      const parts = member.occupation.split("•")[1]?.trim() ?? "";
-      if (parts.includes("(Prev:")) {
-        const [inst, prevPart] = parts.split("(Prev:");
-        studentInstitution = inst.trim();
-        studentPreviousEducation = prevPart.replace(")", "").trim();
-      } else {
-        studentInstitution = parts;
-      }
-    } else {
-      studentInstitution = member.occupation.replace(/student:?/i, "").trim();
-    }
-  } else if (!isStudent && member.occupation) {
-    if (member.occupation.includes("• Qualifications:")) {
-      const [occ, qual] = member.occupation.split("• Qualifications:");
-      adultOccupation = occ.trim();
-      adultQualifications = qual.trim();
-    }
-  }
-
-  // Parse student previous education items e.g. "SSLC (2022), Plus Two (2024)"
-  const parsedPrevEducations = studentPreviousEducation
-    ? studentPreviousEducation
-        .split(",")
-        .map((item) => {
-          const trimmed = item.trim();
-          const match = trimmed.match(/^(.*?)(?:\s*\((.*?)\))?$/);
-          return {
-            title: match?.[1]?.trim() || trimmed,
-            year: match?.[2]?.trim() || null
-          };
-        })
-        .filter((item) => item.title.length > 0)
-    : [];
-
-  // Parse adult qualifications
-  const parsedQualifications = adultQualifications
-    ? adultQualifications
-        .split(",")
-        .map((q) => q.trim())
-        .filter(Boolean)
-    : [];
-
-  // Check if address matches family address
   const linkedFamily = families.find((f) => f.id === member.familyId);
-  const isFamilyAddress = Boolean(linkedFamily?.address && member.address && member.address === linkedFamily.address);
+  const familyName = linkedFamily?.name || member.family?.name;
+  const familyId = linkedFamily?.id || member.family?.id;
 
   return (
-    <div className="space-y-5">
-      {/* Top Page Header with Back Navigation (Matching Reference Image 3) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 max-w-6xl">
+      {/* 1. Header with Back Navigation & Action Buttons */}
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => router.push(`/${slug}/members`)}
             className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/80 bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shadow-2xs group"
-            title="Back to Members Directory"
+            title="Back to Members"
           >
             <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
           </button>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
             Member Profile
           </h1>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setFormOpen(true)}
-            className="rounded-xl text-xs font-semibold h-9 px-3 gap-1.5 border-border/80 text-foreground"
-          >
-            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>Edit Member</span>
-          </Button>
-
           {member.phone && (
             <Button
               size="sm"
+              variant="outline"
               onClick={() => window.open(`https://wa.me/${member.phone?.replace(/[^0-9]/g, "")}`, "_blank")}
-              className="rounded-xl text-xs font-bold h-9 px-3.5 gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs"
+              className="rounded-xl text-xs font-semibold h-9 px-3.5 gap-1.5 border-border/80"
             >
-              <MessageSquare className="h-3.5 w-3.5" />
+              <MessageSquare className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>WhatsApp</span>
             </Button>
           )}
+
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => setFormOpen(true)}
+            className="rounded-xl text-xs font-semibold h-9 px-4 gap-1.5"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            <span>Edit Member</span>
+          </Button>
         </div>
       </div>
 
-      {/* Hero Profile Banner */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm relative overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="flex items-start gap-4">
-            <div className="relative flex-shrink-0">
-              <Avatar name={member.fullName} size="lg" className="ring-4 ring-primary/10 shadow-sm" />
-              <span className="absolute bottom-0 right-0 h-4 w-4 rounded-full bg-emerald-500 ring-2 ring-card" />
+      {/* 2. Hero Profile Card - Minimal & Clean */}
+      <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            <div className="flex items-start sm:items-center gap-4">
+              <Avatar name={member.fullName} size="lg" className="ring-2 ring-border/60" />
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h2 className="text-xl font-bold text-foreground">
+                    {member.fullName}
+                  </h2>
+                  <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
+                    {member.relationToHead
+                      ? (RELATION_TO_HEAD_LABELS[member.relationToHead] ?? member.relationToHead)
+                      : "Member"}
+                  </span>
+                  <Badge variant={member.movementStatus === "RESIDENT" ? "secondary" : "outline"} className="text-xs">
+                    {MOVEMENT_STATUS_LABELS[member.movementStatus] ?? member.movementStatus}
+                  </Badge>
+                  {member.bloodGroup && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-400">
+                      <Droplet className="h-3 w-3" />
+                      {BLOOD_GROUP_LABELS[member.bloodGroup]}
+                    </span>
+                  )}
+                  {member.isExpatriate && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                      <Plane className="h-3 w-3" />
+                      NRI ({member.expatriateCountry || "Abroad"})
+                    </span>
+                  )}
+                  {member.isYatheem && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                      <HeartHandshake className="h-3 w-3" />
+                      Yatheem
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                  {age !== null && <span>{age} years old</span>}
+                  {familyName && familyId && (
+                    <>
+                      <span>•</span>
+                      <Link
+                        href={`/${slug}/families/${familyId}`}
+                        className="text-foreground hover:underline font-medium flex items-center gap-1"
+                      >
+                        <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{familyName} Household</span>
+                      </Link>
+                    </>
+                  )}
+                  {linkedFamily?.house && (
+                    <>
+                      <span>•</span>
+                      <span>House #{linkedFamily.house.displayNumber}</span>
+                    </>
+                  )}
+                  {member.phone && (
+                    <>
+                      <span>•</span>
+                      <span className="font-mono">{member.phone}</span>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">{member.fullName}</h1>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold border border-emerald-500/20">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Verified Resident
-                </span>
-              </div>
 
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-1.5">
-                <span>
-                  {member.relationToHead
-                    ? (RELATION_TO_HEAD_LABELS[member.relationToHead] ?? member.relationToHead)
-                    : "Resident"}
-                </span>
-                {member.family && (
-                  <>
-                    <span>•</span>
-                    <Link
-                      href={`/${slug}/families/${member.family.id}`}
-                      className="text-primary hover:underline font-medium flex items-center gap-1"
-                    >
-                      <Users className="h-3.5 w-3.5" />
-                      <span>{member.family.name} Household</span>
-                    </Link>
-                  </>
-                )}
-                {age !== null && (
-                  <>
-                    <span>•</span>
-                    <span>{age} years old</span>
-                  </>
-                )}
-              </div>
-
-              {/* Status Tags */}
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                <Badge variant={member.movementStatus === "RESIDENT" ? "secondary" : "outline"} className="text-xs">
-                  {MOVEMENT_STATUS_LABELS[member.movementStatus] ?? member.movementStatus}
-                </Badge>
-                {member.bloodGroup && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-medium">
-                    <Droplet className="h-3 w-3" />
-                    Blood: {BLOOD_GROUP_LABELS[member.bloodGroup]}
-                  </span>
-                )}
-                {member.isYatheem && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-medium">
-                    <HeartHandshake className="h-3 w-3" />
-                    Yatheem Register
-                  </span>
-                )}
-                {member.isExpatriate && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-medium">
-                    <Plane className="h-3 w-3" />
-                    NRI / Expatriate ({member.expatriateCountry ?? "Overseas"})
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-row md:flex-col items-end justify-between md:justify-center gap-2 border-t md:border-t-0 pt-3 md:pt-0 border-border">
-            <span className="text-xs font-mono text-muted-foreground bg-muted px-2.5 py-1 rounded-md border border-border">
+            <div className="font-mono text-xs text-muted-foreground bg-muted/40 border border-border/60 px-3 py-1.5 rounded-xl self-start sm:self-auto">
               #MEM-{member.id.slice(0, 8).toUpperCase()}
-            </span>
-            <span className="text-[11px] text-muted-foreground">Registered Member</span>
+            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* Main Grid: Details + Household Context */}
+      {/* 3. Main Grid: 8 Cols (Details & Education/Work) + 4 Cols (Household & Welfare) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (8 cols): Personal, Demographic, ID, Contact, Notes, Financials */}
-        <div className="lg:col-span-8 flex flex-col gap-6">
-          {/* Demographic & Personal Details Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <User className="h-4 w-4 text-primary" />
+        {/* Left Column (8 cols) */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Card 1: Personal & Demographics */}
+          <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+            <CardHeader className="border-b border-border/60 px-6 py-4">
+              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                <User className="h-4 w-4 text-muted-foreground" />
                 <span>Personal & Demographics</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
-              <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Full Name</span>
-                <span className="font-semibold text-foreground text-sm">{member.fullName}</span>
-              </div>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-sm">
+                <div>
+                  <span className="block text-xs text-muted-foreground">Full Name</span>
+                  <span className="font-medium text-foreground">{member.fullName}</span>
+                </div>
 
-              <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Gender</span>
-                <span className="font-medium text-foreground text-sm">
-                  {member.gender ? `${member.gender[0]}${member.gender.slice(1).toLowerCase()}` : "Not specified"}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Date of Birth / Age</span>
-                <span className="font-medium text-foreground text-sm">
-                  {formatDate(member.dateOfBirth)} {age !== null ? `(${age} yrs)` : ""}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Marital Status</span>
-                <span className="font-medium text-foreground text-sm">
-                  {member.maritalStatus ? `${member.maritalStatus[0]}${member.maritalStatus.slice(1).toLowerCase()}` : "—"}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Blood Group</span>
-                <span className="font-semibold text-rose-600 dark:text-rose-400 text-sm flex items-center gap-1">
-                  <Droplet className="h-3.5 w-3.5" />
-                  {member.bloodGroup ? BLOOD_GROUP_LABELS[member.bloodGroup] : "Not recorded"}
-                </span>
-              </div>
-
-              {isStudent ? (
-                <>
-                  <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 flex flex-col gap-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                      <School className="h-3.5 w-3.5" />
-                      Profile Type
-                    </span>
-                    <span className="font-semibold text-emerald-700 dark:text-emerald-300 text-sm">Student</span>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1 sm:col-span-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Current Institution</span>
-                    <span className="font-medium text-foreground text-sm">{studentInstitution || "Not specified"}</span>
-                  </div>
-
-                  {parsedPrevEducations.length > 0 ? (
-                    <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-2 sm:col-span-3">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Previous Education</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {parsedPrevEducations.map((item, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-medium border border-emerald-500/20"
-                          >
-                            <School className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                            <span>{item.title}</span>
-                            {item.year && (
-                              <span className="font-mono text-[10px] font-bold bg-emerald-500/20 px-1.5 py-0.5 rounded text-emerald-800 dark:text-emerald-200">
-                                {item.year}
-                              </span>
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : studentPreviousEducation ? (
-                    <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1 sm:col-span-3">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Previous Education</span>
-                      <span className="font-medium text-foreground text-sm">{studentPreviousEducation}</span>
-                    </div>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Profile Type</span>
-                    <span className="font-medium text-foreground text-sm">Adult</span>
-                  </div>
-
-                  <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1 sm:col-span-2">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Occupation</span>
-                    <span className="font-medium text-foreground text-sm">{adultOccupation || "Residential / Home"}</span>
-                  </div>
-
-                  {parsedQualifications.length > 0 ? (
-                    <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-2 sm:col-span-3">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Educational Qualifications</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {parsedQualifications.map((qual, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-muted text-foreground text-xs font-medium border border-border"
-                          >
-                            <span>{qual}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : adultQualifications ? (
-                    <div className="p-3 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1 sm:col-span-3">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Educational Qualifications</span>
-                      <span className="font-medium text-foreground text-sm">{adultQualifications}</span>
-                    </div>
-                  ) : null}
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Government Identification Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                <span>Government Identification</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="p-4 rounded-xl bg-muted/40 border border-border/60 flex items-center justify-between">
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    National ID / Aadhaar
+                <div>
+                  <span className="block text-xs text-muted-foreground">Gender</span>
+                  <span className="font-medium text-foreground">
+                    {member.gender ? `${member.gender[0]}${member.gender.slice(1).toLowerCase()}` : "—"}
                   </span>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-base font-bold text-foreground">
-                      {member.idNumber
-                        ? showId
-                          ? member.idNumber
-                          : `${member.idNumber.slice(0, 4)}••••••${member.idNumber.slice(-2)}`
-                        : "No ID Number Recorded"}
-                    </span>
+                </div>
+
+                <div>
+                  <span className="block text-xs text-muted-foreground">Date of Birth / Age</span>
+                  <span className="font-medium text-foreground">
+                    {formatDate(member.dateOfBirth)} {age !== null ? `(${age} yrs)` : ""}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="block text-xs text-muted-foreground">Marital Status</span>
+                  <span className="font-medium text-foreground">
+                    {member.maritalStatus ? `${member.maritalStatus[0]}${member.maritalStatus.slice(1).toLowerCase()}` : "—"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="block text-xs text-muted-foreground">Blood Group</span>
+                  <span className="font-medium text-foreground">
+                    {member.bloodGroup ? BLOOD_GROUP_LABELS[member.bloodGroup] : "—"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="block text-xs text-muted-foreground">National ID (Aadhaar)</span>
+                  <div className="flex items-center gap-2 font-mono font-medium text-foreground">
+                    <span>{maskId(member.idNumber, showId)}</span>
                     {member.idNumber && (
                       <button
                         type="button"
                         onClick={() => setShowId(!showId)}
-                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                        title={showId ? "Mask ID" : "Reveal ID"}
+                        className="p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                        title={showId ? "Hide ID" : "Show ID"}
                       >
-                        {showId ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showId ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                       </button>
                     )}
                   </div>
                 </div>
-                <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
-                  Identity on File
-                </span>
+
+                <div>
+                  <span className="block text-xs text-muted-foreground">Phone Number</span>
+                  <span className="font-medium text-foreground font-mono">
+                    {member.phone || "—"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="block text-xs text-muted-foreground">Email Address</span>
+                  <span className="font-medium text-foreground">
+                    {member.email || "—"}
+                  </span>
+                </div>
+
+                {member.address && (
+                  <div className="sm:col-span-2">
+                    <span className="block text-xs text-muted-foreground">Residential Address</span>
+                    <span className="font-medium text-foreground leading-snug">{member.address}</span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Contact & Residential Address Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-primary" />
-                <span>Contact & Residential Address</span>
+          {/* Card 2: Education & Employment */}
+          <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+            <CardHeader className="border-b border-border/60 px-6 py-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-muted-foreground" />
+                <span>Education & Employment</span>
               </CardTitle>
+              {member.isJobSeeker && (
+                <Badge variant="outline" className="text-xs border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold">
+                  Job Seeker
+                </Badge>
+              )}
             </CardHeader>
-            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-3.5 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Mobile Phone</span>
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm font-medium text-foreground">{member.phone ?? "Not provided"}</span>
-                  {member.phone && (
-                    <div className="flex items-center gap-2">
-                      <a
-                        href={`tel:${member.phone}`}
-                        className="text-muted-foreground hover:text-primary transition-colors p-1"
-                        title="Call"
+            <CardContent className="p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-sm">
+                <div>
+                  <span className="block text-xs text-muted-foreground">Occupation / Role</span>
+                  <span className="font-medium text-foreground">
+                    {member.jobTitle || member.occupation || "—"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="block text-xs text-muted-foreground">Employer / Workplace</span>
+                  <span className="font-medium text-foreground">
+                    {member.employerOrBusiness || "—"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="block text-xs text-muted-foreground">Employment Status</span>
+                  <span className="font-medium text-foreground">
+                    {member.employmentStatus ? member.employmentStatus.replace("_", " ") : "—"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="block text-xs text-muted-foreground">Highest Education</span>
+                  <span className="font-medium text-foreground">
+                    {member.educationLevel ? member.educationLevel.replace("_", " ") : "—"}
+                  </span>
+                </div>
+
+                {member.institution && (
+                  <div className="sm:col-span-2">
+                    <span className="block text-xs text-muted-foreground">Institution / College</span>
+                    <span className="font-medium text-foreground">{member.institution}</span>
+                  </div>
+                )}
+
+                {member.educationDetails && (
+                  <div className="sm:col-span-2">
+                    <span className="block text-xs text-muted-foreground">Education Details</span>
+                    <span className="font-medium text-foreground">{member.educationDetails}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Education History List (if any) */}
+              {member.educationHistory && member.educationHistory.length > 0 && (
+                <div className="pt-3 border-t border-border/60 space-y-2">
+                  <span className="block text-xs text-muted-foreground font-semibold">
+                    Education History ({member.educationHistory.length})
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {member.educationHistory.map((item, idx) => (
+                      <div key={idx} className="p-3 rounded-2xl bg-muted/30 border border-border/60 text-xs space-y-0.5">
+                        <div className="flex items-center justify-between font-semibold text-foreground">
+                          <span>{item.degree || item.level || "Qualification"}</span>
+                          {item.year && <span className="text-muted-foreground font-mono font-normal">{item.year}</span>}
+                        </div>
+                        {item.institution && <p className="text-muted-foreground">{item.institution}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Skills Bank */}
+              {member.skills && member.skills.length > 0 && (
+                <div className="pt-3 border-t border-border/60 space-y-2">
+                  <span className="block text-xs text-muted-foreground font-semibold">
+                    Skills & Competencies ({member.skills.length})
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {member.skills.map((skill, idx) => (
+                      <span
+                        key={idx}
+                        className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground border border-border/40"
                       >
-                        <Phone className="h-4 w-4" />
-                      </a>
-                      <a
-                        href={`https://wa.me/${member.phone.replace(/[^0-9]/g, "")}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary hover:text-primary/80 transition-colors p-1"
-                        title="Chat on WhatsApp"
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                      </a>
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Health & Welfare Profile (if recorded) */}
+          {(member.healthProfile || member.isYatheem || member.isExpatriate) && (
+            <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+              <CardHeader className="border-b border-border/60 px-6 py-4">
+                <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Heart className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                  <span>Welfare & Health Information</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-sm">
+                  <div>
+                    <span className="block text-xs text-muted-foreground">Residency Movement</span>
+                    <span className="font-medium text-foreground">
+                      {MOVEMENT_STATUS_LABELS[member.movementStatus] ?? member.movementStatus}
+                      {member.movementDate && ` (since ${formatDate(member.movementDate)})`}
+                    </span>
+                  </div>
+
+                  {member.isExpatriate && (
+                    <div>
+                      <span className="block text-xs text-muted-foreground">Expatriate Country</span>
+                      <span className="font-medium text-foreground">
+                        {member.expatriateCountry || "Overseas"}
+                      </span>
                     </div>
                   )}
-                </div>
-              </div>
 
-              <div className="p-3.5 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1.5">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Email Address</span>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-foreground truncate">{member.email ?? "Not provided"}</span>
-                  {member.email && (
-                    <a
-                      href={`mailto:${member.email}`}
-                      className="text-muted-foreground hover:text-primary transition-colors p-1"
-                      title="Send Email"
-                    >
-                      <Mail className="h-4 w-4" />
-                    </a>
+                  {member.isYatheem && (
+                    <div>
+                      <span className="block text-xs text-muted-foreground">Yatheem Support</span>
+                      <span className="font-medium text-amber-700 dark:text-amber-300">Enrolled</span>
+                    </div>
+                  )}
+
+                  {member.healthProfile && (
+                    <>
+                      <div>
+                        <span className="block text-xs text-muted-foreground">Health Condition</span>
+                        <span className="font-medium text-foreground">
+                          {member.healthProfile.status === "HAS_CONDITION"
+                            ? "Reported Medical Condition"
+                            : member.healthProfile.status === "NOT_DISCLOSED"
+                            ? "Not Disclosed"
+                            : "No Known Condition"}
+                        </span>
+                      </div>
+
+                      {member.healthProfile.hasDisability && (
+                        <div>
+                          <span className="block text-xs text-muted-foreground">Disability Details</span>
+                          <span className="font-medium text-foreground">
+                            {member.healthProfile.disabilityType || "Disability"}
+                            {member.healthProfile.disabilityPercentage ? ` (${member.healthProfile.disabilityPercentage}%)` : ""}
+                          </span>
+                        </div>
+                      )}
+
+                      {member.healthProfile.requiresCommunitySupport && (
+                        <div>
+                          <span className="block text-xs text-muted-foreground">Community Support Status</span>
+                          <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                            {member.healthProfile.supportStatus || "Active"}
+                          </span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
-              </div>
-
-              <div className="sm:col-span-2 p-3.5 rounded-lg bg-muted/40 border border-border/60 flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Residential Address</span>
-                  {isFamilyAddress && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
-                      <Home className="h-3 w-3" />
-                      Household Address
-                    </span>
-                  )}
-                </div>
-                <span className="text-sm font-medium text-foreground">
-                  {member.address ?? "No address recorded on file."}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Movement & Residency Record Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <User className="h-4 w-4 text-primary" />
-                <span>Residency & Movement Record</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3 text-xs">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border border-border/60">
-                <div className="flex items-center gap-2.5">
-                  <Badge variant={member.movementStatus === "RESIDENT" ? "secondary" : "outline"} className="text-xs">
-                    {MOVEMENT_STATUS_LABELS[member.movementStatus] ?? member.movementStatus}
-                  </Badge>
-                  <span className="text-muted-foreground">Status since: {formatDate(member.movementDate)}</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setFormOpen(true)}
-                  className="h-7 text-xs px-2.5"
-                >
-                  Update Status
-                </Button>
-              </div>
-
-              {member.movementNotes && (
-                <div className="p-3 rounded-lg bg-secondary/40 border border-border/60 flex flex-col gap-1">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Movement & Administrative Note
-                  </span>
-                  <p className="text-xs text-foreground italic">&ldquo;{member.movementNotes}&rdquo;</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Financials & Contributions Section Placeholder */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center justify-between">
-                <span>Contributions, Donations & Dues</span>
-                <Badge variant="outline" className="text-xs font-normal">Active Ledger</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">
-              <div className="p-6 rounded-xl border border-dashed border-border text-center flex flex-col items-center justify-center gap-2">
-                <p className="font-semibold text-foreground">Financial Ledger Active</p>
-                <p className="max-w-md text-muted-foreground">
-                  Individual and household contributions, donation receipts, and annual dues reconciliation are tracked with the Mahallu Finance module.
-                </p>
-                <Link
-                  href={`/${slug}/finance/dues`}
-                  className="mt-2 text-primary hover:underline font-semibold flex items-center gap-1"
-                >
-                  <span>Open Treasury & Dues Portal</span>
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
-        {/* Right Column (4 cols): Family Unit Card & Welfare Register Cards */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
-          {/* Linked Family Unit Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  <span>Household Unit</span>
-                </div>
-                {member.family && (
-                  <Link
-                    href={`/${slug}/families/${member.family.id}`}
-                    className="text-xs text-primary hover:underline font-medium flex items-center gap-0.5"
-                  >
-                    <span>View Family</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </Link>
-                )}
+        {/* Right Column (4 cols): Household & Family Members */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Linked Household Card */}
+          <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+            <CardHeader className="border-b border-border/60 px-6 py-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <span>Household Unit</span>
               </CardTitle>
+              {familyId && (
+                <Link
+                  href={`/${slug}/families/${familyId}`}
+                  className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5"
+                >
+                  <span>View Family</span>
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              )}
             </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {member.family ? (
+            <CardContent className="p-6 space-y-4">
+              {familyName ? (
                 <>
-                  <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/20 flex flex-col gap-1">
-                    <span className="text-sm font-bold text-foreground">{member.family.name} Household</span>
-                    <span className="text-xs text-muted-foreground">
-                      Relation: {member.relationToHead ? RELATION_TO_HEAD_LABELS[member.relationToHead] : "Family Member"}
-                    </span>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Family Name</span>
+                    <p className="font-semibold text-foreground text-sm">
+                      {familyName} Household
+                    </p>
                   </div>
 
-                  <div className="flex flex-col gap-2 pt-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Other Family Members ({otherFamilyMembers.length})
-                    </span>
+                  {linkedFamily?.house && (
+                    <div className="space-y-1">
+                      <span className="text-xs text-muted-foreground">Assigned House</span>
+                      <p className="font-medium text-foreground text-sm">
+                        House #{linkedFamily.house.displayNumber}
+                      </p>
+                    </div>
+                  )}
 
-                    {otherFamilyMembers.length === 0 ? (
-                      <p className="text-xs text-muted-foreground italic">No other members registered in this family.</p>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {otherFamilyMembers.map((fm) => (
-                          <Link
-                            key={fm.id}
-                            href={`/${slug}/members/${fm.id}`}
-                            className="p-2.5 rounded-lg bg-muted/40 hover:bg-muted border border-border/60 flex items-center justify-between transition-colors group"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <Avatar name={fm.fullName} size="sm" />
-                              <div className="flex flex-col min-w-0">
-                                <span className="text-xs font-semibold text-foreground group-hover:text-primary truncate">
-                                  {fm.fullName}
-                                </span>
-                                <span className="text-[11px] text-muted-foreground truncate">
-                                  {fm.relationToHead ? RELATION_TO_HEAD_LABELS[fm.relationToHead] : "Member"}
-                                </span>
+                  {otherFamilyMembers.length > 0 && (
+                    <div className="space-y-2 pt-3 border-t border-border/60">
+                      <span className="text-xs text-muted-foreground font-semibold block">
+                        Family Members ({otherFamilyMembers.length})
+                      </span>
+                      <div className="divide-y divide-border/40">
+                        {otherFamilyMembers.map((fm) => {
+                          const fmAge = calculateAge(fm.dateOfBirth);
+                          return (
+                            <Link
+                              key={fm.id}
+                              href={`/${slug}/members/${fm.id}`}
+                              className="flex items-center justify-between py-2.5 group hover:bg-muted/30 -mx-2 px-2 rounded-2xl transition-colors"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <Avatar name={fm.fullName} size="sm" />
+                                <div className="truncate">
+                                  <span className="font-medium text-xs text-foreground group-hover:underline truncate block">
+                                    {fm.fullName}
+                                  </span>
+                                  <span className="text-[11px] text-muted-foreground">
+                                    {fm.relationToHead
+                                      ? (RELATION_TO_HEAD_LABELS[fm.relationToHead] ?? fm.relationToHead)
+                                      : "Member"}
+                                    {fmAge !== null ? ` • ${fmAge} yrs` : ""}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
-                          </Link>
-                        ))}
+                              <ChevronRight className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground" />
+                            </Link>
+                          );
+                        })}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </>
               ) : (
-                <div className="p-4 rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground flex flex-col gap-2">
-                  <p>Not currently linked to a family household.</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setFormOpen(true)}
-                    className="h-8 text-xs"
-                  >
-                    Link to Family
-                  </Button>
-                </div>
+                <p className="text-xs text-muted-foreground">No household linked to this member.</p>
               )}
             </CardContent>
           </Card>
 
-          {/* Welfare & Special Registers Card */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                <HeartHandshake className="h-4 w-4 text-primary" />
-                <span>Welfare & NRI Registry</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {member.isYatheem && (
-                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-amber-900 dark:text-amber-300">
-                      Yatheem Support Register
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                      Enrolled
-                    </span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    Guardian: {member.guardianName ?? "Not specified"}
-                  </span>
-                  {member.guardianPhone && (
-                    <span className="text-xs font-mono text-muted-foreground">
-                      Tel: {member.guardianPhone}
-                    </span>
-                  )}
-                </div>
-              )}
+          {/* Member Contribution / Payment History */}
+          <MemberPaymentHistoryCard slug={slug} memberId={member.id} />
 
-              {member.isExpatriate && (
-                <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-blue-900 dark:text-blue-300">
-                      Expatriate / NRI Register
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-                      {member.expatriateCountry ?? "Overseas"}
-                    </span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    Occupation: {member.expatriateOccupation ?? "Overseas Professional"}
-                  </span>
-                  {member.expatriateContact && (
-                    <span className="text-xs text-muted-foreground">
-                      Contact: {member.expatriateContact}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {!member.isYatheem && !member.isExpatriate && (
-                <p className="text-xs text-muted-foreground italic p-2">
-                  No special welfare or expatriate classifications recorded for this member.
+          {/* Movement / Additional Notes */}
+          {member.movementNotes && (
+            <Card className="rounded-3xl border-border/80 bg-card shadow-xs overflow-hidden">
+              <CardHeader className="border-b border-border/60 px-6 py-4">
+                <CardTitle className="text-sm font-bold text-foreground">Administrative Notes</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {member.movementNotes}
                 </p>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
-      {/* Edit Member Modal */}
+      {/* Edit Member Dialog */}
       <MemberFormDialog
         slug={slug}
         open={formOpen}

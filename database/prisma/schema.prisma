@@ -97,6 +97,10 @@ model Tenant {
   houseNumberMinDigits   Int?
   houseNumberAllowManual Boolean @default(true)
 
+  // Family Status Division
+  hasFamilyStatuses      Boolean @default(false)
+  familyStatusTerm       String? @default("Category")
+
   // Management (primary committee only — the full committee is managed later)
   presidentName  String?
   presidentPhone String?
@@ -115,6 +119,7 @@ model Tenant {
   announcements         Announcement[]
   programs              Program[]
   divisions             TenantDivision[]
+  familyStatuses        TenantFamilyStatus[]
   houses                House[]
   committeeMembers      CommitteeMember[]
   committeeMeetings     CommitteeMeeting[]
@@ -143,6 +148,7 @@ model Tenant {
   financePaymentMethods FinancePaymentMethod[]
   financeBankAccounts   FinanceBankAccount[]
   financialYears        FinancialYear[]
+  memberHealthProfiles  MemberHealthProfile[]
   collectionCategories  CollectionCategory[]
   expenseCategories     ExpenseCategory[]
   financeCollections    FinanceCollection[]
@@ -212,6 +218,29 @@ model TenantDivision {
   @@index([tenantId, order])
   @@index([tenantId, isActive])
   @@map("tenant_divisions")
+}
+
+/// A Mahalle-defined family status/category division (Category A, Category B, Welfare, etc.)
+model TenantFamilyStatus {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  code        String?
+  color       String?  @default("emerald")
+  description String?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  families Family[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, name])
+  @@index([tenantId, order])
+  @@index([tenantId, isActive])
+  @@map("tenant_family_statuses")
 }
 
 /// Links a User to a Tenant with a Role. This is the row every authorization
@@ -690,9 +719,21 @@ model Member {
   expatriateOccupation String?
   expatriateContact    String?
 
+  // Education & Employment
+  educationLevel       EducationLevel?
+  educationDetails     String?
+  institution          String?
+  employmentStatus     EmploymentStatus?
+  jobTitle             String?
+  employerOrBusiness   String?
+  skills               String[]               @default([])
+  isJobSeeker          Boolean                @default(false)
+  educationHistory     Json?
+
   tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   // A family being deleted shouldn't delete its members — just unlink them.
   family                Family?                @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  healthProfile         MemberHealthProfile?
   otps                  MemberOtp[]
   committeePosts        CommitteeMember[]
   deathRecord           DeathRecord?
@@ -720,6 +761,9 @@ model Member {
   @@index([tenantId, isExpatriate])
   @@index([tenantId, bloodGroup])
   @@index([tenantId, movementStatus])
+  @@index([tenantId, educationLevel])
+  @@index([tenantId, employmentStatus])
+  @@index([tenantId, isJobSeeker])
   @@map("members")
 }
 
@@ -804,11 +848,24 @@ model Family {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Community Welfare & Care Support
+  requiresCommunitySupport Boolean        @default(false)
+  supportCategory          String?
+  supportStatus            SupportStatus? @default(ACTIVE)
+  supportNotes             String?
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+
+  // Family Status Division
+  familyStatusId           String?
+  category                 String?
+
   tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   // A house being deleted (or a family's link cleared) shouldn't delete the family.
   // Deliberately NOT unique on houseId — a house may have more than one
   // family (see Section 4 rule: don't assume 1 house = 1 family).
   house                 House?                 @relation(fields: [houseId], references: [id], onDelete: SetNull)
+  familyStatus          TenantFamilyStatus?    @relation(fields: [familyStatusId], references: [id], onDelete: SetNull)
   members               Member[]
   mahalluReleaseRecords MahalluReleaseRecord[]
   financeCollections    FinanceCollection[]
@@ -818,6 +875,9 @@ model Family {
   @@unique([tenantId, familyNumber])
   @@index([tenantId, isActive])
   @@index([houseId])
+  @@index([familyStatusId])
+  @@index([tenantId, category])
+  @@index([tenantId, requiresCommunitySupport])
   @@map("families")
 }
 
@@ -1356,10 +1416,13 @@ model CollectionCategory {
   incomeAccountId        String?
   targetType             String   @default("ALL_FAMILIES")
   isRecurring            Boolean  @default(false)
+  isSubscription         Boolean  @default(false)
   recurrenceFrequency    String?  @default("MONTHLY")
   targetEconomicCategory String?  @default("ALL")
   targetDivisionIds      String[] @default([])
+  targetAmount           Decimal? @db.Decimal(12, 2)
   defaultAmount          Decimal? @db.Decimal(12, 2)
+  formConfig             Json?
   isActive               Boolean  @default(true)
   displayOrder    Int      @default(0)
   createdAt       DateTime @default(now())
@@ -1416,6 +1479,8 @@ model FinanceCollection {
   reference       String?
   description     String?
   notes           String?
+  attachmentUrl   String?
+  customFields    Json?
   status          String   @default("COMPLETED") // COMPLETED, CANCELLED
   receiptId       String?  @unique
   journalEntryId  String?  @unique
@@ -1832,4 +1897,112 @@ model AuditLog {
   @@index([actorUserId])
   @@index([action])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Health & Support 
+// ---------------------------------------------------------------------------
+
+enum HealthConditionStatus {
+  NO_KNOWN_CONDITION
+  HAS_CONDITION
+  NOT_DISCLOSED
+}
+
+enum DisabilityType {
+  PHYSICAL
+  VISUAL
+  HEARING
+  SPEECH
+  INTELLECTUAL
+  MULTIPLE
+  OTHER
+}
+
+enum SupportStatus {
+  ACTIVE
+  MONITORING
+  RESOLVED
+}
+
+enum EmploymentStatus {
+  EMPLOYED
+  SELF_EMPLOYED
+  BUSINESS
+  GOVERNMENT_SERVICE
+  PRIVATE_SECTOR
+  DAILY_WAGE
+  JOB_SEEKER
+  STUDENT
+  HOMEMAKER
+  RETIRED
+  UNABLE_TO_WORK
+}
+
+enum EducationLevel {
+  NONE
+  PRIMARY
+  SECONDARY_SSLC
+  HIGHER_SECONDARY
+  DIPLOMA
+  GRADUATE
+  POST_GRADUATE
+  DOCTORATE
+  MADRASSA_ISLAMIC
+  VOCATIONAL
+  OTHER
+}
+
+/// Sensitive, privacy-protected health and welfare record (strictly tenant-scoped).
+model MemberHealthProfile {
+  id        String   @id @default(cuid())
+  tenantId  String
+  memberId  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Basic Health Status
+  status HealthConditionStatus @default(NO_KNOWN_CONDITION)
+
+  // Disability
+  hasDisability           Boolean         @default(false)
+  disabilityType          DisabilityType?
+  disabilityPercentage    Int?
+  disabilityCertificate   Boolean         @default(false)
+  disabilityCertificateNo String?
+
+  // Chronic Illness & Medication
+  hasChronicIllness         Boolean  @default(false)
+  chronicConditions         String[] @default([])
+  chronicDetails            String?
+  treatmentRequired         Boolean  @default(false)
+  regularMedicationRequired Boolean  @default(false)
+
+  // Mental Health & Sensitive Support
+  requiresMentalHealthSupport Boolean @default(false)
+  mentalHealthSupportType     String?
+
+  // Care & Assistance
+  requiresAssistance    Boolean  @default(false)
+  assistanceTypes       String[] @default([])
+  primaryCaregiverName  String?
+  caregiverRelationship String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+
+  // Mahallu Community Support
+  requiresCommunitySupport Boolean       @default(false)
+  supportCategory          String?
+  supportStatus            SupportStatus @default(ACTIVE)
+  supportNotes             String?
+  lastSupportDate          DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, hasDisability])
+  @@index([tenantId, hasChronicIllness])
+  @@index([tenantId, requiresCommunitySupport])
+  @@map("member_health_profiles")
 }

@@ -10,12 +10,24 @@ export interface Structure {
   houseNumberStartAt: number | null;
   houseNumberMinDigits: number | null;
   houseNumberAllowManual: boolean;
+  hasFamilyStatuses?: boolean;
+  familyStatusTerm?: string | null;
 }
 
 export interface Division {
   id: string;
   name: string;
   code: string | null;
+  description: string | null;
+  order: number;
+  isActive: boolean;
+}
+
+export interface FamilyStatus {
+  id: string;
+  name: string;
+  code: string | null;
+  color: string | null;
   description: string | null;
   order: number;
   isActive: boolean;
@@ -30,8 +42,8 @@ export interface StructureSummary {
 }
 
 /** Null means the API rejected this (not a member, or lacks structure.view). */
-export async function getStructure(slug: string): Promise<{ structure: Structure; divisions: Division[] } | null> {
-  const { status, body } = await serverApiGet<{ structure: Structure; divisions: Division[] }>(
+export async function getStructure(slug: string): Promise<{ structure: Structure; divisions: Division[]; familyStatuses?: FamilyStatus[] } | null> {
+  const { status, body } = await serverApiGet<{ structure: Structure; divisions: Division[]; familyStatuses?: FamilyStatus[] }>(
     `/tenants/${encodeURIComponent(slug)}/structure`
   );
   if (status !== 200 || !body.success || !body.data) return null;

@@ -29,7 +29,7 @@ export default async function StructureSettingsPage({ params }: { params: Promis
           </CardContent>
         </Card>
       ) : (
-        <StructureSettings slug={slug} structure={result.structure} divisions={result.divisions} summary={summary} />
+        <StructureSettings slug={slug} structure={result.structure} divisions={result.divisions} familyStatuses={result.familyStatuses ?? []} summary={summary} />
       )}
     </>
   );

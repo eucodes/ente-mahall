@@ -4,6 +4,7 @@ import { getMyTenantMembership } from "@/lib/tenants";
 import { getFamily, getFamilies } from "@/lib/business-resources";
 import { getHouses } from "@/lib/houses";
 import { getMembers } from "@/lib/members";
+import { getStructure } from "@/lib/structure";
 import { FamilyDetailView } from "@/features/tenants/family-detail-view";
 
 export default async function FamilyDetailPage({
@@ -18,10 +19,11 @@ export default async function FamilyDetailPage({
   const membership = await getMyTenantMembership(slug);
   if (!membership) redirect("/");
 
-  const [family, housesResult, allFamiliesResult] = await Promise.all([
+  const [family, housesResult, allFamiliesResult, structureResult] = await Promise.all([
     getFamily(slug, familyId),
     getHouses(slug, 1, 100, { status: "active" }),
-    getFamilies(slug, 1, 100)
+    getFamilies(slug, 1, 100),
+    getStructure(slug).catch(() => null)
   ]);
   if (!family) notFound();
 
@@ -37,6 +39,7 @@ export default async function FamilyDetailPage({
       members={members}
       houses={houses}
       allFamilies={allFamilies}
+      hasFamilyStatuses={structureResult?.structure?.hasFamilyStatuses ?? false}
     />
   );
 }

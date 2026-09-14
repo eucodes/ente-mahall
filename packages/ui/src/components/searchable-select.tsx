@@ -21,6 +21,8 @@ export interface SearchableSelectProps {
   clearable?: boolean;
   className?: string;
   invalid?: boolean;
+  allowCustom?: boolean;
+  id?: string;
 }
 
 export function SearchableSelect({
@@ -33,7 +35,9 @@ export function SearchableSelect({
   disabled = false,
   clearable = true,
   className,
-  invalid = false
+  invalid = false,
+  allowCustom = false,
+  id
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
@@ -42,7 +46,10 @@ export function SearchableSelect({
 
   // Selected item
   const selectedOption = React.useMemo(() => {
-    return options.find((o) => o.value === value) || null;
+    return (
+      options.find((o) => o.value.toLowerCase() === (value || "").toLowerCase()) ||
+      null
+    );
   }, [options, value]);
 
   // Filtered options based on search query
@@ -87,6 +94,17 @@ export function SearchableSelect({
     }
   }
 
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (filteredOptions[0]?.value) {
+        handleSelect(filteredOptions[0].value);
+      } else if (allowCustom && search.trim()) {
+        handleSelect(search.trim());
+      }
+    }
+  }
+
   function handleSelect(val: string) {
     onChange(val);
     setOpen(false);
@@ -102,6 +120,7 @@ export function SearchableSelect({
     <div ref={containerRef} className={cn("relative w-full", open && "z-30", className)} onKeyDown={handleKeyDown}>
       {/* Trigger Button */}
       <button
+        id={id}
         type="button"
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
@@ -120,6 +139,8 @@ export function SearchableSelect({
                 <span className="text-xs text-muted-foreground">({selectedOption.subLabel})</span>
               )}
             </span>
+          ) : value ? (
+            <span className="font-medium text-foreground">{value}</span>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>
           )}
@@ -160,6 +181,7 @@ export function SearchableSelect({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
               placeholder={searchPlaceholder}
               className="w-full h-8 pl-8 pr-3 text-xs rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-colors"
             />
@@ -167,13 +189,34 @@ export function SearchableSelect({
 
           {/* Options list */}
           <div className="max-h-56 overflow-y-auto space-y-0.5 p-0.5 scrollbar-thin">
-            {filteredOptions.length === 0 ? (
+            {allowCustom &&
+              search.trim() &&
+              !options.some((o) => o.value.toLowerCase() === search.trim().toLowerCase()) && (
+                <button
+                  type="button"
+                  onClick={() => handleSelect(search.trim())}
+                  className="flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-xs text-left cursor-pointer transition-colors bg-primary/10 hover:bg-primary/15 text-primary font-medium border border-primary/20 mb-1"
+                >
+                  <div className="flex items-center gap-1.5 truncate pr-2">
+                    <span className="text-muted-foreground text-[11px]">Use custom:</span>
+                    <span className="font-semibold underline truncate">&ldquo;{search.trim()}&rdquo;</span>
+                  </div>
+                  <span className="text-[10px] bg-primary/20 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-primary shrink-0">
+                    Select
+                  </span>
+                </button>
+              )}
+
+            {filteredOptions.length === 0 &&
+            (!allowCustom ||
+              !search.trim() ||
+              options.some((o) => o.value.toLowerCase() === search.trim().toLowerCase())) ? (
               <div className="py-5 text-center text-xs text-muted-foreground">
                 {emptyMessage}
               </div>
             ) : (
               filteredOptions.map((opt) => {
-                const isSelected = opt.value === value;
+                const isSelected = opt.value.toLowerCase() === (value || "").toLowerCase();
                 return (
                   <button
                     key={opt.value}

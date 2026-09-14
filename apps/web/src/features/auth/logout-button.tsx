@@ -35,8 +35,9 @@ export function LogoutButton({
       // login page — the access token cookie is short-lived either way.
     } finally {
       toast({ title: "Logged out" });
-      router.push(redirectTo);
-      router.refresh();
+      if (typeof window !== "undefined") {
+        window.location.href = redirectTo || "/login";
+      }
     }
   }
 

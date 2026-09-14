@@ -7,10 +7,13 @@ export class CreateCollectionCategoryDto {
   @IsOptional() @IsString() incomeAccountId?: string;
   @IsOptional() @IsString() @IsIn(["ALL_FAMILIES", "SPECIFIC_DIVISIONS", "CATEGORY_BASED", "GENERAL"]) targetType?: string;
   @IsOptional() @IsBoolean() isRecurring?: boolean;
+  @IsOptional() @IsBoolean() isSubscription?: boolean;
   @IsOptional() @IsString() @IsIn(["MONTHLY", "ANNUAL", "ONE_TIME"]) recurrenceFrequency?: string;
   @IsOptional() @IsString() targetEconomicCategory?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) targetDivisionIds?: string[];
+  @IsOptional() targetAmount?: number | string | null;
   @IsOptional() defaultAmount?: number | string | null;
+  @IsOptional() formConfig?: any;
   @IsOptional() @IsBoolean() isActive?: boolean;
   @IsOptional() @IsInt() displayOrder?: number;
 }
@@ -22,10 +25,13 @@ export class UpdateCollectionCategoryDto {
   @IsOptional() @IsString() incomeAccountId?: string | null;
   @IsOptional() @IsString() @IsIn(["ALL_FAMILIES", "SPECIFIC_DIVISIONS", "CATEGORY_BASED", "GENERAL"]) targetType?: string;
   @IsOptional() @IsBoolean() isRecurring?: boolean;
+  @IsOptional() @IsBoolean() isSubscription?: boolean;
   @IsOptional() @IsString() @IsIn(["MONTHLY", "ANNUAL", "ONE_TIME"]) recurrenceFrequency?: string;
   @IsOptional() @IsString() targetEconomicCategory?: string | null;
   @IsOptional() @IsArray() @IsString({ each: true }) targetDivisionIds?: string[];
+  @IsOptional() targetAmount?: number | string | null;
   @IsOptional() defaultAmount?: number | string | null;
+  @IsOptional() formConfig?: any;
   @IsOptional() @IsBoolean() isActive?: boolean;
   @IsOptional() @IsInt() displayOrder?: number;
 }

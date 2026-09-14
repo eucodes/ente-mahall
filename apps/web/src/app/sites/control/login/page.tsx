@@ -4,8 +4,12 @@ import { getSession } from "@/lib/session";
 import { LoginForm } from "@/features/auth/login-form";
 import { AuthShell } from "@/components/auth-shell";
 
-export default async function ControlLoginPage() {
-  const user = await getSession();
+export default async function ControlLoginPage({
+  searchParams
+}: {
+  searchParams: Promise<{ reason?: string }>;
+}) {
+  const [{ reason }, user] = await Promise.all([searchParams, getSession()]);
   if (user) {
     redirect("/");
   }
@@ -30,8 +34,9 @@ export default async function ControlLoginPage() {
             redirectTo="/"
             defaultEmail="platform-admin@mahalle.local"
             defaultPassword="ChangeMe123!"
+            inactivityNotice={reason === "inactivity"}
+            sessionExpiredNotice={reason === "expired"}
           />
-   
         </CardContent>
       </Card>
     </AuthShell>

@@ -37,7 +37,7 @@ export default async function TenantLoginPage({ params }: { params: Promise<{ te
         </CardHeader>
 
         <CardContent className="pt-2 pb-6 space-y-4">
-          <MemberOtpLoginForm tenantSlug={slug} redirectTo="/dashboard" />
+          <MemberOtpLoginForm tenantSlug={slug} redirectTo="/" />
 
           <div className="pt-4 border-t border-border/60 text-center">
             <Link href="/" className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground">

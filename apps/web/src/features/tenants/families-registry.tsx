@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
   Download,
+  DropdownMenu,
   Eye,
   Home,
   MapPin,
@@ -49,19 +50,13 @@ export interface FamiliesRegistryProps {
   houses: House[];
   total: number;
   summary: FamilySummary | null;
+  familyStatuses?: { id: string; name: string; code: string | null; color: string | null }[];
+  hasFamilyStatuses?: boolean;
 }
 
 type FamilySortField = "none" | "id" | "name" | "head" | "house" | "members" | "updatedAt";
 type SortDirection = "asc" | "desc";
 
-function getFamilyCategoryDotColor(cat?: string | null): string {
-  if (!cat) return "bg-emerald-500";
-  const upper = cat.toUpperCase();
-  if (upper.includes("A")) return "bg-emerald-500";
-  if (upper.includes("B")) return "bg-amber-500";
-  if (upper.includes("WELFARE") || upper.includes("ZAKAT")) return "bg-rose-500";
-  return "bg-slate-400";
-}
 
 export function FamiliesRegistry({
   slug,
@@ -69,7 +64,9 @@ export function FamiliesRegistry({
   members,
   houses,
   total,
-  summary
+  summary,
+  familyStatuses = [],
+  hasFamilyStatuses = false
 }: FamiliesRegistryProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -77,9 +74,7 @@ export function FamiliesRegistry({
   // Search & Filter state
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<
-    "ALL" | "WITH_HOUSE" | "WITHOUT_HOUSE" | "CATEGORY_A" | "CATEGORY_B" | "WELFARE"
-  >("ALL");
+  const [activeFilter, setActiveFilter] = useState<string>("ALL");
   const [houseFilter, setHouseFilter] = useState("");
   const [selectedFamilyIds, setSelectedFamilyIds] = useState<Set<string>>(
     new Set()
@@ -89,9 +84,6 @@ export function FamiliesRegistry({
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-  const [activeMenuFamilyId, setActiveMenuFamilyId] = useState<string | null>(
-    null
-  );
 
   // Bulk actions states (Clean & focused)
   const [bulkHouseModalOpen, setBulkHouseModalOpen] = useState(false);
@@ -128,13 +120,10 @@ export function FamiliesRegistry({
       if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
         setMoreMenuOpen(false);
       }
-      if (activeMenuFamilyId) {
-        setActiveMenuFamilyId(null);
-      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [activeMenuFamilyId]);
+  }, []);
 
   // Group members by family ID
   const membersByFamily = useMemo(() => {
@@ -158,12 +147,11 @@ export function FamiliesRegistry({
 
       if (houseFilter && f.houseId !== houseFilter) return false;
 
-      const fCat = (f as { category?: string | null }).category ?? "";
       if (activeFilter === "WITH_HOUSE" && !f.houseId) return false;
       if (activeFilter === "WITHOUT_HOUSE" && f.houseId) return false;
-      if (activeFilter === "CATEGORY_A" && fCat !== "A" && fCat !== "CATEGORY_A") return false;
-      if (activeFilter === "CATEGORY_B" && fCat !== "B" && fCat !== "CATEGORY_B") return false;
-      if (activeFilter === "WELFARE" && fCat !== "WELFARE") return false;
+      if (activeFilter !== "ALL" && activeFilter !== "WITH_HOUSE" && activeFilter !== "WITHOUT_HOUSE") {
+        if (f.familyStatus?.id !== activeFilter) return false;
+      }
 
       if (!q) return true;
       return (
@@ -461,12 +449,10 @@ export function FamiliesRegistry({
         {/* Left Segmented Filter Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
           {[
-            { id: "ALL", label: "ALL" },
-            { id: "WITH_HOUSE", label: "WITH HOUSE" },
-            { id: "WITHOUT_HOUSE", label: "UNASSIGNED HOUSE" },
-            { id: "CATEGORY_A", label: "CATEGORY A" },
-            { id: "CATEGORY_B", label: "CATEGORY B" },
-            { id: "WELFARE", label: "WELFARE AID" }
+            { id: "ALL", label: "ALL", color: null },
+            { id: "WITH_HOUSE", label: "WITH HOUSE", color: null },
+            { id: "WITHOUT_HOUSE", label: "UNASSIGNED HOUSE", color: null },
+            ...(hasFamilyStatuses ? familyStatuses.map((s) => ({ id: s.id, label: s.name, color: s.color })) : [])
           ].map((pill) => {
             const isActive = activeFilter === pill.id;
             return (
@@ -474,7 +460,7 @@ export function FamiliesRegistry({
                 key={pill.id}
                 type="button"
                 onClick={() => {
-                  setActiveFilter(pill.id as typeof activeFilter);
+                  setActiveFilter(pill.id);
                   setCurrentPage(1);
                 }}
                 className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
@@ -610,7 +596,7 @@ export function FamiliesRegistry({
                     { id: "none", label: "No sorting" },
                     { id: "id", label: "Family ID (#FM-XXXX)" },
                     { id: "name", label: "Family Name" },
-                    { id: "head", label: "Head of Household" },
+                    { id: "head", label: "Head of Family" },
                     { id: "house", label: "House Number" },
                     { id: "members", label: "Member Count" },
                     { id: "updatedAt", label: "Registration Date" }
@@ -666,7 +652,7 @@ export function FamiliesRegistry({
 
       {/* 3. Data Table Container */}
       <div className="rounded-2xl border border-border/80 bg-card shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-[360px]">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-border/70 bg-muted/20 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -680,10 +666,9 @@ export function FamiliesRegistry({
                 </th>
                 <th className="py-3 px-4">Family Unit</th>
                 <th className="py-3 px-4">Section / House</th>
-                <th className="py-3 px-4">Category</th>
-                <th className="py-3 px-4">Head of Household</th>
+                {hasFamilyStatuses && <th className="py-3 px-4">Status</th>}
+                <th className="py-3 px-4">Head of Family</th>
                 <th className="py-3 px-4">Members</th>
-                <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-right w-12"></th>
               </tr>
             </thead>
@@ -691,7 +676,7 @@ export function FamiliesRegistry({
               {paginatedFamilies.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={hasFamilyStatuses ? 8 : 7}
                     className="py-14 text-center text-muted-foreground"
                   >
                     <div className="flex flex-col items-center justify-center gap-2">
@@ -706,15 +691,13 @@ export function FamiliesRegistry({
                   </td>
                 </tr>
               ) : (
-                paginatedFamilies.map((family) => {
+                paginatedFamilies.map((family, index) => {
                   const famMembers = membersByFamily.get(family.id) ?? [];
                   const head =
                     famMembers.find((m) => m.relationToHead === "HEAD") ??
                     famMembers[0];
                   const isSelected = selectedFamilyIds.has(family.id);
-                  const isMenuOpen = activeMenuFamilyId === family.id;
                   const familyCode = `#${family.id.slice(0, 4).toUpperCase()}`;
-                  const fCat = (family as { category?: string | null }).category;
 
                   return (
                     <tr
@@ -758,8 +741,8 @@ export function FamiliesRegistry({
 
                       {/* Column 2: Section / House Capsule Badge */}
                       <td className="py-3 px-4">
-                        <div className="inline-flex items-center gap-1.5 rounded-full border border-border/80 px-3 py-0.5 bg-background text-[11px] font-medium text-foreground/80 shadow-2xs">
-                          <span>
+                        <div className="inline-flex items-center max-w-[220px] gap-1.5 rounded-full border border-border/80 px-3 py-0.5 bg-background text-[11px] font-medium text-foreground/80 shadow-2xs">
+                          <span className="truncate">
                             {family.house
                               ? `House: ${family.house.displayNumber}`
                               : family.address
@@ -769,19 +752,25 @@ export function FamiliesRegistry({
                         </div>
                       </td>
 
-                      {/* Column 3: Category Dot Indicator */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={`h-2 w-2 rounded-full shrink-0 ${getFamilyCategoryDotColor(
-                              fCat
-                            )}`}
-                          />
-                          <span className="text-[11px] font-bold text-foreground/90 uppercase">
-                            {fCat || "GENERAL"}
-                          </span>
-                        </div>
-                      </td>
+                      {/* Column 3: Status / Category Badge (only when family statuses are enabled) */}
+                      {hasFamilyStatuses && (
+                        <td className="py-3 px-4">
+                          {family.familyStatus ? (
+                            <span
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide"
+                              style={{
+                                backgroundColor: family.familyStatus.color ? `${family.familyStatus.color}20` : undefined,
+                                color: family.familyStatus.color ?? undefined,
+                                border: family.familyStatus.color ? `1px solid ${family.familyStatus.color}40` : undefined
+                              }}
+                            >
+                              {family.familyStatus.name}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground/60 font-medium">—</span>
+                          )}
+                        </td>
+                      )}
 
                       {/* Column 4: Head of Household */}
                       <td className="py-3 px-4">
@@ -814,65 +803,39 @@ export function FamiliesRegistry({
 
                       {/* Column 7: Actions Menu */}
                       <td
-                        className="py-3 px-4 text-right relative"
+                        className="py-3 px-4 text-right"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setActiveMenuFamilyId(
-                              isMenuOpen ? null : family.id
-                            )
+                        <DropdownMenu
+                          align="right"
+                          direction={index >= paginatedFamilies.length - 2 && paginatedFamilies.length > 2 ? "up" : "down"}
+                          trigger={
+                            <button
+                              type="button"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ml-auto cursor-pointer"
+                              aria-label="Actions"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
                           }
-                          className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors ml-auto"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-
-                        {isMenuOpen && (
-                          <div
-                            className="absolute right-4 top-10 z-50 w-44 rounded-2xl border border-border bg-card p-1.5 shadow-xl ring-1 ring-black/10 animate-in fade-in zoom-in-95 duration-100 text-left"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveMenuFamilyId(null);
-                                router.push(`/${slug}/families/${family.id}`);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
-                            >
-                              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                              View Family
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveMenuFamilyId(null);
-                                openEditForm(family);
-                              }}
-                              className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
-                            >
-                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                              Edit Family
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveMenuFamilyId(null);
-                                router.push(
-                                  `/${slug}/members?add=true&familyId=${family.id}`
-                                );
-                              }}
-                              className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
-                            >
-                              <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
-                              Add Member
-                            </button>
-                          </div>
-                        )}
+                          items={[
+                            {
+                              label: "View Family",
+                              icon: <Eye className="h-3.5 w-3.5" />,
+                              onClick: () => router.push(`/${slug}/families/${family.id}`),
+                            },
+                            {
+                              label: "Edit Family",
+                              icon: <Pencil className="h-3.5 w-3.5" />,
+                              onClick: () => openEditForm(family),
+                            },
+                            {
+                              label: "Add Member",
+                              icon: <UserPlus className="h-3.5 w-3.5 text-emerald-600" />,
+                              onClick: () => router.push(`/${slug}/families/${family.id}`),
+                            },
+                          ]}
+                        />
                       </td>
                     </tr>
                   );

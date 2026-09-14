@@ -14,6 +14,15 @@ export class UpdateStructureDto {
   divisionTerm?: string;
 
   @IsOptional()
+  @IsBoolean()
+  hasFamilyStatuses?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  familyStatusTerm?: string;
+
+  @IsOptional()
   @IsIn(HOUSE_NUMBERING_METHODS)
   houseNumberingMethod?: (typeof HOUSE_NUMBERING_METHODS)[number];
 

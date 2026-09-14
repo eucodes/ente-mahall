@@ -20,6 +20,7 @@ import { getSession } from "@/lib/session";
 import { getMyTenants } from "@/lib/tenants";
 import { LogoutButton } from "@/features/auth/logout-button";
 import { HijriDateBadge } from "@/features/navigation/hijri-date-badge";
+import { IdleTimeoutProvider } from "@/features/auth/idle-timeout-provider";
 
 export default async function AdminHomePage() {
   const user = await getSession();
@@ -30,7 +31,8 @@ export default async function AdminHomePage() {
   const tenants = await getMyTenants();
 
   return (
-    <div className="min-h-screen bg-muted/20 text-foreground">
+    <IdleTimeoutProvider>
+      <div className="min-h-screen bg-muted/20 text-foreground">
       {/* Topbar */}
       <header className="sticky top-0 z-30 border-b border-border/80 bg-card/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
@@ -149,5 +151,6 @@ export default async function AdminHomePage() {
         )}
       </main>
     </div>
+    </IdleTimeoutProvider>
   );
 }
