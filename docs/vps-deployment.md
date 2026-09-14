@@ -6,9 +6,9 @@ This deployment uses four containers: Next.js web, NestJS API, PostgreSQL, and R
 
 Point these records to the VPS public IPv4 address before requesting a certificate:
 
-- `A  mahallapp.eucodes.tech`
-- `A  api.mahallapp.eucodes.tech`
-- `A  *.mahallapp.eucodes.tech`
+- `A  eucodes.tech`
+- `A  api.eucodes.tech`
+- `A  *.eucodes.tech`
 
 The wildcard record is required because tenant URLs use arbitrary subdomains. Open only SSH, HTTP, and HTTPS in the VPS firewall. Do not open 3007, 4007, 5432, or 6379.
 
@@ -24,7 +24,7 @@ cp /var/www/mahalle/.env.prod.example /var/www/mahalle/.env.prod
 nano /var/www/mahalle/.env.prod
 ```
 
-In `.env.prod`, set `GITHUB_OWNER` to the lower-case GitHub owner. Use `openssl rand -hex 32` for the PostgreSQL password (hex is safe to embed in `DATABASE_URL`) and `openssl rand -hex 64` for all three application secrets. Keep `COOKIE_DOMAIN=.mahallapp.eucodes.tech`, `PORT=4007`, and the documented production URLs.
+In `.env.prod`, set `GITHUB_OWNER` to the lower-case GitHub owner. Use `openssl rand -hex 32` for the PostgreSQL password (hex is safe to embed in `DATABASE_URL`) and `openssl rand -hex 64` for all three application secrets. Keep `COOKIE_DOMAIN=.eucodes.tech`, `PORT=4007`, and the documented production URLs.
 
 Install and enable the systemd service:
 

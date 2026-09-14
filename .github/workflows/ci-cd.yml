@@ -64,8 +64,8 @@ jobs:
             ghcr.io/${{ env.OWNER_LC }}/mahalle-web:${{ github.sha }}
             ghcr.io/${{ env.OWNER_LC }}/mahalle-web:latest
           build-args: |
-            NEXT_PUBLIC_API_URL=https://api.mahallapp.eucodes.tech/api/v1
-            NEXT_PUBLIC_ROOT_DOMAIN=mahallapp.eucodes.tech
+            NEXT_PUBLIC_API_URL=https://api.eucodes.tech/api/v1
+            NEXT_PUBLIC_ROOT_DOMAIN=eucodes.tech
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
       - name: Deploy to VPS
