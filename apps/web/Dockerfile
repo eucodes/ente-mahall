@@ -41,11 +41,6 @@ WORKDIR /app
 # Restore node_modules
 COPY --from=deps /app/node_modules             ./node_modules
 COPY --from=deps /app/apps/web/node_modules    ./apps/web/node_modules
-COPY --from=deps /app/packages/types/node_modules    ./packages/types/node_modules 2>/dev/null || true
-COPY --from=deps /app/packages/config/node_modules   ./packages/config/node_modules 2>/dev/null || true
-COPY --from=deps /app/packages/ui/node_modules       ./packages/ui/node_modules 2>/dev/null || true
-COPY --from=deps /app/packages/api-client/node_modules ./packages/api-client/node_modules 2>/dev/null || true
-COPY --from=deps /app/packages/validation/node_modules ./packages/validation/node_modules 2>/dev/null || true
 
 # Copy manifests
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
