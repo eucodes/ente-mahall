@@ -65,6 +65,10 @@ ENV NEXT_PUBLIC_ROOT_DOMAIN=$NEXT_PUBLIC_ROOT_DOMAIN
 # Disable Next.js telemetry in CI/CD
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# 1. Build shared packages (@mahalle/types)
+RUN pnpm --filter @mahalle/types build
+
+# 2. Build the Web app
 RUN pnpm --filter @mahalle/web build
 
 # ---------------------------------------------------------------------------

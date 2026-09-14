@@ -11,17 +11,16 @@ import {
   Layers,
   Settings,
   ShieldCheck,
-  Building,
+  Wallet,
   Bell,
   Clock,
-  ChevronRight,
-  Sparkles,
-  UsersRound,
-  FileText
+  ChevronRight
 } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
 import { getStructure } from "@/lib/structure";
+import { getMyTenantFeatures } from "@/lib/features";
+import { EditProfileButton } from "@/features/tenants/edit-profile-button";
 
 export default async function TenantAdminSettingsPage({
   params
@@ -39,7 +38,10 @@ export default async function TenantAdminSettingsPage({
     redirect("/");
   }
 
-  const structureData = await getStructure(slug).catch(() => null);
+  const [structureData, features] = await Promise.all([
+    getStructure(slug).catch(() => null),
+    getMyTenantFeatures(slug).catch(() => [])
+  ]);
   const tenant = membership.tenant;
   const hasDivisions = structureData?.structure?.hasDivisions ?? false;
 
@@ -85,9 +87,7 @@ export default async function TenantAdminSettingsPage({
                 </div>
               </div>
             </div>
-            <Button size="sm" variant="outline" className="rounded-xl text-xs font-semibold self-start sm:self-auto">
-              Edit Profile
-            </Button>
+            <EditProfileButton />
           </div>
         </CardContent>
       </Card>
@@ -108,7 +108,7 @@ export default async function TenantAdminSettingsPage({
           </div>
         </CardHeader>
         <CardContent className="pt-4 divide-y divide-border/60">
-          {/* Feature 1: Wards / Divisions */}
+          {/* Wards / Divisions has a dedicated settings page; keep it pinned first. */}
           <div className="flex items-center justify-between py-3.5 first:pt-0">
             <div className="space-y-0.5">
               <p className="text-sm font-semibold text-foreground">Wards / Zones / Divisions</p>
@@ -128,60 +128,28 @@ export default async function TenantAdminSettingsPage({
             </div>
           </div>
 
-          {/* Feature 2: Family Category Tagging */}
-          <div className="flex items-center justify-between py-3.5">
-            <div className="space-y-0.5">
-              <p className="text-sm font-semibold text-foreground">Family Category Tagging</p>
-              <p className="text-xs text-muted-foreground">
-                Classify families into categories (A, B, C, General, Welfare)
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                Enabled
-              </Badge>
-            </div>
-          </div>
-
-          {/* Feature 3: Official Registers & NOCs */}
-          <div className="flex items-center justify-between py-3.5">
-            <div className="space-y-0.5">
-              <p className="text-sm font-semibold text-foreground">Official Registers & Certificates</p>
-              <p className="text-xs text-muted-foreground">
-                Digital registers for Nikah, Mayyith, Talaq, and Mahall NOC certificates
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                Enabled
-              </Badge>
-            </div>
-          </div>
-
-          {/* Feature 4: Public Website Portal */}
-          <div className="flex items-center justify-between py-3.5 last:pb-0">
-            <div className="space-y-0.5">
-              <p className="text-sm font-semibold text-foreground">Public Website & Member Portal</p>
-              <p className="text-xs text-muted-foreground">
-                Public presence at {slug}.mahalle.app with prayer times and notice boards
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-                Enabled
-              </Badge>
-              <Link href={`/${slug}/website`}>
-                <Button size="sm" variant="ghost" className="text-xs rounded-xl h-8 px-2.5">
-                  Settings
-                </Button>
-              </Link>
-            </div>
-          </div>
+          {features.length === 0 ? (
+            <p className="py-3.5 text-xs text-muted-foreground">No other modules are configured for this Mahallu yet.</p>
+          ) : (
+            features.map((feature) => (
+              <div key={feature.featureId} className="flex items-center justify-between py-3.5 last:pb-0">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-semibold text-foreground">{feature.name}</p>
+                  {feature.category && (
+                    <p className="text-xs text-muted-foreground">{feature.category}</p>
+                  )}
+                </div>
+                <Badge className={feature.effective ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground"}>
+                  {feature.effective ? "Enabled" : "Disabled"}
+                </Badge>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 
       {/* 3. Administration & Configuration Links */}
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Link href={`/${slug}/settings/structure`} className="group block">
           <Card className="h-full rounded-2xl border-border/80 transition-all group-hover:border-emerald-500/50 group-hover:shadow-md">
             <CardContent className="flex items-center justify-between p-5">
@@ -192,6 +160,23 @@ export default async function TenantAdminSettingsPage({
                 <div>
                   <h4 className="text-sm font-bold text-foreground">Structure & Wards</h4>
                   <p className="text-xs text-muted-foreground">Configure division codes and house numbering</p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href={`/${slug}/settings/finance`} className="group block">
+          <Card className="h-full rounded-2xl border-border/80 transition-all group-hover:border-teal-500/50 group-hover:shadow-md">
+            <CardContent className="flex items-center justify-between p-5">
+              <div className="flex items-center gap-3.5">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
+                  <Wallet className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-foreground">Finance Settings</h4>
+                  <p className="text-xs text-muted-foreground">Bank accounts, collection heads, and payment modes</p>
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />

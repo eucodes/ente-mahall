@@ -61,11 +61,14 @@ COPY packages/types/   ./packages/types/
 COPY packages/config/  ./packages/config/
 COPY packages/validation/ ./packages/validation/
 
-# 1. Generate prisma client & compile @mahalle/database → CJS so NestJS can require() it at runtime
+# 1. Build shared packages (@mahalle/types)
+RUN pnpm --filter @mahalle/types build
+
+# 2. Generate prisma client & compile @mahalle/database → CJS so NestJS can require() it at runtime
 RUN pnpm --filter @mahalle/database prisma generate
 RUN pnpm --filter @mahalle/database run build:cjs
 
-# 2. Build the API (nest build → dist/)
+# 3. Build the API (nest build → dist/)
 RUN pnpm --filter @mahalle/api build
 
 # ---------------------------------------------------------------------------
