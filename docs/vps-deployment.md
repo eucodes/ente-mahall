@@ -52,7 +52,7 @@ For a DNS provider without a Certbot plugin, issue the wildcard certificate thro
 
 ```bash
 cd /var/www/mahalle && docker compose -f docker/docker-compose.prod.yml --env-file .env.prod pull
-cd /var/www/mahalle && docker compose -f docker/docker-compose.prod.yml --env-file .env.prod run --rm --no-deps api prisma migrate deploy --schema ./prisma/schema.prisma
+cd /var/www/mahalle && docker compose -f docker/docker-compose.prod.yml --env-file .env.prod run --rm --no-deps --entrypoint /usr/local/bin/prisma api migrate deploy --schema /app/prisma/schema.prisma
 sudo systemctl start mahalle.service
 curl --fail http://127.0.0.1:4007/health
 ```

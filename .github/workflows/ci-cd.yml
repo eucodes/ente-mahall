@@ -83,7 +83,7 @@ jobs:
             git pull --ff-only origin main
             sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/' .env.prod
             docker compose -f docker/docker-compose.prod.yml --env-file .env.prod pull api web
-            docker compose -f docker/docker-compose.prod.yml --env-file .env.prod run --rm --no-deps api prisma migrate deploy --schema ./prisma/schema.prisma
+            docker compose -f docker/docker-compose.prod.yml --env-file .env.prod run --rm --no-deps --entrypoint /usr/local/bin/prisma api migrate deploy --schema /app/prisma/schema.prisma
             # Update only stateless application containers. PostgreSQL and
             # Redis stay online, and systemd still starts the full stack on boot.
             docker compose -f docker/docker-compose.prod.yml --env-file .env.prod up -d --no-deps api web
