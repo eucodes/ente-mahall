@@ -1,0 +1,95 @@
+name: CI and deploy
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: mahalle-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 12.3.4 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+  build-and-deploy:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set image namespace
+        run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.OWNER_LC }}/mahalle-api:${{ github.sha }}
+            ghcr.io/${{ env.OWNER_LC }}/mahalle-api:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.OWNER_LC }}/mahalle-web:${{ github.sha }}
+            ghcr.io/${{ env.OWNER_LC }}/mahalle-web:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://api.mahallapp.eucodes.tech/api/v1
+            NEXT_PUBLIC_ROOT_DOMAIN=mahallapp.eucodes.tech
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -eu
+            cd /var/www/mahalle
+            # Refuse to overwrite VPS-only changes (notably .env.prod). The
+            # deployment checkout itself must remain a clean fast-forwardable
+            # clone; secrets are ignored by Git and therefore preserved.
+            git pull --ff-only origin main
+            sed -i 's/^IMAGE_TAG=.*/IMAGE_TAG=${{ github.sha }}/' .env.prod
+            docker compose -f docker/docker-compose.prod.yml --env-file .env.prod pull api web
+            docker compose -f docker/docker-compose.prod.yml --env-file .env.prod run --rm --no-deps api prisma migrate deploy --schema ./prisma/schema.prisma
+            # Update only stateless application containers. PostgreSQL and
+            # Redis stay online, and systemd still starts the full stack on boot.
+            docker compose -f docker/docker-compose.prod.yml --env-file .env.prod up -d --no-deps api web
+            for i in $(seq 1 18); do
+              curl --fail --silent http://127.0.0.1:4007/health >/dev/null && exit 0
+              sleep 5
+            done
+            docker compose -f docker/docker-compose.prod.yml --env-file .env.prod logs --tail=100 api
+            exit 1

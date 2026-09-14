@@ -1,0 +1,17 @@
+[Unit]
+Description=Mahalle SaaS Docker Compose stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/var/www/mahalle
+EnvironmentFile=/var/www/mahalle/.env.prod
+ExecStart=/usr/bin/docker compose -f docker/docker-compose.prod.yml --env-file .env.prod up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f docker/docker-compose.prod.yml --env-file .env.prod down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+# Keep Docker build contexts small and ensure local secrets are never copied.
+.next/
+dist/
+build/
+out/
+node_modules/
+.pnpm-store/
+.turbo/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+!.env.prod.example
+.git/
+.github/
+.vscode/
+.idea/
+.DS_Store
+*.log
+mobile/
+apps/api/uploads/

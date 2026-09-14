@@ -1,0 +1,82 @@
+name: mahalle-saas
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env.prod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env.prod}
+    volumes:
+      - mahalle_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks: [mahalle]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - mahalle_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [mahalle]
+
+  api:
+    image: ghcr.io/${GITHUB_OWNER:?set GITHUB_OWNER in .env.prod}/mahalle-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: ../.env.prod
+    environment:
+      PORT: "4007"
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    # Nginx is the only public entrypoint. These stay available on the VPS.
+    ports: ["127.0.0.1:4007:4007"]
+    volumes:
+      - mahalle_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4007/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks: [mahalle]
+
+  web:
+    image: ghcr.io/${GITHUB_OWNER:?set GITHUB_OWNER in .env.prod}/mahalle-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      PORT: "3007"
+      NODE_ENV: production
+    depends_on:
+      api: { condition: service_healthy }
+    ports: ["127.0.0.1:3007:3007"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3007/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks: [mahalle]
+
+networks:
+  mahalle:
+    driver: bridge
+
+volumes:
+  mahalle_postgres_data:
+  mahalle_redis_data:
+  mahalle_uploads:
