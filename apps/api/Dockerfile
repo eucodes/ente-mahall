@@ -85,6 +85,7 @@ WORKDIR /app
 COPY --from=builder /app/ .
 
 RUN pnpm deploy --filter @mahalle/api --prod /deploy
+RUN cp -r /app/node_modules/.prisma /deploy/node_modules/.prisma
 
 # ---------------------------------------------------------------------------
 # Stage 4 — runner (final production image)
@@ -97,6 +98,9 @@ ENV NODE_ENV=production
 
 # Copy self-contained deployment produced by pnpm deploy
 COPY --from=deployer /deploy .
+
+# Copy generated prisma client into runner node_modules
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 # Prisma: we need the schema file so migrations / generate can run in the
 # container if needed (e.g. `docker exec api npx prisma migrate deploy`)
