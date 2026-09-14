@@ -154,6 +154,9 @@ importers:
       '@nestjs/throttler':
         specifier: ^6.3.0
         version: 6.5.0(@nestjs/common@10.4.22(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@10.4.22)(reflect-metadata@0.2.2)
+      '@prisma/client':
+        specifier: ^6.19.3
+        version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
@@ -193,13 +196,18 @@ importers:
       zod:
         specifier: ^3.24.1
         version: 3.25.76
+    dependenciesMeta:
+      '@mahalle/database':
+        injected: true
+      '@mahalle/types':
+        injected: true
     devDependencies:
       '@mahalle/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@nestjs/cli':
         specifier: ^10.4.9
-        version: 10.4.9(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28)
+        version: 10.4.9(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)
       '@nestjs/schematics':
         specifier: ^10.2.3
         version: 10.2.3(chokidar@3.6.0)(typescript@5.9.3)
@@ -247,13 +255,13 @@ importers:
         version: 8.70.0(eslint@9.39.5(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)
       unplugin-swc:
         specifier: ^1.5.1
-        version: 1.6.0(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(rollup@4.63.1)(vite@5.4.21(@types/node@22.20.1)(terser@5.51.2))(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28))
+        version: 1.6.0(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(rolldown@1.2.8)(rollup@4.63.1)(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2))(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28))
       vite-tsconfig-paths:
         specifier: ^5.1.4
-        version: 5.1.4(supports-color@8.1.1)(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.1)(terser@5.51.2))
+        version: 5.1.4(supports-color@8.1.1)(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2))
       vitest:
         specifier: ^2.1.8
-        version: 2.1.9(@types/node@22.20.1)(supports-color@8.1.1)(terser@5.51.2)
+        version: 2.1.9(@types/node@22.20.1)(lightningcss@1.33.0)(supports-color@8.1.1)(terser@5.51.2)
 
   apps/web:
     dependencies:
@@ -324,6 +332,9 @@ importers:
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3
+    dependenciesMeta:
+      '@mahalle/types':
+        injected: true
     devDependencies:
       '@mahalle/config':
         specifier: workspace:*
@@ -5884,7 +5895,7 @@ snapshots:
       '@tybys/wasm-util': 0.10.3
     optional: true
 
-  '@nestjs/cli@10.4.9(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28)':
+  '@nestjs/cli@10.4.9(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)':
     dependencies:
       '@angular-devkit/core': 17.3.11(chokidar@3.6.0)
       '@angular-devkit/schematics': 17.3.11(chokidar@3.6.0)
@@ -5894,7 +5905,7 @@ snapshots:
       chokidar: 3.6.0
       cli-table3: 0.6.5
       commander: 4.1.1
-      fork-ts-checker-webpack-plugin: 9.0.2(typescript@5.7.2)(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28))
+      fork-ts-checker-webpack-plugin: 9.0.2(typescript@5.7.2)(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28))
       glob: 10.4.5
       inquirer: 8.2.6
       node-emoji: 1.11.0
@@ -5903,7 +5914,7 @@ snapshots:
       tsconfig-paths: 4.2.0
       tsconfig-paths-webpack-plugin: 4.2.0
       typescript: 5.7.2
-      webpack: 5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28)
+      webpack: 5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)
       webpack-node-externals: 3.0.0
     optionalDependencies:
       '@swc/core': 1.16.2(@swc/helpers@0.5.23)
@@ -6956,13 +6967,13 @@ snapshots:
       chai: 5.3.3
       tinyrainbow: 1.2.0
 
-  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@22.20.1)(terser@5.51.2))':
+  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2))':
     dependencies:
       '@vitest/spy': 2.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 5.4.21(@types/node@22.20.1)(terser@5.51.2)
+      vite: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2)
 
   '@vitest/mocker@5.0.0(vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.13))':
     dependencies:
@@ -8326,7 +8337,7 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  fork-ts-checker-webpack-plugin@9.0.2(typescript@5.7.2)(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28)):
+  fork-ts-checker-webpack-plugin@9.0.2(typescript@5.7.2)(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)):
     dependencies:
       '@babel/code-frame': 7.29.7
       chalk: 4.1.2
@@ -8341,7 +8352,7 @@ snapshots:
       semver: 7.8.5
       tapable: 2.3.3
       typescript: 5.7.2
-      webpack: 5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28)
+      webpack: 5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)
 
   form-data@4.0.6:
     dependencies:
@@ -9915,16 +9926,17 @@ snapshots:
 
   tapable@2.3.3: {}
 
-  terser-webpack-plugin@5.6.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28)(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28)):
+  terser-webpack-plugin@5.6.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
       schema-utils: 4.3.3
       terser: 5.51.2
-      webpack: 5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28)
+      webpack: 5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)
     optionalDependencies:
       '@swc/core': 1.16.2(@swc/helpers@0.5.23)
       esbuild: 0.28.2
+      lightningcss: 1.33.0
       postcss: 8.5.28
 
   terser@5.51.2:
@@ -10136,12 +10148,12 @@ snapshots:
 
   unpipe@1.0.0: {}
 
-  unplugin-swc@1.6.0(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(rollup@4.63.1)(vite@5.4.21(@types/node@22.20.1)(terser@5.51.2))(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28)):
+  unplugin-swc@1.6.0(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(rolldown@1.2.8)(rollup@4.63.1)(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2))(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)):
     dependencies:
       '@rollup/pluginutils': 5.4.0(rollup@4.63.1)
       '@swc/core': 1.16.2(@swc/helpers@0.5.23)
       load-tsconfig: 0.2.5
-      unplugin: 3.3.0(esbuild@0.28.2)(rollup@4.63.1)(vite@5.4.21(@types/node@22.20.1)(terser@5.51.2))(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28))
+      unplugin: 3.3.0(esbuild@0.28.2)(rolldown@1.2.8)(rollup@4.63.1)(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2))(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28))
     transitivePeerDependencies:
       - '@farmfe/core'
       - '@rspack/core'
@@ -10153,16 +10165,17 @@ snapshots:
       - vite
       - webpack
 
-  unplugin@3.3.0(esbuild@0.28.2)(rollup@4.63.1)(vite@5.4.21(@types/node@22.20.1)(terser@5.51.2))(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28)):
+  unplugin@3.3.0(esbuild@0.28.2)(rolldown@1.2.8)(rollup@4.63.1)(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2))(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)):
     dependencies:
       '@jridgewell/remapping': 2.3.5
       picomatch: 4.0.7
       webpack-virtual-modules: 0.6.2
     optionalDependencies:
       esbuild: 0.28.2
+      rolldown: 1.2.8
       rollup: 4.63.1
-      vite: 5.4.21(@types/node@22.20.1)(terser@5.51.2)
-      webpack: 5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28)
+      vite: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2)
+      webpack: 5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)
 
   unrs-resolver@1.12.2:
     dependencies:
@@ -10224,13 +10237,13 @@ snapshots:
 
   vary@1.1.2: {}
 
-  vite-node@2.1.9(@types/node@22.20.1)(supports-color@8.1.1)(terser@5.51.2):
+  vite-node@2.1.9(@types/node@22.20.1)(lightningcss@1.33.0)(supports-color@8.1.1)(terser@5.51.2):
     dependencies:
       cac: 6.7.14
       debug: 4.4.3(supports-color@8.1.1)
       es-module-lexer: 1.7.0
       pathe: 1.1.2
-      vite: 5.4.21(@types/node@22.20.1)(terser@5.51.2)
+      vite: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -10242,18 +10255,18 @@ snapshots:
       - supports-color
       - terser
 
-  vite-tsconfig-paths@5.1.4(supports-color@8.1.1)(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.1)(terser@5.51.2)):
+  vite-tsconfig-paths@5.1.4(supports-color@8.1.1)(typescript@5.9.3)(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2)):
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       globrex: 0.1.2
       tsconfck: 3.1.6(typescript@5.9.3)
     optionalDependencies:
-      vite: 5.4.21(@types/node@22.20.1)(terser@5.51.2)
+      vite: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2)
     transitivePeerDependencies:
       - supports-color
       - typescript
 
-  vite@5.4.21(@types/node@22.20.1)(terser@5.51.2):
+  vite@5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2):
     dependencies:
       esbuild: 0.21.5
       postcss: 8.5.28
@@ -10261,6 +10274,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.20.1
       fsevents: 2.3.3
+      lightningcss: 1.33.0
       terser: 5.51.2
 
   vite@8.3.0(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.13):
@@ -10278,10 +10292,10 @@ snapshots:
       terser: 5.51.2
       tsx: 4.23.13
 
-  vitest@2.1.9(@types/node@22.20.1)(supports-color@8.1.1)(terser@5.51.2):
+  vitest@2.1.9(@types/node@22.20.1)(lightningcss@1.33.0)(supports-color@8.1.1)(terser@5.51.2):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@22.20.1)(terser@5.51.2))
+      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9
@@ -10297,8 +10311,8 @@ snapshots:
       tinyexec: 0.3.2
       tinypool: 1.1.1
       tinyrainbow: 1.2.0
-      vite: 5.4.21(@types/node@22.20.1)(terser@5.51.2)
-      vite-node: 2.1.9(@types/node@22.20.1)(supports-color@8.1.1)(terser@5.51.2)
+      vite: 5.4.21(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.51.2)
+      vite-node: 2.1.9(@types/node@22.20.1)(lightningcss@1.33.0)(supports-color@8.1.1)(terser@5.51.2)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.20.1
@@ -10350,7 +10364,7 @@ snapshots:
 
   webpack-virtual-modules@0.6.2: {}
 
-  webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28):
+  webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28):
     dependencies:
       '@types/eslint-scope': 3.7.7
       '@types/estree': 1.0.9
@@ -10372,7 +10386,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 3.3.0
       tapable: 2.3.3
-      terser-webpack-plugin: 5.6.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28)(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(postcss@8.5.28))
+      terser-webpack-plugin: 5.6.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(webpack@5.97.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28))
       watchpack: 2.5.2
       webpack-sources: 3.5.1
     transitivePeerDependencies:
