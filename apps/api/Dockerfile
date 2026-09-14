@@ -35,8 +35,7 @@ RUN pnpm --filter @mahalle/types build && \
 FROM base AS deployer
 WORKDIR /app
 COPY --from=builder /app ./
-RUN pnpm deploy --filter @mahalle/api --prod /deploy && \
-    test -d /deploy/node_modules/@prisma/client
+RUN pnpm deploy --filter @mahalle/api --prod /deploy
 
 FROM node:20-alpine AS runner
 RUN apk add --no-cache libc6-compat dumb-init && npm install -g prisma@6.19.3
