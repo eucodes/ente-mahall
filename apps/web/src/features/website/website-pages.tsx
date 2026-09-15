@@ -27,7 +27,7 @@ interface PageItem {
 }
 
 export function WebsitePages({ slug, tenantName }: WebsitePagesProps) {
-  const publicBase = `https://${slug}.mahalle.app`;
+  const publicBase = `https://${slug}.eucodes.tech`;
 
   const pages: PageItem[] = [
     {

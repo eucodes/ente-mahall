@@ -37,7 +37,7 @@ export function WebsiteDomains({ slug, tenantName }: WebsiteDomainsProps) {
   const [domains, setDomains] = useState<DomainItem[]>([
     {
       id: "default-subdomain",
-      domain: `${slug}.mahalle.app`,
+      domain: `${slug}.eucodes.tech`,
       subdomainPrefix: slug,
       type: "subdomain",
       status: "ACTIVE",
@@ -76,10 +76,10 @@ export function WebsiteDomains({ slug, tenantName }: WebsiteDomainsProps) {
       prev.map((d) =>
         d.type === "subdomain"
           ? {
-              ...d,
-              domain: `${trimmed}.mahalle.app`,
-              subdomainPrefix: trimmed
-            }
+            ...d,
+            domain: `${trimmed}.eucodes.tech`,
+            subdomainPrefix: trimmed
+          }
           : d
       )
     );
@@ -190,7 +190,7 @@ export function WebsiteDomains({ slug, tenantName }: WebsiteDomainsProps) {
         </CardContent>
       </Card>
 
-      {/* 1. Subdomain Edit Modal (Matching User Image 2: "Subdomain" [input][.mahalle.app]) */}
+      {/* 1. Subdomain Edit Modal (Matching User Image 2: "Subdomain" [input][.eucodes.tech]) */}
       <Dialog open={editSubdomainModalOpen} onOpenChange={setEditSubdomainModalOpen}>
         <DialogContent className="max-w-md rounded-3xl p-6 border-border/80">
           <DialogHeader>
@@ -200,7 +200,7 @@ export function WebsiteDomains({ slug, tenantName }: WebsiteDomainsProps) {
           </DialogHeader>
 
           <div className="py-3 space-y-3">
-            {/* Input with fixed .mahalle.app addon */}
+            {/* Input with fixed .eucodes.tech addon */}
             <div className="flex items-center rounded-xl border border-border/80 bg-background overflow-hidden focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500">
               <input
                 type="text"
@@ -210,7 +210,7 @@ export function WebsiteDomains({ slug, tenantName }: WebsiteDomainsProps) {
                 className="flex-1 bg-transparent px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-hidden font-mono"
               />
               <span className="bg-muted/50 border-l border-border/70 px-3.5 py-2.5 text-sm text-muted-foreground font-mono select-none">
-                .mahalle.app
+                .eucodes.tech
               </span>
             </div>
           </div>
@@ -263,10 +263,10 @@ export function WebsiteDomains({ slug, tenantName }: WebsiteDomainsProps) {
             <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 space-y-2 text-xs">
               <span className="font-bold text-foreground block">DNS Setup (CNAME Record)</span>
               <div className="flex items-center justify-between bg-card p-2 rounded-xl border border-border/50">
-                <span className="text-muted-foreground font-mono text-xs">Target: cname.mahalle.app</span>
+                <span className="text-muted-foreground font-mono text-xs">Target: cname.eucodes.tech</span>
                 <button
                   type="button"
-                  onClick={() => copyToClipboard("cname.mahalle.app", "cname")}
+                  onClick={() => copyToClipboard("cname.eucodes.tech", "cname")}
                   className="p-1 hover:text-foreground text-muted-foreground transition-colors"
                   title="Copy"
                 >

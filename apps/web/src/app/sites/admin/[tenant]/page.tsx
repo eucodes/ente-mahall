@@ -40,7 +40,7 @@ export default async function TenantAdminHomePage({
   }
 
   const tenant = membership.tenant;
-  const publicUrl = `https://${slug}.mahalle.app`;
+  const publicUrl = `https://${slug}.eucodes.tech`;
 
   // Calculate profile completeness score
   let completedFields = 0;

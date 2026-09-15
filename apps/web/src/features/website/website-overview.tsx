@@ -37,7 +37,7 @@ export function WebsiteOverview({ slug, tenantName, masjidName }: WebsiteOvervie
   const [sitePassword, setSitePassword] = useState("");
   const [savedPassword, setSavedPassword] = useState(false);
 
-  const publicUrl = `https://${slug}.mahalle.app`;
+  const publicUrl = `https://${slug}.eucodes.tech`;
   const displayName = masjidName || tenantName || "Ente Mahall";
 
   const handleSavePassword = () => {
@@ -169,16 +169,14 @@ export function WebsiteOverview({ slug, tenantName, masjidName }: WebsiteOvervie
               <button
                 type="button"
                 onClick={() => setIsPasswordProtected(!isPasswordProtected)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                  isPasswordProtected ? "bg-emerald-600" : "bg-muted"
-                }`}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${isPasswordProtected ? "bg-emerald-600" : "bg-muted"
+                  }`}
                 role="switch"
                 aria-checked={isPasswordProtected}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                    isPasswordProtected ? "translate-x-5" : "translate-x-0"
-                  }`}
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${isPasswordProtected ? "translate-x-5" : "translate-x-0"
+                    }`}
                 />
               </button>
             </div>
@@ -210,7 +208,7 @@ export function WebsiteOverview({ slug, tenantName, masjidName }: WebsiteOvervie
                   rel="noopener noreferrer"
                   className="hover:underline hover:text-foreground"
                 >
-                  {slug}.mahalle.app
+                  {slug}.eucodes.tech
                 </a>
               </div>
             </div>
