@@ -13,9 +13,11 @@
     }
   },
   "scripts": {
+    "build": "tsc -p tsconfig.cjs.json && tsc -p tsconfig.seed.json && echo '{\"type\": \"commonjs\"}' > dist/package.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json && tsc -p tsconfig.seed.json && echo '{\"type\": \"commonjs\"}' > dist/package.json",
+    "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
-    "prisma": "prisma",
-    "build:cjs": "tsc -p tsconfig.cjs.json && tsc -p tsconfig.seed.json && echo '{\"type\": \"commonjs\"}' > dist/package.json"
+    "prisma": "prisma"
   },
   "dependencies": {
     "@mahalle/types": "workspace:*",
