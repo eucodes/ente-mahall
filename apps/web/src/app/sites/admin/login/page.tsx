@@ -5,14 +5,23 @@ import { getSession } from "@/lib/session";
 import { LoginForm } from "@/features/auth/login-form";
 import { AuthShell } from "@/components/auth-shell";
 
+function sanitizeReturnTo(url?: string | null): string {
+  if (!url) return "/";
+  if (url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\")) {
+    return url;
+  }
+  return "/";
+}
+
 export default async function AdminLoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ reason?: string }>;
+  searchParams: Promise<{ reason?: string; returnTo?: string; redirect?: string }>;
 }) {
-  const [{ reason }, user] = await Promise.all([searchParams, getSession()]);
+  const [{ reason, returnTo, redirect: redir }, user] = await Promise.all([searchParams, getSession()]);
+  const destination = sanitizeReturnTo(returnTo || redir);
   if (user) {
-    redirect("/");
+    redirect(destination);
   }
 
   return (
@@ -25,7 +34,7 @@ export default async function AdminLoginPage({
         </CardHeader>
         <CardContent className="space-y-4">
           <LoginForm
-            redirectTo="/"
+            redirectTo={destination}
             inactivityNotice={reason === "inactivity"}
             sessionExpiredNotice={reason === "expired"}
           />

@@ -5,15 +5,31 @@ import { getMemberSession } from "@/lib/member-session";
 import { getPublicTenant } from "@/lib/tenants";
 import { MemberOtpLoginForm } from "@/features/auth/member-otp-login-form";
 
-export default async function TenantLoginPage({ params }: { params: Promise<{ tenant: string }> }) {
+function sanitizeReturnTo(url?: string | null): string {
+  if (!url) return "/";
+  if (url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\")) {
+    return url;
+  }
+  return "/";
+}
+
+export default async function TenantLoginPage({
+  params,
+  searchParams
+}: {
+  params: Promise<{ tenant: string }>;
+  searchParams: Promise<{ reason?: string; returnTo?: string; redirect?: string }>;
+}) {
   const { tenant: slug } = await params;
-  const [member, tenant] = await Promise.all([
+  const [{ reason, returnTo, redirect: redir }, member, tenant] = await Promise.all([
+    searchParams,
     getMemberSession(slug),
     getPublicTenant(slug)
   ]);
+  const destination = sanitizeReturnTo(returnTo || redir);
 
   if (member) {
-    redirect("/dashboard");
+    redirect(destination === "/" ? "/dashboard" : destination);
   }
 
   const mahalleName = tenant?.name ?? `${slug.toUpperCase()} Mahalle`;
@@ -37,7 +53,12 @@ export default async function TenantLoginPage({ params }: { params: Promise<{ te
         </CardHeader>
 
         <CardContent className="pt-2 pb-6 space-y-4">
-          <MemberOtpLoginForm tenantSlug={slug} redirectTo="/" />
+          <MemberOtpLoginForm
+            tenantSlug={slug}
+            redirectTo={destination}
+            inactivityNotice={reason === "inactivity"}
+            sessionExpiredNotice={reason === "expired"}
+          />
 
           <div className="pt-4 border-t border-border/60 text-center">
             <Link href="/" className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground">

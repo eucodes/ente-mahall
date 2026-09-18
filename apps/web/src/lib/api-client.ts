@@ -12,7 +12,8 @@ export const apiClient = new ApiClient({
     if (typeof window !== "undefined") {
       const path = window.location.pathname;
       if (!path.includes("/login") && !path.includes("/register") && !path.includes("/onboarding")) {
-        window.location.href = "/login?reason=expired";
+        const currentPath = window.location.pathname + window.location.search;
+        window.location.href = `/login?reason=expired&returnTo=${encodeURIComponent(currentPath)}`;
       }
     }
   }

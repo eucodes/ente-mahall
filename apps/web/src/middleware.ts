@@ -33,7 +33,13 @@ export function middleware(request: NextRequest) {
 
   const rewritten = url.clone();
   rewritten.pathname = target;
-  return NextResponse.rewrite(rewritten);
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", url.pathname + (url.search || ""));
+  return NextResponse.rewrite(rewritten, {
+    request: {
+      headers: requestHeaders
+    }
+  });
 }
 
 export const config = {

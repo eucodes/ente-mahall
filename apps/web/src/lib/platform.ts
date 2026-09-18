@@ -232,18 +232,35 @@ export interface StatewideUser {
   phone: string | null;
   isActive: boolean;
   createdAt: string;
+  updatedAt?: string;
   platformRole: string | null;
+  platformMembershipId?: string | null;
   tenants: Array<{
     id: string;
     name: string;
     slug: string;
-    role: string;
+    roleId?: string;
+    roleKey?: string;
+    roleName?: string;
+    role?: string;
   }>;
   activeSessionsCount: number;
 }
 
-export async function getAllUsers(search?: string): Promise<StatewideUser[]> {
-  const path = search ? `/platform/all-users?search=${encodeURIComponent(search)}` : "/platform/all-users";
+export async function getAllUsers(query?: {
+  search?: string;
+  roleFilter?: string;
+  tenantId?: string;
+  status?: string;
+}): Promise<StatewideUser[]> {
+  const params = new URLSearchParams();
+  if (query?.search) params.set("search", query.search);
+  if (query?.roleFilter && query.roleFilter !== "all") params.set("roleFilter", query.roleFilter);
+  if (query?.tenantId && query.tenantId !== "all") params.set("tenantId", query.tenantId);
+  if (query?.status && query.status !== "all") params.set("status", query.status);
+
+  const qs = params.toString();
+  const path = qs ? `/platform/all-users?${qs}` : "/platform/all-users";
   const { status, body } = await serverApiGet<{ users: StatewideUser[] }>(path);
   if (status !== 200 || !body.success || !body.data) return [];
   return body.data.users;
@@ -292,5 +309,70 @@ export async function getUserSessions(userId: string): Promise<PlatformUserSessi
   );
   if (status !== 200 || !body.success || !body.data) return [];
   return body.data.sessions;
+}
+
+export interface PlatformSettings {
+  platformName: string;
+  rootDomain: string;
+  supportEmail: string;
+  defaultCurrency: string;
+  timezone: string;
+  locale: string;
+  sessionTimeoutMinutes: number;
+  require2FAForSuperadmins: boolean;
+  maxConcurrentSessions: number;
+  autoApproveTenants: boolean;
+  defaultTrialDays: number;
+  allowPublicRegistration: boolean;
+  auditRetentionDays: number;
+  logIpAddresses: boolean;
+  logUserAgents: boolean;
+}
+
+export async function getPlatformSettings(): Promise<PlatformSettings | null> {
+  const { status, body } = await serverApiGet<{ settings: PlatformSettings }>("/platform/settings");
+  if (status !== 200 || !body.success || !body.data) return null;
+  return body.data.settings;
+}
+
+export interface PlatformRoleMember {
+  membershipId: string;
+  id: string;
+  email: string;
+  fullName: string;
+  phone: string | null;
+  isActive: boolean;
+}
+
+export interface PlatformRoleInfo {
+  key: string;
+  name: string;
+  description: string;
+  badge: string;
+  membersCount: number;
+  members: PlatformRoleMember[];
+}
+
+export interface PlatformPermissionItem {
+  key: string;
+  name: string;
+  description: string;
+}
+
+export interface PlatformPermissionCategory {
+  category: string;
+  permissions: PlatformPermissionItem[];
+}
+
+export interface PlatformRolesMatrixResponse {
+  roles: PlatformRoleInfo[];
+  categories: PlatformPermissionCategory[];
+  rolePermissions: Record<string, string[] | "*">;
+}
+
+export async function getPlatformRolesMatrix(): Promise<PlatformRolesMatrixResponse | null> {
+  const { status, body } = await serverApiGet<PlatformRolesMatrixResponse>("/platform/roles-matrix");
+  if (status !== 200 || !body.success || !body.data) return null;
+  return body.data;
 }
 

@@ -98,7 +98,13 @@ export function IdleTimeoutProvider({
         await apiClient.post(logoutEndpoint).catch(() => undefined);
       } finally {
         if (typeof window !== "undefined") {
-          window.location.href = reasonUrl;
+          let destination = reasonUrl;
+          const currentPath = window.location.pathname + window.location.search;
+          if (currentPath && currentPath !== "/" && !currentPath.startsWith("/login")) {
+            const separator = destination.includes("?") ? "&" : "?";
+            destination = `${destination}${separator}returnTo=${encodeURIComponent(currentPath)}`;
+          }
+          window.location.href = destination;
         }
       }
     },

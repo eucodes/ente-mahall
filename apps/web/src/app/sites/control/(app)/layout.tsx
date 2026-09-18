@@ -16,7 +16,7 @@ import {
   Sparkles,
   Users
 } from "@mahalle/ui";
-import { getSession } from "@/lib/session";
+import { getSession, redirectToLogin } from "@/lib/session";
 import { getPlatformSession } from "@/lib/platform";
 import { LogoutButton } from "@/features/auth/logout-button";
 import { ControlBreadcrumbs } from "@/features/platform/control-breadcrumbs";
@@ -27,7 +27,7 @@ import { IdleTimeoutProvider } from "@/features/auth/idle-timeout-provider";
 export default async function ControlPlaneLayout({ children }: { children: ReactNode }) {
   const user = await getSession();
   if (!user) {
-    redirect("/login");
+    return await redirectToLogin();
   }
 
   const platformSession = await getPlatformSession();
@@ -35,8 +35,11 @@ export default async function ControlPlaneLayout({ children }: { children: React
   const navItems = [
     { label: "Overview", href: "/", icon: <Home />, exact: true },
     { label: "Fleet & Mahalles", href: "/tenants", icon: <Building /> },
+    { label: "User Access & Accounts", href: "/users", icon: <Users /> },
+    { label: "Platform Roles", href: "/roles", icon: <ShieldCheck /> },
     { label: "Platform Analytics", href: "/analytics", icon: <LayoutGrid /> },
     { label: "Plans & Billing", href: "/plans", icon: <CreditCard /> },
+    { label: "System Settings", href: "/settings", icon: <Settings /> },
     { label: "Audit Stream", href: "/audit-logs", icon: <ScrollText /> }
   ];
 

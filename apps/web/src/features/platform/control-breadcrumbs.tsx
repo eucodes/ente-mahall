@@ -6,7 +6,9 @@ import { useTenantName } from "./tenant-name-context";
 
 const SEGMENT_LABELS: Record<string, string> = {
   tenants: "Fleet & Mahalles",
-  users: "User Directory",
+  users: "User Access & Accounts",
+  roles: "Platform Roles",
+  settings: "System Settings",
   sessions: "Sessions",
   forms: "Forms Engine",
   features: "Features & Flags",

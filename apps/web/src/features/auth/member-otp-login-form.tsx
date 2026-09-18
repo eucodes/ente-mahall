@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, FormField, Input, Phone, useToast } from "@mahalle/ui";
+import { Alert, AlertDescription, AlertTitle, Button, Clock, FormField, Input, Phone, useToast } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 
 export interface MemberOtpLoginFormProps {
@@ -10,13 +10,22 @@ export interface MemberOtpLoginFormProps {
   tenantSlug: string;
   /** Where to send the member after a successful login. */
   redirectTo: string;
+  /** Whether the user was automatically logged out due to inactivity. */
+  inactivityNotice?: boolean;
+  /** Whether the user's session expired. */
+  sessionExpiredNotice?: boolean;
 }
 
 type Step = "phone" | "code";
 
 const RESEND_COOLDOWN_SECONDS = 30;
 
-export function MemberOtpLoginForm({ tenantSlug, redirectTo }: MemberOtpLoginFormProps) {
+export function MemberOtpLoginForm({
+  tenantSlug,
+  redirectTo,
+  inactivityNotice = false,
+  sessionExpiredNotice = false
+}: MemberOtpLoginFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [step, setStep] = useState<Step>("phone");
@@ -61,7 +70,13 @@ export function MemberOtpLoginForm({ tenantSlug, redirectTo }: MemberOtpLoginFor
       await apiClient.post(`/tenants/${encodeURIComponent(tenantSlug)}/member-auth/otp/verify`, { phone, code });
       toast({ title: "Welcome back", variant: "success" });
       if (typeof window !== "undefined") {
-        window.location.href = redirectTo || "/";
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryReturnTo = urlParams.get("returnTo") || urlParams.get("redirect");
+        const target =
+          queryReturnTo && queryReturnTo.startsWith("/") && !queryReturnTo.startsWith("//") && !queryReturnTo.startsWith("/\\")
+            ? queryReturnTo
+            : redirectTo || "/";
+        window.location.href = target;
       }
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
@@ -71,9 +86,38 @@ export function MemberOtpLoginForm({ tenantSlug, redirectTo }: MemberOtpLoginFor
     }
   }
 
+  const notices = (
+    <>
+      {inactivityNotice && (
+        <Alert variant="warning" className="flex items-start gap-3 mb-4">
+          <Clock className="h-4 w-4 mt-0.5 shrink-0" />
+          <div>
+            <AlertTitle className="font-semibold">Session Expired</AlertTitle>
+            <AlertDescription>
+              You were automatically logged out due to inactivity. Please log in again to continue.
+            </AlertDescription>
+          </div>
+        </Alert>
+      )}
+
+      {sessionExpiredNotice && !inactivityNotice && (
+        <Alert variant="warning" className="flex items-start gap-3 mb-4">
+          <Clock className="h-4 w-4 mt-0.5 shrink-0" />
+          <div>
+            <AlertTitle className="font-semibold">Session Expired</AlertTitle>
+            <AlertDescription>
+              Your session has expired. Please log in again to continue.
+            </AlertDescription>
+          </div>
+        </Alert>
+      )}
+    </>
+  );
+
   if (step === "phone") {
     return (
       <form onSubmit={handleRequestOtp} className="space-y-4" noValidate>
+        {notices}
         <FormField
           label="Phone number"
           htmlFor="member-phone"

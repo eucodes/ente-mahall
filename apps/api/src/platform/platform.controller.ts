@@ -16,6 +16,12 @@ import { GrantPlatformAccessDto } from "./dto/grant-platform-access.dto";
 import { UpdatePlatformRoleDto } from "./dto/update-platform-role.dto";
 import { ProvisionTenantDto } from "./dto/provision-tenant.dto";
 import { UpdateTenantProfileDto } from "./dto/update-tenant-profile.dto";
+import { CreatePlatformUserDto } from "./dto/create-platform-user.dto";
+import { UpdateUserProfileDto } from "./dto/update-user-profile.dto";
+import { ResetUserPasswordDto } from "./dto/reset-user-password.dto";
+import { AssignUserTenantDto } from "./dto/assign-user-tenant.dto";
+import { BulkDeleteUsersDto } from "./dto/bulk-delete-users.dto";
+import { UpdatePlatformSettingsDto } from "./dto/update-platform-settings.dto";
 
 
 function requestContext(req: Request) {
@@ -248,9 +254,169 @@ export class PlatformController {
   }
 
   @Get("all-users")
-  async allUsers(@Query("search") search?: string) {
-    const users = await this.platformService.listAllUsers(search);
+  async allUsers(
+    @Query("search") search?: string,
+    @Query("roleFilter") roleFilter?: string,
+    @Query("tenantId") tenantId?: string,
+    @Query("status") status?: string
+  ) {
+    const users = await this.platformService.listAllUsers({ search, roleFilter, tenantId, status });
     return { users };
+  }
+
+  @Post("all-users")
+  @RequirePlatformRole(PlatformRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  async createPlatformUser(
+    @Body() dto: CreatePlatformUserDto,
+    @CurrentPlatformMembership() membership: PlatformMembership,
+    @Req() req: Request
+  ) {
+    const user = await this.platformService.createPlatformUser(dto, membership.userId, requestContext(req));
+    return { user };
+  }
+
+  @Get("all-users/:userId")
+  async getUserDetail(@Param("userId") userId: string) {
+    const user = await this.platformService.getUserDetail(userId);
+    return { user };
+  }
+
+  @Patch("all-users/:userId")
+  @RequirePlatformRole(PlatformRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async updateUserProfile(
+    @Param("userId") userId: string,
+    @Body() dto: UpdateUserProfileDto,
+    @CurrentPlatformMembership() membership: PlatformMembership,
+    @Req() req: Request
+  ) {
+    const user = await this.platformService.updateUserProfile(userId, dto, membership.userId, requestContext(req));
+    return { user };
+  }
+
+  @Patch("all-users/:userId/status")
+  @RequirePlatformRole(PlatformRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async toggleUserStatus(
+    @Param("userId") userId: string,
+    @Body("isActive") isActive: boolean,
+    @CurrentPlatformMembership() membership: PlatformMembership,
+    @Req() req: Request
+  ) {
+    const user = await this.platformService.toggleUserStatus(userId, isActive, membership.userId, requestContext(req));
+    return { user };
+  }
+
+  @Post("all-users/:userId/reset-password")
+  @RequirePlatformRole(PlatformRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async resetUserPassword(
+    @Param("userId") userId: string,
+    @Body() dto: ResetUserPasswordDto,
+    @CurrentPlatformMembership() membership: PlatformMembership,
+    @Req() req: Request
+  ) {
+    await this.platformService.resetUserPassword(userId, dto, membership.userId, requestContext(req));
+    return { success: true };
+  }
+
+  @Post("all-users/:userId/platform-role")
+  @RequirePlatformRole(PlatformRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async setUserPlatformRole(
+    @Param("userId") userId: string,
+    @Body("role") role: PlatformRole | null,
+    @CurrentPlatformMembership() membership: PlatformMembership,
+    @Req() req: Request
+  ) {
+    const user = await this.platformService.setUserPlatformRole(userId, role, membership.userId, requestContext(req));
+    return { user };
+  }
+
+  @Post("all-users/:userId/tenants")
+  @RequirePlatformRole(PlatformRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async assignUserTenant(
+    @Param("userId") userId: string,
+    @Body() dto: AssignUserTenantDto,
+    @CurrentPlatformMembership() membership: PlatformMembership,
+    @Req() req: Request
+  ) {
+    const user = await this.platformService.assignUserTenant(userId, dto, membership.userId, requestContext(req));
+    return { user };
+  }
+
+  @Delete("all-users/:userId/tenants/:tenantId")
+  @RequirePlatformRole(PlatformRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async removeUserTenant(
+    @Param("userId") userId: string,
+    @Param("tenantId") tenantId: string,
+    @CurrentPlatformMembership() membership: PlatformMembership,
+    @Req() req: Request
+  ) {
+    const user = await this.platformService.removeUserTenant(userId, tenantId, membership.userId, requestContext(req));
+    return { user };
+  }
+
+  @Post("all-users/:userId/terminate-sessions")
+  @RequirePlatformRole(PlatformRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async terminateUserSessions(
+    @Param("userId") userId: string,
+    @CurrentPlatformMembership() membership: PlatformMembership,
+    @Req() req: Request
+  ) {
+    await this.platformService.terminateUserSessions(userId, membership.userId, requestContext(req));
+    return { success: true };
+  }
+
+  @Delete("all-users/:userId")
+  @RequirePlatformRole(PlatformRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async deleteUser(
+    @Param("userId") userId: string,
+    @CurrentPlatformMembership() membership: PlatformMembership,
+    @Req() req: Request
+  ) {
+    await this.platformService.deleteUser(userId, membership.userId, requestContext(req));
+    return { success: true };
+  }
+
+  @Post("all-users/bulk-delete")
+  @RequirePlatformRole(PlatformRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async bulkDeleteUsers(
+    @Body() dto: BulkDeleteUsersDto,
+    @CurrentPlatformMembership() membership: PlatformMembership,
+    @Req() req: Request
+  ) {
+    const result = await this.platformService.bulkDeleteUsers(dto.userIds, membership.userId, requestContext(req));
+    return result;
+  }
+
+  @Get("settings")
+  async getSettings() {
+    const settings = await this.platformService.getPlatformSettings();
+    return { settings };
+  }
+
+  @Patch("settings")
+  @RequirePlatformRole(PlatformRole.SUPER_ADMIN)
+  async updateSettings(
+    @Body() dto: UpdatePlatformSettingsDto,
+    @CurrentPlatformMembership() membership: PlatformMembership,
+    @Req() req: Request
+  ) {
+    const settings = await this.platformService.updatePlatformSettings(dto, membership.userId, requestContext(req));
+    return { settings };
+  }
+
+  @Get("roles-matrix")
+  async getRolesMatrix() {
+    const data = await this.platformService.getPlatformRolesMatrix();
+    return data;
   }
 
   @Get("system/status")

@@ -1,9 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException, OnModuleInit } from "@nestjs/common";
 import { PrismaService } from "../database/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import type { RequestContext } from "../platform/platform.service";
 import { CreateFeatureDto } from "./dto/create-feature.dto";
 import { UpdateFeatureDto } from "./dto/update-feature.dto";
+import { SYSTEM_FEATURES } from "./feature-catalog";
 
 export interface FeatureSummary {
   id: string;
@@ -31,13 +32,42 @@ export interface TenantFeatureStatus {
 }
 
 @Injectable()
-export class FeaturesService {
+export class FeaturesService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService
   ) {}
 
+  async onModuleInit() {
+    await this.syncCanonicalFeatures();
+  }
+
+  async syncCanonicalFeatures(): Promise<void> {
+    try {
+      for (const f of SYSTEM_FEATURES) {
+        await this.prisma.feature.upsert({
+          where: { key: f.key },
+          update: {
+            name: f.name,
+            description: f.description,
+            category: f.category
+          },
+          create: {
+            key: f.key,
+            name: f.name,
+            description: f.description,
+            category: f.category,
+            isEnabledGlobally: f.isEnabledGlobally
+          }
+        });
+      }
+    } catch {
+      // Non-fatal if DB is initializing or connection transient
+    }
+  }
+
   async listFeatures(): Promise<FeatureSummary[]> {
+    await this.syncCanonicalFeatures();
     const features = await this.prisma.feature.findMany({
       orderBy: [{ category: "asc" }, { name: "asc" }],
       include: { _count: { select: { overrides: true } } }
@@ -167,6 +197,7 @@ export class FeaturesService {
 
   /** Every feature's effective state for one Mahalle — Section J's "Feature configuration". */
   async getTenantFeatures(tenantId: string): Promise<TenantFeatureStatus[]> {
+    await this.syncCanonicalFeatures();
     const [features, overrides, planEntitledIds] = await Promise.all([
       this.prisma.feature.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] }),
       this.prisma.tenantFeatureOverride.findMany({ where: { tenantId } }),

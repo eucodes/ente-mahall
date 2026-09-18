@@ -2,6 +2,8 @@ import "server-only";
 import { cookies, headers } from "next/headers";
 import { API_URL, appScopeFromHost } from "./env";
 
+export const SERVER_API_URL = process.env.INTERNAL_API_URL ?? API_URL;
+
 export interface ApiEnvelope<T> {
   success: boolean;
   data?: T;
@@ -25,7 +27,7 @@ export async function serverApiGet<T>(path: string): Promise<{ status: number; b
   // Origin header for it to infer that from.
   const appScope = appScopeFromHost(headerStore.get("host") ?? "");
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${SERVER_API_URL}${path}`, {
     headers: {
       ...(cookieHeader ? { cookie: cookieHeader } : {}),
       "x-app": appScope

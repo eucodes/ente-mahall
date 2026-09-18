@@ -107,7 +107,7 @@ export function StatewideUsersTable({ users }: StatewideUsersTableProps) {
                             className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-foreground hover:bg-muted hover:text-primary transition-colors"
                           >
                             <span>{t.name}</span>
-                            <span className="text-muted-foreground">({t.role})</span>
+                            <span className="text-muted-foreground">({t.roleName || t.role || t.roleKey})</span>
                           </Link>
                         ))}
                       </div>

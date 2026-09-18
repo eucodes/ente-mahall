@@ -59,7 +59,13 @@ export function LoginForm({
       await apiClient.post<{ user: User }>("/auth/login", { email, password });
       toast({ title: "Welcome back", variant: "success" });
       if (typeof window !== "undefined") {
-        window.location.href = redirectTo || "/";
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryReturnTo = urlParams.get("returnTo") || urlParams.get("redirect");
+        const target =
+          queryReturnTo && queryReturnTo.startsWith("/") && !queryReturnTo.startsWith("//") && !queryReturnTo.startsWith("/\\")
+            ? queryReturnTo
+            : redirectTo || "/";
+        window.location.href = target;
       }
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";

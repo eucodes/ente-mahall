@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/session";
+import { getSession, redirectToLogin } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
 import { getServiceRequests } from "@/lib/services";
 import { getDues } from "@/lib/finance";
@@ -19,7 +19,7 @@ export default async function TenantAdminLayout({
   const { tenant: slug } = await params;
   const user = await getSession();
   if (!user) {
-    redirect("/login");
+    return await redirectToLogin();
   }
 
   const membership = await getMyTenantMembership(slug);
