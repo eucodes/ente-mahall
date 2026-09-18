@@ -174,7 +174,7 @@ export function AccountsClient({ slug, initialAccounts }: Props) {
           <form onSubmit={handleSubmit} className="space-y-4 pt-2">
             <FormField label="Account Name" required>
               <Input
-                placeholder="e.g. Mosque Renovation Fund"
+                placeholder="Enter account name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -184,7 +184,7 @@ export function AccountsClient({ slug, initialAccounts }: Props) {
             <div className="grid grid-cols-2 gap-4">
               <FormField label="Account Code">
                 <Input
-                  placeholder="e.g. 1010"
+                  placeholder="Enter account code"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                 />

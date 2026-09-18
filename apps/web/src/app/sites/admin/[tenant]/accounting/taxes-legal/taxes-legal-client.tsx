@@ -41,7 +41,7 @@ export function TaxesLegalClient({ slug, initialFilings }: Props) {
 
   // Form
   const [title, setTitle] = useState("");
-  const [filingType, setFilingType] = useState("TAX");
+  const [filingType, setFilingType] = useState("");
   const [period, setPeriod] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [amount, setAmount] = useState("");
@@ -93,7 +93,6 @@ export function TaxesLegalClient({ slug, initialFilings }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          Statutory filings tracker (Waqf Board returns, 12A/80G filings, GST/TDS, Society audits).
         </div>
         <Button onClick={() => setModalOpen(true)} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl">
           <Plus className="h-4 w-4" />
@@ -177,7 +176,7 @@ export function TaxesLegalClient({ slug, initialFilings }: Props) {
           <form onSubmit={handleCreate} className="space-y-4 pt-2">
             <FormField label="Filing Title" required>
               <Input
-                placeholder="e.g. Waqf Board Annual Return FY 2026"
+                placeholder="Enter filing title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
@@ -186,13 +185,8 @@ export function TaxesLegalClient({ slug, initialFilings }: Props) {
 
             <div className="grid grid-cols-2 gap-4">
               <FormField label="Type" required>
-                <Select value={filingType} onChange={(e) => setFilingType(e.target.value)}>
-                  <option value="WAQF">Waqf Board Filing</option>
-                  <option value="TAX">Income Tax / 12A</option>
-                  <option value="AUDIT">Annual Society Audit</option>
-                  <option value="GST">GST Return</option>
-                  <option value="LEGAL">Legal Compliance</option>
-                </Select>
+                <Input value={filingType} onChange={(e) => setFilingType(e.target.value)}>
+                </Input>
               </FormField>
 
               <FormField label="Due Date" required>
@@ -208,7 +202,7 @@ export function TaxesLegalClient({ slug, initialFilings }: Props) {
             <div className="grid grid-cols-2 gap-4">
               <FormField label="Period">
                 <Input
-                  placeholder="e.g. FY 2026-27"
+                  placeholder="Enter period"
                   value={period}
                   onChange={(e) => setPeriod(e.target.value)}
                 />

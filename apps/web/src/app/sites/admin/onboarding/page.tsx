@@ -48,7 +48,7 @@ export default async function OnboardingPage() {
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span className="hidden sm:inline">Need assistance?</span>
             <a
-              href={`https://${ROOT_DOMAIN}`}
+              href={`http://${ROOT_DOMAIN}`}
               className="inline-flex items-center gap-1 rounded-lg border border-border/80 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted/70"
             >
               Exit to portal

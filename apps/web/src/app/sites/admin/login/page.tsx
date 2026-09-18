@@ -16,13 +16,11 @@ export default async function AdminLoginPage({
   }
 
   return (
-    <AuthShell
-      panelTitle="Everything your Mahalle needs, in one place"
-      panelDescription="Members, families, events, announcements, and programs — manage it all from a single admin account."
-    >
-      <Card>
-        <CardHeader>
-          <CardTitle>Welcome back</CardTitle>
+      <div className="w-full h-screen flex items-center justify-center ">
+      <Card className="border-none shadow-lg max-w-sm w-full p-4 flex items-center justify-center">
+        <div className="w-full">
+        <CardHeader className="items-center">
+          <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
           <CardDescription>Log in with your Mahalle account.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -38,7 +36,8 @@ export default async function AdminLoginPage({
             </Link>
           </p>
         </CardContent>
+        </div>
       </Card>
-    </AuthShell>
+      </div>
   );
 }

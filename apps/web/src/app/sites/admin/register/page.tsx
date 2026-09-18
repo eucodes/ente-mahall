@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { RegisterForm } from "@/features/auth/register-form";
-import { AuthShell } from "@/components/auth-shell";
 
 export default async function AdminRegisterPage() {
   const user = await getSession();
@@ -12,11 +11,10 @@ export default async function AdminRegisterPage() {
   }
 
   return (
-    <AuthShell
-      panelTitle="One account, every Mahalle"
-      panelDescription="Create a single account and use it to run — or join — as many Mahalles as you belong to."
-    >
-      <Card>
+  
+    <div className="w-full h-screen flex items-center justify-center ">
+      <Card className="border-none shadow-lg max-w-sm w-full p-4 flex items-center justify-center">
+        <div className="w-full">
         <CardHeader>
           <CardTitle>Create your account</CardTitle>
           <CardDescription>One account works across every Mahalle and app on the platform.</CardDescription>
@@ -30,7 +28,8 @@ export default async function AdminRegisterPage() {
             </Link>
           </p>
         </CardContent>
+        </div>
       </Card>
-    </AuthShell>
+      </div>
   );
 }

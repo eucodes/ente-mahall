@@ -15,6 +15,7 @@ export interface LoginFormProps {
   inactivityNotice?: boolean;
   /** Whether the user's session expired. */
   sessionExpiredNotice?: boolean;
+  loginfield?: "primary" | "destructive"
 }
 
 export function LoginForm({
@@ -22,18 +23,37 @@ export function LoginForm({
   defaultEmail = "",
   defaultPassword = "",
   inactivityNotice = false,
-  sessionExpiredNotice = false
+  sessionExpiredNotice = false,
+  loginfield = "primary"
+
 }: LoginFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState(defaultPassword);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    setError(null);
+    const newErrors: typeof errors = {};
+
+    if (!email.trim()) {
+      newErrors.email = "Email is required.";
+    } else if (!email.includes("@") || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = "Please enter a valid email address.";
+    }
+
+    if (!password) {
+      newErrors.password = "Password is required.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setErrors({});
     setIsSubmitting(true);
     try {
       await apiClient.post<{ user: User }>("/auth/login", { email, password });
@@ -43,7 +63,25 @@ export function LoginForm({
       }
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
-      setError(message);
+      const backendErrors: typeof errors = {};
+      const lower = message.toLowerCase();
+
+      if (
+        lower.includes("invalid email or password") ||
+        lower.includes("invalid credentials") ||
+        lower.includes("unauthorized") ||
+        lower.includes("user not found") ||
+        lower.includes("inactive")
+      ) {
+        backendErrors.general = message;
+      } else if (lower.includes("email")) {
+        backendErrors.email = message;
+      } else if (lower.includes("password")) {
+        backendErrors.password = message;
+      } else {
+        backendErrors.general = message;
+      }
+      setErrors(backendErrors);
     } finally {
       setIsSubmitting(false);
     }
@@ -74,7 +112,14 @@ export function LoginForm({
           </div>
         </Alert>
       )}
-      <FormField label="Email" htmlFor="login-email" required>
+
+      {errors.general && (
+        <Alert variant="destructive" className="py-2.5 px-3">
+          <AlertDescription className="text-xs">{errors.general}</AlertDescription>
+        </Alert>
+      )}
+
+      <FormField label="Email" htmlFor="login-email" required error={errors.email}>
         <Input
           id="login-email"
           name="email"
@@ -82,25 +127,42 @@ export function LoginForm({
           autoComplete="email"
           autoFocus
           required
+          invalid={Boolean(errors.email || errors.general)}
           leadingIcon={<Mail />}
           placeholder="you@example.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (errors.email || errors.general) {
+              setErrors((prev) => ({ ...prev, email: undefined, general: undefined }));
+            }
+          }}
         />
       </FormField>
-      <FormField label="Password" htmlFor="login-password" required error={error ?? undefined}>
+      <FormField label="Password" htmlFor="login-password" required error={errors.password}>
         <PasswordInput
           id="login-password"
           name="password"
           autoComplete="current-password"
           required
-          invalid={Boolean(error)}
+          invalid={Boolean(errors.password || errors.general)}
           placeholder="••••••••"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            if (errors.password || errors.general) {
+              setErrors((prev) => ({ ...prev, password: undefined, general: undefined }));
+            }
+          }}
         />
       </FormField>
-      <Button type="submit" className="w-full" size="lg" isLoading={isSubmitting}>
+      <Button
+        type="submit"
+        variant={loginfield}
+        className="w-full"
+        size="lg"
+        isLoading={isSubmitting}
+      >
         Log in
       </Button>
     </form>

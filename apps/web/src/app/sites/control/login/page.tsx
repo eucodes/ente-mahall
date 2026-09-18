@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Badge, Card, CardContent, CardHeader, CardTitle, ShieldCheck } from "@mahalle/ui";
+import { Badge, Card, CardContent, CardHeader,CardDescription, CardTitle, ShieldCheck } from "@mahalle/ui";
 import { getSession } from "@/lib/session";
 import { LoginForm } from "@/features/auth/login-form";
 import { AuthShell } from "@/components/auth-shell";
@@ -15,19 +15,13 @@ export default async function ControlLoginPage({
   }
 
   return (
-    <AuthShell
-      accent="destructive"
-      panelBadge={
-        <Badge variant="secondary" className="gap-1.5 bg-white/15 text-primary-foreground">
-          <ShieldCheck className="h-3.5 w-3.5" /> Platform staff only
-        </Badge>
-      }
-      panelTitle="Platform control plane"
-      panelDescription="This area is for platform staff only. Every action taken here is recorded to the platform-wide audit log."
-    >
-      <Card>
-        <CardHeader>
-          <CardTitle>Log in</CardTitle>
+    <div className="w-full h-screen flex items-center justify-center ">
+      <Card className="border-none shadow-lg max-w-sm w-full p-4 flex items-center justify-center">
+        <div className="w-full">
+        <CardHeader className="items-center">
+          <CardTitle className="text-2xl font-bold">Control Panel Log in</CardTitle>
+                    <CardDescription>Log in with your Control Panel account.</CardDescription>
+          
         </CardHeader>
         <CardContent>
           <LoginForm
@@ -36,9 +30,11 @@ export default async function ControlLoginPage({
             defaultPassword="ChangeMe123!"
             inactivityNotice={reason === "inactivity"}
             sessionExpiredNotice={reason === "expired"}
+            loginfield="destructive"
           />
         </CardContent>
+        </div>
       </Card>
-    </AuthShell>
+      </div>
   );
 }

@@ -8,7 +8,7 @@ export interface AuthShellProps {
   accent?: "primary" | "destructive";
   children: ReactNode;
 }
-
+ 
 export function AuthShell({ panelTitle, panelDescription, panelBadge, accent = "primary", children }: AuthShellProps) {
   return (
     <div className="grid min-h-screen lg:grid-cols-2 bg-muted/20">

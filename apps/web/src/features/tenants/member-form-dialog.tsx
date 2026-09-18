@@ -743,7 +743,7 @@ export function MemberFormDialog({
                         <Input
                           id="member-name"
                           leadingIcon={<User />}
-                          placeholder="e.g. Muhammed Basheer"
+                          placeholder="Enter full name"
                           required
                           value={values.fullName}
                           onChange={(e) => setValues((v) => ({ ...v, fullName: e.target.value }))}

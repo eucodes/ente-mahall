@@ -75,7 +75,7 @@ export function AccountStep({
                 autoFocus
                 required
                 leadingIcon={<User />}
-                placeholder="e.g. Muhammed Shareef"
+                placeholder="Enter your full name"
                 value={value.fullName}
                 onChange={(e) => onChange({ fullName: e.target.value })}
               />
@@ -89,7 +89,7 @@ export function AccountStep({
                 autoComplete="email"
                 required
                 leadingIcon={<Mail />}
-                placeholder="admin@mahallu.org"
+                placeholder="Enter your email address"
                 value={value.email}
                 onChange={(e) => onChange({ email: e.target.value })}
               />
@@ -101,7 +101,7 @@ export function AccountStep({
                 type="tel"
                 autoComplete="tel"
                 leadingIcon={<Phone />}
-                placeholder="+91 98765 43210"
+                placeholder="Enter your phone number"
                 value={value.phone}
                 onChange={(e) => onChange({ phone: e.target.value })}
               />
