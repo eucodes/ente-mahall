@@ -63,7 +63,7 @@ async function main() {
       where: { tenantId: demoTenant.id, key }
     });
     if (!role) {
-      role = await prisma.role.create({
+      const createdRole = await prisma.role.create({
         data: {
           tenantId: demoTenant.id,
           key,
@@ -71,12 +71,13 @@ async function main() {
           isSystem: true
         }
       });
+      role = createdRole;
 
       const grantedKeys = permissionKeys === "*" ? allPermissions.map((p) => p.key) : permissionKeys;
       const grantedPermissions = allPermissions.filter((p) => grantedKeys.includes(p.key));
       if (grantedPermissions.length > 0) {
         await prisma.rolePermission.createMany({
-          data: grantedPermissions.map((p) => ({ roleId: role.id, permissionId: p.id }))
+          data: grantedPermissions.map((p) => ({ roleId: createdRole.id, permissionId: p.id }))
         });
       }
     }
