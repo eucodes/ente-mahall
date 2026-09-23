@@ -41,7 +41,7 @@ function reportGroups(base: string): ReportGroup[] {
     {
       label: "Finance",
       reports: [
-        { title: "Cash book", description: "Every cash movement with a running balance.", href: `${base}/finance/cash-book` },
+        { title: "Financial Reports Center", description: "Zoho Books standard 79 financial statements, cash books, and ledgers.", href: `${base}/finance/reports` },
         { title: "Finance overview", description: "Income, expense, and net position by account.", href: `${base}/finance` },
         { title: "Dues", description: "Amounts owed by members.", href: `${base}/finance/dues` },
         { title: "Salary", description: "Staff salary obligations.", href: `${base}/finance/salary` }

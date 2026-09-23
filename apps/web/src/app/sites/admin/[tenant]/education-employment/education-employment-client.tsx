@@ -117,7 +117,6 @@ export function EducationEmploymentClient({
       {/* Header */}
       <PageHeader
         title="Education & Employment"
-        description="Mahallu education profiles, vocational skills inventory, workplace distribution, and job seekers desk."
       />
 
       {/* Summary KPI Cards */}

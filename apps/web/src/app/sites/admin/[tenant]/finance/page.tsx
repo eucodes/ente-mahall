@@ -75,15 +75,15 @@ export default async function FinanceOverviewPage({
         />
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild size="sm" variant="outline" className="gap-1.5 rounded-xl">
-            <Link href={`${base}/receipts`}>
-              <Receipt className="h-3.5 w-3.5" />
-              Receipts
+            <Link href={`${base}/reports`}>
+              <Scale className="h-3.5 w-3.5" />
+              Finance Reports
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline" className="gap-1.5 rounded-xl">
-            <Link href={`${base}/vouchers`}>
+            <Link href={`${base}/payments`}>
               <ArrowUpRight className="h-3.5 w-3.5" />
-              Record Expense
+              Record Payment
             </Link>
           </Button>
           <Button asChild size="sm" className="gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white">
@@ -136,7 +136,7 @@ export default async function FinanceOverviewPage({
                   <Wallet className="h-4 w-4 text-emerald-600" />
                   Cash Balance
                 </CardTitle>
-                <Link href={`/${slug}/accounting/cash-book`} className="text-xs text-emerald-600 hover:underline">
+                <Link href={`/${slug}/accountant/cash-book`} className="text-xs text-emerald-600 hover:underline">
                   View Cash Book &rarr;
                 </Link>
               </div>
@@ -156,7 +156,7 @@ export default async function FinanceOverviewPage({
                   <Building2 className="h-4 w-4 text-blue-600" />
                   Bank Accounts Balance
                 </CardTitle>
-                <Link href={`/${slug}/accounting/bank-book`} className="text-xs text-blue-600 hover:underline">
+                <Link href={`/${slug}/accountant/bank-book`} className="text-xs text-blue-600 hover:underline">
                   View Bank Book &rarr;
                 </Link>
               </div>
@@ -221,21 +221,21 @@ export default async function FinanceOverviewPage({
             </Card>
           </Link>
 
-          <Link href={`${base}/vouchers`} className="block group">
+          <Link href={`${base}/payments`} className="block group">
             <Card className="rounded-2xl transition-all hover:border-blue-500 hover:shadow-md h-full">
               <CardContent className="p-5 flex items-center gap-3">
                 <div className="rounded-xl p-3 bg-blue-500/10 text-blue-600">
                   <ArrowUpRight className="h-5 w-5" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-sm group-hover:text-blue-600 transition-colors">Expenses & Bills</h4>
-                  <p className="text-xs text-muted-foreground">Electricity, repairs & payments</p>
+                  <h4 className="font-semibold text-sm group-hover:text-blue-600 transition-colors">Payments</h4>
+                  <p className="text-xs text-muted-foreground">Electricity, repairs & expenses</p>
                 </div>
               </CardContent>
             </Card>
           </Link>
 
-          <Link href={`${base}/dues`} className="block group">
+          <Link href={`${base}/collections`} className="block group">
             <Card className="rounded-2xl transition-all hover:border-violet-500 hover:shadow-md h-full">
               <CardContent className="p-5 flex items-center gap-3">
                 <div className="rounded-xl p-3 bg-violet-500/10 text-violet-600">
@@ -249,15 +249,15 @@ export default async function FinanceOverviewPage({
             </Card>
           </Link>
 
-          <Link href={`${base}/salary`} className="block group">
+          <Link href={`${base}/reports`} className="block group">
             <Card className="rounded-2xl transition-all hover:border-amber-500 hover:shadow-md h-full">
               <CardContent className="p-5 flex items-center gap-3">
                 <div className="rounded-xl p-3 bg-amber-500/10 text-amber-600">
                   <Wallet className="h-5 w-5" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-sm group-hover:text-amber-600 transition-colors">Staff Salary</h4>
-                  <p className="text-xs text-muted-foreground">Imam & teacher payroll</p>
+                  <h4 className="font-semibold text-sm group-hover:text-amber-600 transition-colors">Financial Reports</h4>
+                  <p className="text-xs text-muted-foreground">Inflows, outflows & summaries</p>
                 </div>
               </CardContent>
             </Card>
@@ -322,7 +322,7 @@ export default async function FinanceOverviewPage({
                 <AlertCircle className="h-4 w-4 text-amber-600" />
                 Pending Dues & Arrears
               </CardTitle>
-              <Link href={`${base}/dues`} className="text-xs text-amber-600 hover:underline">
+              <Link href={`${base}/collections`} className="text-xs text-amber-600 hover:underline">
                 View All
               </Link>
             </CardHeader>

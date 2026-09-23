@@ -6,6 +6,7 @@ import { CertificateService } from "../registers/certificates/certificate.servic
 import { FinanceSettingsService } from "./finance-settings.service";
 import { AccountingService } from "./accounting.service";
 import type { CreateCollectionDto } from "./dto/create-collection.dto";
+import type { UpdateCollectionDto } from "./dto/update-collection.dto";
 
 interface RequestContext {
   ipAddress?: string;
@@ -539,5 +540,245 @@ export class CollectionsService {
       collections,
       dues
     };
+  }
+
+  async updateCollection(actor: ActorContext, id: string, dto: UpdateCollectionDto, context: RequestContext) {
+    const existing = await this.prisma.financeCollection.findFirst({
+      where: { id, tenantId: actor.tenantId },
+      include: { receipt: true, journalEntry: { include: { lines: true } } }
+    });
+    if (!existing) throw new NotFoundException("Collection not found");
+
+    const newAmount = dto.amount != null ? new Prisma.Decimal(dto.amount) : existing.amount;
+    const newDate = dto.date ? new Date(dto.date) : existing.date;
+    const newPaymentMethod = dto.paymentMethod ?? existing.paymentMethod ?? "Cash";
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // If journal entry exists, adjust account balances
+      if (existing.journalEntryId && existing.journalEntry) {
+        // Reverse old journal effect
+        for (const line of existing.journalEntry.lines) {
+          const net = line.debit.minus(line.credit);
+          await tx.account.update({
+            where: { id: line.accountId },
+            data: { currentBalance: { decrement: net } }
+          });
+        }
+
+        if (existing.bankAccountId) {
+          await tx.financeBankAccount.update({
+            where: { id: existing.bankAccountId },
+            data: { currentBalance: { decrement: existing.amount } }
+          });
+        }
+
+        // Determine accounts
+        const settings = await this.settingsService.getSettings(actor.tenantId);
+        let debitAccountId = settings.defaultCashAccountId;
+        const newBankAccountId = dto.bankAccountId !== undefined ? dto.bankAccountId : existing.bankAccountId;
+
+        if (newBankAccountId) {
+          const bank = await tx.financeBankAccount.findFirst({ where: { id: newBankAccountId, tenantId: actor.tenantId } });
+          if (bank?.chartAccountId) debitAccountId = bank.chartAccountId;
+          else if (settings.defaultBankAccountId) debitAccountId = settings.defaultBankAccountId;
+        } else if (newPaymentMethod === "Bank Transfer" || newPaymentMethod === "UPI") {
+          if (settings.defaultBankAccountId) debitAccountId = settings.defaultBankAccountId;
+        }
+
+        if (!debitAccountId) {
+          const defaultCash = await tx.account.findFirst({
+            where: { tenantId: actor.tenantId, type: "ASSET", isActive: true }
+          });
+          debitAccountId = defaultCash?.id ?? null;
+        }
+
+        let incomeAccountId: string | null = null;
+        const catId = dto.categoryId ?? existing.categoryId;
+        if (catId) {
+          const cat = await tx.collectionCategory.findFirst({ where: { id: catId, tenantId: actor.tenantId } });
+          if (cat) incomeAccountId = cat.incomeAccountId;
+        }
+        if (!incomeAccountId) incomeAccountId = settings.defaultCollectionIncomeAccountId;
+        if (!incomeAccountId) {
+          const defaultIncome = await tx.account.findFirst({
+            where: { tenantId: actor.tenantId, type: "INCOME", isActive: true }
+          });
+          incomeAccountId = defaultIncome?.id ?? null;
+        }
+
+        if (debitAccountId && incomeAccountId) {
+          await tx.journalEntryLine.deleteMany({ where: { journalEntryId: existing.journalEntry.id } });
+          await tx.journalEntry.update({
+            where: { id: existing.journalEntry.id },
+            data: {
+              date: newDate,
+              description: dto.description ?? existing.description ?? undefined,
+              totalDebit: newAmount,
+              totalCredit: newAmount,
+              lines: {
+                create: [
+                  { accountId: debitAccountId, debit: newAmount, credit: new Prisma.Decimal(0), description: `Collected via ${newPaymentMethod}` },
+                  { accountId: incomeAccountId, debit: new Prisma.Decimal(0), credit: newAmount, description: dto.description ?? existing.description ?? undefined }
+                ]
+              }
+            }
+          });
+
+          await tx.account.update({ where: { id: debitAccountId }, data: { currentBalance: { increment: newAmount } } });
+          await tx.account.update({ where: { id: incomeAccountId }, data: { currentBalance: { increment: newAmount } } });
+
+          if (newBankAccountId) {
+            await tx.financeBankAccount.update({
+              where: { id: newBankAccountId },
+              data: { currentBalance: { increment: newAmount } }
+            });
+          }
+        }
+      }
+
+      // Update linked receipt if any
+      if (existing.receiptId) {
+        await tx.financeReceipt.update({
+          where: { id: existing.receiptId },
+          data: {
+            amount: newAmount,
+            receivedFrom: dto.donorName ?? existing.donorName ?? "Donor",
+            paymentMethod: newPaymentMethod,
+            date: newDate,
+            description: dto.description !== undefined ? dto.description : (existing.description ?? undefined)
+          }
+        });
+      }
+
+      return tx.financeCollection.update({
+        where: { id },
+        data: {
+          ...dto,
+          ...(dto.amount ? { amount: newAmount } : {}),
+          ...(dto.date ? { date: newDate } : {})
+        },
+        include: {
+          category: true,
+          receipt: true,
+          family: true,
+          member: true
+        }
+      });
+    });
+
+    await this.audit.record({
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      action: "collections.update",
+      targetType: "FinanceCollection",
+      targetId: id,
+      metadata: { previous: existing, updated: dto },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+
+    return result;
+  }
+
+  async deleteCollection(actor: ActorContext, id: string, context: RequestContext) {
+    const collection = await this.prisma.financeCollection.findFirst({
+      where: { id, tenantId: actor.tenantId },
+      include: { receipt: true, journalEntry: { include: { lines: true } } }
+    });
+    if (!collection) throw new NotFoundException("Collection not found");
+
+    await this.prisma.$transaction(async (tx) => {
+      // Reverse journal entry
+      if (collection.journalEntryId && collection.journalEntry) {
+        for (const line of collection.journalEntry.lines) {
+          const net = line.debit.minus(line.credit);
+          await tx.account.update({
+            where: { id: line.accountId },
+            data: { currentBalance: { decrement: net } }
+          });
+        }
+        await tx.journalEntryLine.deleteMany({ where: { journalEntryId: collection.journalEntry.id } });
+        await tx.journalEntry.delete({ where: { id: collection.journalEntry.id } });
+
+        if (collection.bankAccountId) {
+          await tx.financeBankAccount.update({
+            where: { id: collection.bankAccountId },
+            data: { currentBalance: { decrement: collection.amount } }
+          });
+        }
+      }
+
+      // Delete receipt
+      if (collection.receiptId) {
+        await tx.financeReceipt.delete({ where: { id: collection.receiptId } });
+      }
+
+      await tx.financeCollection.delete({ where: { id } });
+    });
+
+    await this.audit.record({
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      action: "collections.delete",
+      targetType: "FinanceCollection",
+      targetId: id,
+      metadata: { collectionNumber: collection.collectionNumber, amount: collection.amount.toFixed(2) },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+
+    return { success: true };
+  }
+
+  async bulkDeleteCollections(actor: ActorContext, ids: string[], context: RequestContext) {
+    if (!ids || ids.length === 0) return { count: 0 };
+
+    const collections = await this.prisma.financeCollection.findMany({
+      where: { id: { in: ids }, tenantId: actor.tenantId },
+      include: { receipt: true, journalEntry: { include: { lines: true } } }
+    });
+
+    let count = 0;
+    await this.prisma.$transaction(async (tx) => {
+      for (const col of collections) {
+        if (col.journalEntryId && col.journalEntry) {
+          for (const line of col.journalEntry.lines) {
+            const net = line.debit.minus(line.credit);
+            await tx.account.update({
+              where: { id: line.accountId },
+              data: { currentBalance: { decrement: net } }
+            });
+          }
+          await tx.journalEntryLine.deleteMany({ where: { journalEntryId: col.journalEntry.id } });
+          await tx.journalEntry.delete({ where: { id: col.journalEntry.id } });
+
+          if (col.bankAccountId) {
+            await tx.financeBankAccount.update({
+              where: { id: col.bankAccountId },
+              data: { currentBalance: { decrement: col.amount } }
+            });
+          }
+        }
+
+        if (col.receiptId) {
+          await tx.financeReceipt.delete({ where: { id: col.receiptId } });
+        }
+
+        await tx.financeCollection.delete({ where: { id: col.id } });
+        count++;
+      }
+    });
+
+    await this.audit.record({
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      action: "collections.bulk_delete",
+      targetType: "FinanceCollection",
+      metadata: { count, ids },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+
+    return { success: true, count };
   }
 }

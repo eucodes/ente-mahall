@@ -17,7 +17,10 @@ import {
   Home,
   MapPin,
   HeartHandshake,
-  Scale
+  Scale,
+  Settings,
+  Globe,
+  CreditCard
 } from "@mahalle/ui";
 import { apiClient } from "@/lib/api-client";
 
@@ -83,18 +86,61 @@ export function CommandPalette({ slug }: { slug: string }) {
     { label: "Overview / Dashboard", href: `/${slug}`, icon: <Home className="h-4 w-4" /> },
     { label: "Members Directory", href: `/${slug}/members`, icon: <Users className="h-4 w-4" /> },
     { label: "Families Registry", href: `/${slug}/families`, icon: <UsersRound className="h-4 w-4" /> },
+    { label: "Houses Directory", href: `/${slug}/houses`, icon: <Home className="h-4 w-4" /> },
+    { label: "Education & Employment", href: `/${slug}/education-employment`, icon: <Users className="h-4 w-4" /> },
+    { label: "Health & Support", href: `/${slug}/health-support`, icon: <HeartHandshake className="h-4 w-4" /> },
+    { label: "Programs & Relief", href: `/${slug}/programs`, icon: <HeartHandshake className="h-4 w-4" /> },
+
+    // Registers
     { label: "Marriage Register (Nikah)", href: `/${slug}/registers/marriage`, icon: <FileText className="h-4 w-4" /> },
     { label: "Death Register (Mayyith)", href: `/${slug}/registers/death`, icon: <FileText className="h-4 w-4" /> },
+    { label: "Divorce Register (Talaq)", href: `/${slug}/registers/divorce`, icon: <FileText className="h-4 w-4" /> },
     { label: "Mahallu Release (NOC)", href: `/${slug}/registers/release`, icon: <FileText className="h-4 w-4" /> },
-    { label: "Collections & Receipts", href: `/${slug}/finance/collections`, icon: <Wallet className="h-4 w-4" /> },
-    { label: "Payments & Disbursements", href: `/${slug}/finance/payments`, icon: <Wallet className="h-4 w-4" /> },
-    { label: "Expenses & Bills", href: `/${slug}/finance/vouchers`, icon: <Wallet className="h-4 w-4" /> },
-    { label: "Accounting & Ledger", href: `/${slug}/accounting`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Grave Register (Kabarsthan)", href: `/${slug}/registers/grave`, icon: <FileText className="h-4 w-4" /> },
+    { label: "Madrassa & Dars", href: `/${slug}/registers/madrassa`, icon: <FileText className="h-4 w-4" /> },
+    { label: "Waqf & Property", href: `/${slug}/registers/property`, icon: <FileText className="h-4 w-4" /> },
+
+    // Finance
+    { label: "Finance Overview", href: `/${slug}/finance`, icon: <Wallet className="h-4 w-4" /> },
+    { label: "Collections", href: `/${slug}/finance/collections`, icon: <Wallet className="h-4 w-4" /> },
+    { label: "Payments", href: `/${slug}/finance/payments`, icon: <Wallet className="h-4 w-4" /> },
+    { label: "Finance Reports", href: `/${slug}/finance/reports`, icon: <Wallet className="h-4 w-4" /> },
+
+    // Accountant
+    { label: "Accountant Overview", href: `/${slug}/accountant`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Manual Journals", href: `/${slug}/accountant/manual-journals`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Bulk Update", href: `/${slug}/accountant/bulk-update`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Chart of Accounts", href: `/${slug}/accountant/chart-of-accounts`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Reports Center", href: `/${slug}/accountant/reports`, icon: <Scale className="h-4 w-4" /> },
+    { label: "General Ledger", href: `/${slug}/accountant/ledger`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Cash Book", href: `/${slug}/accountant/cash-book`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Bank Book", href: `/${slug}/accountant/bank-book`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Trial Balance", href: `/${slug}/accountant/trial-balance`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Receipt & Payment", href: `/${slug}/accountant/receipt-payment`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Income & Expenditure", href: `/${slug}/accountant/income-expenditure`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Balance Sheet", href: `/${slug}/accountant/balance-sheet`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Financial Year", href: `/${slug}/accountant/financial-year`, icon: <Scale className="h-4 w-4" /> },
+    { label: "Taxes & Legal Filings", href: `/${slug}/accountant/taxes-legal`, icon: <Scale className="h-4 w-4" /> },
+
+    // Committee & Community
+    { label: "Committee Office Bearers", href: `/${slug}/committee`, icon: <Landmark className="h-4 w-4" /> },
     { label: "Committee & Meetings", href: `/${slug}/committee/meetings`, icon: <Landmark className="h-4 w-4" /> },
     { label: "Service Requests", href: `/${slug}/services`, icon: <HeartHandshake className="h-4 w-4" /> },
     { label: "Events & Notices", href: `/${slug}/events`, icon: <Calendar className="h-4 w-4" /> },
     { label: "Announcements", href: `/${slug}/announcements`, icon: <Megaphone className="h-4 w-4" /> },
-    { label: "Users & Roles", href: `/${slug}/admins`, icon: <ShieldCheck className="h-4 w-4" /> }
+    { label: "Activity Stream", href: `/${slug}/settings/activity`, icon: <FileText className="h-4 w-4" /> },
+
+    // Reports
+    { label: "Reports Hub", href: `/${slug}/reports`, icon: <FileText className="h-4 w-4" /> },
+    { label: "Blood Directory", href: `/${slug}/reports/blood-groups`, icon: <Users className="h-4 w-4" /> },
+    { label: "Pravasi / Expatriate", href: `/${slug}/reports/expatriate`, icon: <Users className="h-4 w-4" /> },
+    { label: "Yatheem & Widows", href: `/${slug}/reports/yatheem`, icon: <Users className="h-4 w-4" /> },
+
+    // Access, Platform & Settings
+    { label: "Access & Roles", href: `/${slug}/settings/admins`, icon: <ShieldCheck className="h-4 w-4" /> },
+    { label: "Public Website", href: `/${slug}/website`, icon: <Globe className="h-4 w-4" /> },
+    { label: "Billing & Plans", href: `/${slug}/billing`, icon: <CreditCard className="h-4 w-4" /> },
+    { label: "Settings", href: `/${slug}/settings`, icon: <Settings className="h-4 w-4" /> }
   ];
 
   const filteredNav = query

@@ -20,6 +20,40 @@ export function middleware(request: NextRequest) {
   if (host === ROOT_DOMAIN) {
     target = `/sites/marketing${url.pathname}`;
   } else if (host === `admin.${ROOT_DOMAIN}`) {
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (parts.length >= 2) {
+      const [tenant, section, ...rest] = parts;
+      let newPath: string | null = null;
+
+      if (section === "accounting") {
+        if (rest[0] === "accounts") {
+          newPath = `/${tenant}/accountant/chart-of-accounts`;
+        } else if (rest[0] === "journal") {
+          newPath = `/${tenant}/accountant/manual-journals`;
+        } else {
+          newPath = `/${tenant}/accountant${rest.length > 0 ? `/${rest.join("/")}` : ""}`;
+        }
+      } else if (section === "accountant") {
+        if (rest[0] === "accounts") {
+          newPath = `/${tenant}/accountant/chart-of-accounts`;
+        } else if (rest[0] === "journal") {
+          newPath = `/${tenant}/accountant/manual-journals`;
+        }
+      } else if (section === "finance" && rest[0] === "vouchers") {
+        newPath = `/${tenant}/finance/payments`;
+      } else if (section === "admins") {
+        newPath = `/${tenant}/settings/admins${rest.length > 0 ? `/${rest.join("/")}` : ""}`;
+      } else if (section === "activity") {
+        newPath = `/${tenant}/settings/activity`;
+      }
+
+      if (newPath) {
+        const redirectUrl = url.clone();
+        redirectUrl.pathname = newPath;
+        return NextResponse.redirect(redirectUrl, 308);
+      }
+    }
+
     target = `/sites/admin${url.pathname}`;
   } else if (host === `control.${ROOT_DOMAIN}`) {
     target = `/sites/control${url.pathname}`;

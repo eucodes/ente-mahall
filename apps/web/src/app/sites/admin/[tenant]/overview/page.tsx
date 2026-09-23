@@ -175,11 +175,11 @@ export default async function TenantAdminOverviewPage({
           <span>Register Family</span>
         </Link>
         <Link
-          href={`/${slug}/finance/vouchers`}
+          href={`/${slug}/finance/payments`}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border/80 bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-2xs hover:border-border hover:bg-muted transition-colors"
         >
           <FileText className="h-3.5 w-3.5 text-teal-600" />
-          <span>Record Voucher</span>
+          <span>Record Payment</span>
         </Link>
         <Link
           href={`/${slug}/registers/marriage`}
@@ -413,10 +413,10 @@ export default async function TenantAdminOverviewPage({
                   Accounts tracked: Cash in hand, Bank deposits, Dues & Relief funds
                 </span>
                 <Link
-                  href={`/${slug}/finance/vouchers`}
+                  href={`/${slug}/finance/payments`}
                   className="font-medium text-primary hover:underline"
                 >
-                  + New Voucher
+                  + New Payment
                 </Link>
               </div>
             </CardContent>
@@ -533,7 +533,7 @@ export default async function TenantAdminOverviewPage({
           </Card>
 
           {/* Administrators Card */}
-          <Link href={`/${slug}/admins`} className="group block">
+          <Link href={`/${slug}/settings/admins`} className="group block">
             <Card className="rounded-2xl border-border/80 transition-all group-hover:border-primary/50 group-hover:shadow-md">
               <CardContent className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">

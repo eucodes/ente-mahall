@@ -73,13 +73,13 @@ export default async function TenantAdminSettingsPage({ params }: { params: Prom
       description: "In-app alerts and SMS configuration"
     },
     {
-      href: `/${slug}/admins`,
+      href: `/${slug}/settings/admins`,
       icon: <ShieldCheck />,
       title: "Users & roles",
       description: "Who can access this Mahallu, and what they can do"
     },
     {
-      href: `/${slug}/activity`,
+      href: `/${slug}/settings/activity`,
       icon: <Clock />,
       title: "Activity log",
       description: "Every change made across this Mahallu's records"

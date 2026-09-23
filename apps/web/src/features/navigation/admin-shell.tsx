@@ -139,10 +139,7 @@ export function AdminShell({
   const isHomeActive = pathname === base;
   const isWebsiteActive = pathname.startsWith(`${base}/website`);
   const isBillingActive = pathname.startsWith(`${base}/billing`);
-  const isSettingsActive =
-    pathname.startsWith(`${base}/settings`) ||
-    pathname.startsWith(`${base}/admins`) ||
-    pathname.startsWith(`${base}/activity`);
+  const isSettingsActive = pathname.startsWith(`${base}/settings`);
   const isMahallActive =
     !isHomeActive && !isWebsiteActive && !isBillingActive && !isSettingsActive;
 
@@ -221,6 +218,10 @@ export function AdminShell({
             label: "Families Registry",
             href: `${base}/families`
           },
+          {
+            label: "Houses Directory",
+            href: `${base}/houses`
+          },
           ...(hasDivisions
             ? [
               {
@@ -260,14 +261,6 @@ export function AdminShell({
             href: `${base}/finance/payments`
           },
           {
-            label: "Receipts",
-            href: `${base}/finance/receipts`
-          },
-          {
-            label: "Expenses & Bills",
-            href: `${base}/finance/vouchers`
-          },
-          {
             label: "Finance Reports",
             href: `${base}/finance/reports`
           }
@@ -275,60 +268,27 @@ export function AdminShell({
       });
     }
 
-    // Accounting: Dedicated workspace managed by the Accountant
+    // Accountant: Dedicated workspace managed by the Accountant
     if (!isFeatureDisabled("accounting")) {
       items.push({
-        label: "Accounting",
+        label: "Accountant",
         icon: <Scale className="h-4 w-4" />,
         children: [
           {
-            label: "Overview",
-            href: `${base}/accounting`,
-            exact: true
+            label: "Manual Journals",
+            href: `${base}/accountant/manual-journals`
+          },
+          {
+            label: "Bulk Update",
+            href: `${base}/accountant/bulk-update`
           },
           {
             label: "Chart of Accounts",
-            href: `${base}/accounting/accounts`
+            href: `${base}/accountant/chart-of-accounts`
           },
           {
-            label: "Journal Entries",
-            href: `${base}/accounting/journal`
-          },
-          {
-            label: "General Ledger",
-            href: `${base}/accounting/ledger`
-          },
-          {
-            label: "Cash Book",
-            href: `${base}/accounting/cash-book`
-          },
-          {
-            label: "Bank Book",
-            href: `${base}/accounting/bank-book`
-          },
-          {
-            label: "Trial Balance",
-            href: `${base}/accounting/trial-balance`
-          },
-          {
-            label: "Receipt & Payment",
-            href: `${base}/accounting/receipt-payment`
-          },
-          {
-            label: "Income & Expenditure",
-            href: `${base}/accounting/income-expenditure`
-          },
-          {
-            label: "Balance Sheet",
-            href: `${base}/accounting/balance-sheet`
-          },
-          {
-            label: "Financial Year",
-            href: `${base}/accounting/financial-year`
-          },
-          {
-            label: "Taxes & Legal Filings",
-            href: `${base}/accounting/taxes-legal`
+            label: "Reports",
+            href: `${base}/accountant/reports`
           }
         ]
       });
@@ -507,12 +467,12 @@ export function AdminShell({
       },
       {
         label: "Users & roles",
-        href: `${base}/admins`,
+        href: `${base}/settings/admins`,
         icon: <ShieldCheck className="h-4 w-4" />
       },
       {
         label: "Activity log",
-        href: `${base}/activity`,
+        href: `${base}/settings/activity`,
         icon: <Clock className="h-4 w-4" />
       }
     ],
@@ -663,7 +623,105 @@ export function AdminShell({
     );
   };
 
-  // Dynamic breadcrumb generation matching reference model (Image 1 & 3: [Home Icon] > [Mahall] > [Members Directory] > [1000/Name])
+const BREADCRUMB_ROUTE_LABELS: Record<string, string> = {
+  // Main
+  overview: "Dashboard",
+
+  // People
+  members: "Members Directory",
+  families: "Families Registry",
+  divisions: "Wards",
+  houses: "Houses Directory",
+  "education-employment": "Education & Employment",
+  "health-support": "Health & Support",
+  programs: "Programs & Relief",
+
+  // Finance
+  finance: "Finance",
+  collections: "Collections",
+  payments: "Payments",
+  vouchers: "Payments",
+  reports: "Reports",
+
+  // Accountant
+  accountant: "Accountant",
+  accounting: "Accountant",
+  "bulk-update": "Bulk Update",
+  "chart-of-accounts": "Chart of Accounts",
+  accounts: "Chart of Accounts",
+  "manual-journals": "Manual Journals",
+  journal: "Manual Journals",
+  ledger: "General Ledger",
+  "bank-book": "Bank Book",
+  "cash-book": "Cash Book",
+  "trial-balance": "Trial Balance",
+  "receipt-payment": "Receipt & Payment",
+  "income-expenditure": "Income & Expenditure",
+  "balance-sheet": "Balance Sheet",
+  "financial-year": "Financial Year",
+  "taxes-legal": "Taxes & Legal Filings",
+
+  // Registers
+  registers: "Registers",
+  marriage: "Marriage (Nikah)",
+  death: "Death (Mayyith)",
+  divorce: "Divorce (Talaq)",
+  release: "Mahallu Release (NOC)",
+  grave: "Grave (Kabarsthan)",
+  madrassa: "Madrassa & Dars",
+  property: "Waqf & Property",
+
+  // Committee & Operations
+  committee: "Committee",
+  meetings: "Meetings & Minutes",
+  services: "Service Requests",
+  events: "Events & Notices",
+  announcements: "Announcements",
+  activity: "Activity Stream",
+
+  // Reports
+  "blood-groups": "Blood Directory",
+  expatriate: "Pravasi / Expatriate",
+  yatheem: "Yatheem & Widows",
+
+  // Access & Admin
+  admins: "Access Management",
+  roles: "Roles & Permissions",
+
+  // Website
+  website: "Website",
+  pages: "Pages",
+  visibility: "Visibility",
+  theme: "Theme Customizer",
+  domains: "Domains",
+  analytics: "Analytics",
+
+  // Billing
+  billing: "Billing & Plans",
+  usage: "Usage",
+
+  // Settings
+  settings: "Settings",
+  structure: "Mahallu Structure",
+  notifications: "Notification Preferences"
+};
+
+const BREADCRUMB_PATH_OVERRIDES: Record<string, string> = {
+  "/finance/reports": "Finance Reports",
+  "/reports/blood-groups": "Blood Directory",
+  "/reports/expatriate": "Pravasi / Expatriate",
+  "/reports/yatheem": "Yatheem & Widows",
+  "/billing/payments": "Payment History",
+  "/settings/finance": "Finance Settings"
+};
+
+const UNLINKED_PATHS = new Set(["/registers"]);
+
+function isLikelyId(segment: string): boolean {
+  return segment.length >= 20 || /^[0-9a-f-]{8,}$/i.test(segment) || /^\d+$/.test(segment);
+}
+
+  // Dynamic breadcrumb generation matching reference model
   const subPath = pathname.replace(new RegExp(`^/${slug}`), "") || "/";
 
   const breadcrumbs = useMemo(() => {
@@ -673,96 +731,42 @@ export function AdminShell({
       return items;
     }
 
-    if (subPath.startsWith("/members")) {
-      items.push({ label: "Members Directory", href: `/${slug}/members` });
-      if (subPath !== "/members") {
-        items.push({
-          label: detailTitle || "Member Profile",
-          isLast: true
-        });
-      }
-    } else if (subPath.startsWith("/families")) {
-      items.push({ label: "Families Registry", href: `/${slug}/families` });
-      if (subPath !== "/families") {
-        items.push({
-          label: detailTitle || "Family Profile",
-          isLast: true
-        });
-      }
-    } else if (subPath.startsWith("/divisions")) {
-      items.push({ label: `${divisionLabel}s`, href: `/${slug}/divisions` });
-      if (subPath !== "/divisions") {
-        items.push({
-          label: detailTitle || `${divisionLabel} Details`,
-          isLast: true
-        });
-      }
-    } else if (subPath.startsWith("/houses")) {
-      items.push({ label: "Houses Directory", href: `/${slug}/houses` });
-      if (subPath !== "/houses") {
-        items.push({
-          label: detailTitle || "House Details",
-          isLast: true
-        });
-      }
-    } else if (subPath.startsWith("/finance")) {
-      items.push({ label: "Finance", href: `/${slug}/finance` });
-      if (subPath.includes("/cash-book")) {
-        items.push({ label: "Cash Book", isLast: true });
-      } else if (subPath.includes("/dues")) {
-        items.push({ label: "Dues & Subscriptions", isLast: true });
-      } else if (subPath.includes("/salary")) {
-        items.push({ label: "Salary Payroll", isLast: true });
-      } else if (subPath.includes("/vouchers")) {
-        items.push({ label: "Vouchers", isLast: true });
-      }
-    } else if (subPath.startsWith("/settings")) {
-      items.push({ label: "Settings", href: `/${slug}/settings` });
-      if (subPath.includes("/structure")) {
-        items.push({ label: "Mahallu structure", isLast: true });
-      } else if (subPath.includes("/finance")) {
-        items.push({ label: "Finance", isLast: true });
-      } else if (subPath.includes("/notifications")) {
-        items.push({ label: "Notifications", isLast: true });
-      }
-    } else if (subPath.startsWith("/website")) {
-      items.push({ label: "Website", href: `/${slug}/website` });
-      if (subPath.includes("/analytics")) {
-        items.push({ label: "Analytics", isLast: true });
-      } else if (subPath.includes("/domains")) {
-        items.push({ label: "Domains", isLast: true });
-      } else if (subPath.includes("/pages")) {
-        items.push({ label: "Pages", isLast: true });
-      } else if (subPath.includes("/visibility")) {
-        items.push({ label: "Visibility", isLast: true });
-      } else if (subPath.includes("/theme")) {
-        items.push({ label: "Theme Customizer", isLast: true });
+    const parts = subPath.split("/").filter(Boolean);
+
+    parts.forEach((part, idx) => {
+      const isLast = idx === parts.length - 1;
+      const currentSubPath = "/" + parts.slice(0, idx + 1).join("/");
+      const parentPart = idx > 0 ? parts[idx - 1] : "";
+
+      let label: string;
+      if (isLast && detailTitle) {
+        label = detailTitle;
+      } else if (BREADCRUMB_PATH_OVERRIDES[currentSubPath]) {
+        label = BREADCRUMB_PATH_OVERRIDES[currentSubPath];
+      } else if (part === "divisions") {
+        label = `${divisionLabel}s`;
+      } else if (isLikelyId(part)) {
+        if (parentPart === "members") label = "Member Profile";
+        else if (parentPart === "families") label = "Family Profile";
+        else if (parentPart === "divisions") label = `${divisionLabel} Details`;
+        else if (parentPart === "houses") label = "House Details";
+        else if (parentPart === "events") label = "Event Details";
+        else label = "Details";
+      } else if (BREADCRUMB_ROUTE_LABELS[part]) {
+        label = BREADCRUMB_ROUTE_LABELS[part];
       } else {
-        items.push({ label: "Overview", isLast: true });
+        label = part.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       }
-    } else if (subPath.startsWith("/billing")) {
-      items.push({ label: "Billing", href: `/${slug}/billing` });
-      if (subPath.includes("/usage")) {
-        items.push({ label: "Usage", isLast: true });
-      } else if (subPath.includes("/payments")) {
-        items.push({ label: "Payments", isLast: true });
-      } else {
-        items.push({ label: "Plan Details", isLast: true });
-      }
-    } else if (subPath.startsWith("/overview")) {
-      items.push({ label: "Operations Hub", isLast: true });
-    } else {
-      const parts = subPath.split("/").filter(Boolean);
-      parts.forEach((p, idx) => {
-        const isLast = idx === parts.length - 1;
-        const formatted = p.charAt(0).toUpperCase() + p.slice(1).replace(/-/g, " ");
-        items.push({
-          label: isLast && detailTitle ? detailTitle : formatted,
-          href: isLast ? undefined : `/${slug}/${parts.slice(0, idx + 1).join("/")}`,
-          isLast
-        });
+
+      const canLink = !isLast && !UNLINKED_PATHS.has(currentSubPath);
+      const href = canLink ? `/${slug}${currentSubPath}` : undefined;
+
+      items.push({
+        label,
+        href,
+        isLast
       });
-    }
+    });
 
     if (items.length > 0) {
       items[items.length - 1].isLast = true;
@@ -972,7 +976,7 @@ export function AdminShell({
                 <Menu className="h-5 w-5" />
               </button>
 
-              {/* Breadcrumb Trail (Matching Model Picture 1 & 3: [Home Icon] > [Mahall] > [Members Directory] > [1000/Name]) */}
+              {/* Breadcrumb Trail */}
               <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 sm:gap-2 min-w-0 text-xs">
                 {/* Home Icon */}
                 <Link
@@ -983,21 +987,14 @@ export function AdminShell({
                   <Home className="h-3.5 w-3.5" />
                 </Link>
 
-                <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
-
-                {/* Tenant / Mahall Name */}
                 {breadcrumbs.length === 0 ? (
-                  <span className="font-bold text-foreground truncate max-w-[140px] sm:max-w-[200px]">
-                    {tenantName}
-                  </span>
-                ) : (
-                  <Link
-                    href={`/${slug}`}
-                    className="font-medium text-muted-foreground hover:text-foreground transition-colors truncate max-w-[120px] sm:max-w-[180px]"
-                  >
-                    {tenantName}
-                  </Link>
-                )}
+                  <>
+                    <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+                    <span className="font-bold text-foreground truncate max-w-[140px] sm:max-w-[200px]">
+                      Dashboard
+                    </span>
+                  </>
+                ) : null}
 
                 {/* Breadcrumb Path Items */}
                 {breadcrumbs.map((crumb, idx) => (
@@ -1030,10 +1027,6 @@ export function AdminShell({
               <TopbarQuickActions slug={slug} /></div>
             {/* Topbar Right Actions */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              <div className="hidden lg:block">
-                <HijriDateBadge />
-              </div>
-
               {/* Theme toggle */}
               <button
                 type="button"

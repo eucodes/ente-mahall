@@ -112,7 +112,7 @@ export class ExpensesService {
 
     const amount = new Prisma.Decimal(dto.amount);
     const date = new Date(dto.date);
-    const status = dto.status ?? (dto.type === "RECEIPT" ? "PAID" : "DRAFT");
+    const status = dto.status ?? "PAID";
 
     let journalEntryId: string | null = null;
 
@@ -125,6 +125,13 @@ export class ExpensesService {
         else if (settings.defaultBankAccountId) creditAccountId = settings.defaultBankAccountId;
       } else if (dto.paymentMethod === "Bank Transfer" || dto.paymentMethod === "UPI") {
         if (settings.defaultBankAccountId) creditAccountId = settings.defaultBankAccountId;
+      }
+
+      if (!creditAccountId) {
+        const defaultCash = await this.prisma.account.findFirst({
+          where: { tenantId: actor.tenantId, type: "ASSET", isActive: true }
+        });
+        creditAccountId = defaultCash?.id ?? null;
       }
 
       if (creditAccountId) {
@@ -196,18 +203,97 @@ export class ExpensesService {
 
   async updateVoucher(actor: ActorContext, id: string, dto: UpdateVoucherDto, context: RequestContext) {
     const existing = await this.findVoucherOrThrow(actor.tenantId, id);
-    if (existing.status === "PAID" || existing.status === "CANCELLED") {
-      throw new BadRequestException(`Cannot edit voucher with status ${existing.status}.`);
-    }
 
-    const updated = await this.prisma.voucher.update({
-      where: { id },
-      data: {
-        ...dto,
-        ...(dto.date ? { date: new Date(dto.date) } : {}),
-        ...(dto.amount ? { amount: new Prisma.Decimal(dto.amount) } : {})
-      },
-      include: VOUCHER_INCLUDE
+    const newAmount = dto.amount != null ? new Prisma.Decimal(dto.amount) : existing.amount;
+    const newAccountId = dto.accountId ?? existing.accountId;
+    const newBankAccountId = dto.bankAccountId !== undefined ? dto.bankAccountId : existing.bankAccountId;
+    const newPaymentMethod = dto.paymentMethod ?? existing.paymentMethod ?? "Cash";
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // If journal entry exists, adjust account balances and journal lines if amount or accounts changed
+      if (existing.journalEntryId && existing.status === "PAID") {
+        const journal = await tx.journalEntry.findUnique({
+          where: { id: existing.journalEntryId },
+          include: { lines: true }
+        });
+
+        if (journal) {
+          // 1. Reverse old journal effect
+          for (const line of journal.lines) {
+            const net = line.debit.minus(line.credit);
+            await tx.account.update({
+              where: { id: line.accountId },
+              data: { currentBalance: { decrement: net } }
+            });
+          }
+
+          if (existing.bankAccountId) {
+            await tx.financeBankAccount.update({
+              where: { id: existing.bankAccountId },
+              data: { currentBalance: { increment: existing.amount } }
+            });
+          }
+
+          // 2. Determine new credit account
+          const settings = await this.settingsService.getSettings(actor.tenantId);
+          let creditAccountId = settings.defaultCashAccountId;
+          if (newBankAccountId) {
+            const bank = await tx.financeBankAccount.findFirst({ where: { id: newBankAccountId, tenantId: actor.tenantId } });
+            if (bank?.chartAccountId) creditAccountId = bank.chartAccountId;
+            else if (settings.defaultBankAccountId) creditAccountId = settings.defaultBankAccountId;
+          } else if (newPaymentMethod === "Bank Transfer" || newPaymentMethod === "UPI") {
+            if (settings.defaultBankAccountId) creditAccountId = settings.defaultBankAccountId;
+          }
+
+          if (!creditAccountId) {
+            const defaultCash = await tx.account.findFirst({
+              where: { tenantId: actor.tenantId, type: "ASSET", isActive: true }
+            });
+            creditAccountId = defaultCash?.id ?? null;
+          }
+
+          if (creditAccountId) {
+            // Update journal entry
+            await tx.journalEntryLine.deleteMany({ where: { journalEntryId: journal.id } });
+            await tx.journalEntry.update({
+              where: { id: journal.id },
+              data: {
+                date: dto.date ? new Date(dto.date) : journal.date,
+                description: dto.description || `Payment to ${dto.payeeName || dto.partyName || existing.payeeName || "Payee"}`,
+                totalDebit: newAmount,
+                totalCredit: newAmount,
+                lines: {
+                  create: [
+                    { accountId: newAccountId, debit: newAmount, credit: new Prisma.Decimal(0), description: dto.description ?? existing.description },
+                    { accountId: creditAccountId, debit: new Prisma.Decimal(0), credit: newAmount, description: `Paid via ${newPaymentMethod}` }
+                  ]
+                }
+              }
+            });
+
+            await tx.account.update({ where: { id: newAccountId }, data: { currentBalance: { increment: newAmount } } });
+            await tx.account.update({ where: { id: creditAccountId }, data: { currentBalance: { decrement: newAmount } } });
+
+            if (newBankAccountId) {
+              await tx.financeBankAccount.update({
+                where: { id: newBankAccountId },
+                data: { currentBalance: { decrement: newAmount } }
+              });
+            }
+          }
+        }
+      }
+
+      return tx.voucher.update({
+        where: { id },
+        data: {
+          ...dto,
+          ...(dto.date ? { date: new Date(dto.date) } : {}),
+          ...(dto.amount ? { amount: new Prisma.Decimal(dto.amount) } : {}),
+          ...(dto.payeeName ? { payeeName: dto.payeeName } : dto.partyName ? { payeeName: dto.partyName } : {})
+        },
+        include: VOUCHER_INCLUDE
+      });
     });
 
     await this.audit.record({
@@ -221,7 +307,7 @@ export class ExpensesService {
       userAgent: context.userAgent
     });
 
-    return updated;
+    return result;
   }
 
   async submitVoucher(actor: ActorContext, id: string, context: RequestContext) {
@@ -433,5 +519,100 @@ export class ExpensesService {
     });
 
     return { success: true };
+  }
+
+  async deleteVoucher(actor: ActorContext, id: string, context: RequestContext) {
+    const voucher = await this.findVoucherOrThrow(actor.tenantId, id);
+
+    await this.prisma.$transaction(async (tx) => {
+      // If was paid, reverse journal entry
+      if (voucher.status === "PAID" && voucher.journalEntryId) {
+        const journal = await tx.journalEntry.findUnique({
+          where: { id: voucher.journalEntryId },
+          include: { lines: true }
+        });
+        if (journal) {
+          for (const line of journal.lines) {
+            const net = line.debit.minus(line.credit);
+            await tx.account.update({
+              where: { id: line.accountId },
+              data: { currentBalance: { decrement: net } }
+            });
+          }
+          await tx.journalEntryLine.deleteMany({ where: { journalEntryId: journal.id } });
+          await tx.journalEntry.delete({ where: { id: journal.id } });
+        }
+
+        if (voucher.bankAccountId) {
+          await tx.financeBankAccount.update({
+            where: { id: voucher.bankAccountId },
+            data: { currentBalance: { increment: voucher.amount } }
+          });
+        }
+      }
+
+      await tx.voucher.delete({ where: { id } });
+    });
+
+    await this.audit.record({
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      action: "expenses.voucher.delete",
+      targetType: "Voucher",
+      targetId: id,
+      metadata: { voucherNumber: voucher.voucherNumber, amount: voucher.amount.toFixed(2) },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+
+    return { success: true };
+  }
+
+  async bulkDeleteVouchers(actor: ActorContext, ids: string[], context: RequestContext) {
+    if (!ids || ids.length === 0) return { count: 0 };
+
+    const vouchers = await this.prisma.voucher.findMany({
+      where: { id: { in: ids }, tenantId: actor.tenantId },
+      include: { journalEntry: { include: { lines: true } } }
+    });
+
+    let count = 0;
+    await this.prisma.$transaction(async (tx) => {
+      for (const voucher of vouchers) {
+        if (voucher.status === "PAID" && voucher.journalEntryId && voucher.journalEntry) {
+          for (const line of voucher.journalEntry.lines) {
+            const net = line.debit.minus(line.credit);
+            await tx.account.update({
+              where: { id: line.accountId },
+              data: { currentBalance: { decrement: net } }
+            });
+          }
+          await tx.journalEntryLine.deleteMany({ where: { journalEntryId: voucher.journalEntry.id } });
+          await tx.journalEntry.delete({ where: { id: voucher.journalEntry.id } });
+
+          if (voucher.bankAccountId) {
+            await tx.financeBankAccount.update({
+              where: { id: voucher.bankAccountId },
+              data: { currentBalance: { increment: voucher.amount } }
+            });
+          }
+        }
+
+        await tx.voucher.delete({ where: { id: voucher.id } });
+        count++;
+      }
+    });
+
+    await this.audit.record({
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      action: "expenses.voucher.bulk_delete",
+      targetType: "Voucher",
+      metadata: { count, ids },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+
+    return { success: true, count };
   }
 }

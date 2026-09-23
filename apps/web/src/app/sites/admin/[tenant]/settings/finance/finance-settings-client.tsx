@@ -36,6 +36,9 @@ import {
   MapPin,
   Tag,
   Users,
+  Wallet,
+  Info,
+  FolderPlus,
   SettingsRow,
   SettingsSection,
   Tabs,
@@ -48,6 +51,8 @@ import type {
   FinancePaymentMethod,
   CollectionCategory,
   ExpenseCategory,
+  Account,
+  AccountType,
   CollectionFormConfig
 } from "@/lib/finance";
 
@@ -58,6 +63,7 @@ interface Props {
   paymentMethods: FinancePaymentMethod[];
   collectionCategories: CollectionCategory[];
   expenseCategories: ExpenseCategory[];
+  accounts?: Account[];
   divisions?: { id: string; name: string; code: string | null }[];
 }
 
@@ -110,11 +116,35 @@ export function FinanceSettingsClient({
   paymentMethods,
   collectionCategories,
   expenseCategories,
+  accounts = [],
   divisions = []
 }: Props) {
   const router = useRouter();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"general" | "banks" | "methods" | "categories">("general");
+  const [activeTab, setActiveTab] = useState<"funds" | "categories" | "banks" | "methods" | "general">("funds");
+
+  const incomeAccounts = accounts.filter((a) => a.type === "INCOME" || !a.type);
+  const expenseAccounts = accounts.filter((a) => a.type === "EXPENSE" || !a.type);
+
+  // Fund / Account Management State
+  const [fundModalOpen, setFundModalOpen] = useState(false);
+  const [fundName, setFundName] = useState("");
+  const [fundCode, setFundCode] = useState("");
+  const [fundType, setFundType] = useState<AccountType>("INCOME");
+  const [fundDescription, setFundDescription] = useState("");
+  const [fundOpeningBalance, setFundOpeningBalance] = useState("");
+  const [isSavingFund, setIsSavingFund] = useState(false);
+
+  const [editFundTarget, setEditFundTarget] = useState<Account | null>(null);
+  const [editFundName, setEditFundName] = useState("");
+  const [editFundCode, setEditFundCode] = useState("");
+  const [editFundType, setEditFundType] = useState<AccountType>("INCOME");
+  const [editFundDescription, setEditFundDescription] = useState("");
+  const [editFundOpeningBalance, setEditFundOpeningBalance] = useState("");
+  const [isSavingEditFund, setIsSavingEditFund] = useState(false);
+
+  const [deleteFundTarget, setDeleteFundTarget] = useState<Account | null>(null);
+  const [isDeletingFund, setIsDeletingFund] = useState(false);
 
   // General Settings State
   const [currency, setCurrency] = useState(settings?.currency || "INR");
@@ -146,6 +176,7 @@ export function FinanceSettingsClient({
   // Category Add Modal State
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [catType, setCatType] = useState<"collection" | "expense">("collection");
+  const [catAccountId, setCatAccountId] = useState("");
   const [catName, setCatName] = useState("");
   const [catCode, setCatCode] = useState("");
   const [catTargetType, setCatTargetType] = useState<"ALL_FAMILIES" | "SPECIFIC_DIVISIONS" | "CATEGORY_BASED" | "GENERAL">("ALL_FAMILIES");
@@ -163,6 +194,7 @@ export function FinanceSettingsClient({
     item: CollectionCategory | ExpenseCategory;
     type: "collection" | "expense";
   } | null>(null);
+  const [editCatAccountId, setEditCatAccountId] = useState("");
   const [editCatName, setEditCatName] = useState("");
   const [editCatCode, setEditCatCode] = useState("");
   const [editCatTargetType, setEditCatTargetType] = useState<"ALL_FAMILIES" | "SPECIFIC_DIVISIONS" | "CATEGORY_BASED" | "GENERAL">("ALL_FAMILIES");
@@ -244,6 +276,89 @@ export function FinanceSettingsClient({
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setIsSavingGeneral(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fund / Account Handlers
+  // ---------------------------------------------------------------------------
+  async function handleCreateFund(e: React.FormEvent) {
+    e.preventDefault();
+    if (!fundName.trim()) {
+      toast({ title: "Please enter fund name", variant: "destructive" });
+      return;
+    }
+
+    setIsSavingFund(true);
+    try {
+      await apiClient.post(`/tenants/${slug}/finance/accounts`, {
+        name: fundName.trim(),
+        code: fundCode.trim() || undefined,
+        type: fundType,
+        description: fundDescription.trim() || undefined,
+        openingBalance: fundOpeningBalance ? String(fundOpeningBalance) : "0"
+      });
+      toast({ title: "Fund / Account created successfully", variant: "success" });
+      setFundModalOpen(false);
+      setFundName("");
+      setFundCode("");
+      setFundDescription("");
+      setFundOpeningBalance("");
+      router.refresh();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Failed to create fund";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setIsSavingFund(false);
+    }
+  }
+
+  function openEditFund(acc: Account) {
+    setEditFundTarget(acc);
+    setEditFundName(acc.name);
+    setEditFundCode(acc.code || "");
+    setEditFundType(acc.type || "INCOME");
+    setEditFundDescription(acc.description || "");
+    setEditFundOpeningBalance(acc.openingBalance ? String(acc.openingBalance) : "");
+  }
+
+  async function handleUpdateFund(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editFundTarget || !editFundName.trim()) return;
+
+    setIsSavingEditFund(true);
+    try {
+      await apiClient.patch(`/tenants/${slug}/finance/accounts/${editFundTarget.id}`, {
+        name: editFundName.trim(),
+        code: editFundCode.trim() || undefined,
+        type: editFundType,
+        description: editFundDescription.trim() || undefined,
+        openingBalance: editFundOpeningBalance ? String(editFundOpeningBalance) : "0"
+      });
+      toast({ title: "Fund / Account updated", variant: "success" });
+      setEditFundTarget(null);
+      router.refresh();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Failed to update fund";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setIsSavingEditFund(false);
+    }
+  }
+
+  async function handleDeleteFund() {
+    if (!deleteFundTarget) return;
+    setIsDeletingFund(true);
+    try {
+      await apiClient.delete(`/tenants/${slug}/finance/accounts/${deleteFundTarget.id}`);
+      toast({ title: "Fund / Account deleted", variant: "success" });
+      setDeleteFundTarget(null);
+      router.refresh();
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Failed to delete fund";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setIsDeletingFund(false);
     }
   }
 
@@ -355,6 +470,7 @@ export function FinanceSettingsClient({
         await apiClient.post(`/tenants/${slug}/finance/settings/collection-categories`, {
           name: catName.trim(),
           code: catCode.trim() || undefined,
+          incomeAccountId: catAccountId || undefined,
           targetType: catTargetType,
           isRecurring: catIsRecurring,
           isSubscription: catIsSubscription,
@@ -368,13 +484,15 @@ export function FinanceSettingsClient({
       } else {
         await apiClient.post(`/tenants/${slug}/finance/settings/expense-categories`, {
           name: catName.trim(),
-          code: catCode.trim() || undefined
+          code: catCode.trim() || undefined,
+          expenseAccountId: catAccountId || undefined
         });
       }
       toast({ title: `${catType === "collection" ? "Collection" : "Expense"} category added`, variant: "success" });
       setCatModalOpen(false);
       setCatName("");
       setCatCode("");
+      setCatAccountId("");
       setCatTargetType("ALL_FAMILIES");
       setCatIsRecurring(false);
       setCatIsSubscription(false);
@@ -399,6 +517,7 @@ export function FinanceSettingsClient({
     setEditCatCode(item.code || "");
     if (type === "collection") {
       const col = item as CollectionCategory;
+      setEditCatAccountId(col.incomeAccountId || "");
       setEditCatTargetType(col.targetType || "ALL_FAMILIES");
       setEditCatIsRecurring(Boolean(col.isRecurring));
       setEditCatIsSubscription(Boolean(col.isSubscription));
@@ -419,6 +538,9 @@ export function FinanceSettingsClient({
         enableNotes: col.formConfig?.enableNotes ?? true,
         enableAttachment: col.formConfig?.enableAttachment ?? false
       });
+    } else {
+      const exp = item as ExpenseCategory;
+      setEditCatAccountId(exp.expenseAccountId || "");
     }
   }
 
@@ -436,6 +558,7 @@ export function FinanceSettingsClient({
         await apiClient.patch(`/tenants/${slug}/finance/settings/collection-categories/${editCatTarget.item.id}`, {
           name: editCatName.trim(),
           code: editCatCode.trim() || undefined,
+          incomeAccountId: editCatAccountId || null,
           targetType: editCatTargetType,
           isRecurring: editCatIsRecurring,
           isSubscription: editCatIsSubscription,
@@ -449,7 +572,8 @@ export function FinanceSettingsClient({
       } else {
         await apiClient.patch(`/tenants/${slug}/finance/settings/expense-categories/${editCatTarget.item.id}`, {
           name: editCatName.trim(),
-          code: editCatCode.trim() || undefined
+          code: editCatCode.trim() || undefined,
+          expenseAccountId: editCatAccountId || null
         });
       }
       toast({
@@ -589,17 +713,154 @@ export function FinanceSettingsClient({
         activeTab={activeTab}
         onChange={(tab) => setActiveTab(tab as typeof activeTab)}
         tabs={[
-          { id: "general", label: "Numbering", icon: <Settings className="h-4 w-4" /> },
-          { id: "banks", label: "Bank accounts", icon: <Building2 className="h-4 w-4" />, count: bankAccounts.length },
+          { id: "funds", label: "Funds & Accounts", icon: <Wallet className="h-4 w-4" />, count: accounts.length },
           {
             id: "categories",
-            label: "Categories",
+            label: "Categories & Heads",
             icon: <Layers className="h-4 w-4" />,
             count: collectionCategories.length + expenseCategories.length
           },
-          { id: "methods", label: "Payment methods", icon: <CreditCard className="h-4 w-4" />, count: paymentMethods.length }
+          { id: "banks", label: "Bank accounts", icon: <Building2 className="h-4 w-4" />, count: bankAccounts.length },
+          { id: "methods", label: "Payment methods", icon: <CreditCard className="h-4 w-4" />, count: paymentMethods.length },
+          { id: "general", label: "Numbering", icon: <Settings className="h-4 w-4" /> }
         ]}
       />
+
+      {/* Funds & Accounts Tab */}
+      {activeTab === "funds" && (
+        <div className="space-y-6">
+          {/* Header Banner & Distinction Notice */}
+          <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-blue-600 text-white shrink-0 mt-0.5">
+                <Wallet className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-blue-950 dark:text-blue-200">
+                  Mahallu Operational Funds & Accounts
+                </h3>
+                <p className="text-xs text-blue-800/80 dark:text-blue-300/80 mt-0.5 leading-relaxed">
+                  Create and manage your Mahal funds (e.g. General Fund, Building Fund, Zakat Fund, Madrasa Fund) before creating collection or expense categories.
+                </p>
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-blue-700 dark:text-blue-400 bg-blue-100/60 dark:bg-blue-900/40 px-2.5 py-1 rounded-lg w-fit">
+                  <Info className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    <strong>Note:</strong> These are operational funds for inflows and outflows. Double-entry general ledgers are managed in the Chart of Accounts under Accountant.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <Button
+              onClick={() => {
+                setFundType("INCOME");
+                setFundModalOpen(true);
+              }}
+              className="gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shrink-0 self-start md:self-center"
+            >
+              <Plus className="h-4 w-4" />
+              Add Fund / Account
+            </Button>
+          </div>
+
+          {/* Table of Funds */}
+          <Card className="rounded-2xl border border-border/80 shadow-sm">
+            <CardHeader className="pb-3 border-b border-border/60 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-bold">Configured Funds & Accounts ({accounts.length})</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Parent funds and financial accounts available for category grouping and transactions.
+                </p>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fund / Account Name</TableHead>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Linked Categories</TableHead>
+                    <TableHead>Opening Balance</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {accounts.map((acc) => {
+                    const linkedCols = collectionCategories.filter((c) => c.incomeAccountId === acc.id);
+                    const linkedExps = expenseCategories.filter((c) => c.expenseAccountId === acc.id);
+                    const totalLinked = linkedCols.length + linkedExps.length;
+
+                    return (
+                      <TableRow key={acc.id}>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-xs text-foreground">{acc.name}</span>
+                            {acc.description && (
+                              <span className="text-[11px] text-muted-foreground line-clamp-1">{acc.description}</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs font-mono">{acc.code || "—"}</TableCell>
+                        <TableCell className="text-xs">
+                          <Badge
+                            variant={acc.type === "INCOME" ? "success" : acc.type === "EXPENSE" ? "destructive" : "secondary"}
+                            className="text-[10px] uppercase font-bold"
+                          >
+                            {acc.type === "INCOME" ? "Income / Inflow Fund" : acc.type === "EXPENSE" ? "Expense Account" : acc.type || "Fund"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {totalLinked > 0 ? (
+                            <span className="inline-flex items-center gap-1 font-medium text-primary">
+                              <Layers className="h-3 w-3" />
+                              {totalLinked} {totalLinked === 1 ? "category" : "categories"}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/60">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono font-medium">
+                          {acc.openingBalance ? `₹${Number(acc.openingBalance).toLocaleString("en-IN")}` : "₹0.00"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 hover:bg-muted/80 text-muted-foreground hover:text-foreground"
+                              onClick={() => openEditFund(acc)}
+                              title="Edit fund"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                              onClick={() => setDeleteFundTarget(acc)}
+                              title="Delete fund"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {accounts.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-xs text-muted-foreground">
+                        No funds or accounts configured yet. Click &quot;Add Fund / Account&quot; to create your first fund.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {activeTab === "general" && (
         <form onSubmit={handleSaveGeneral} className="max-w-5xl">
@@ -760,6 +1021,11 @@ export function FinanceSettingsClient({
                             {c.code}
                           </span>
                         )}
+                        {(c.incomeAccount?.name || (c.incomeAccountId && accounts.find(a => a.id === c.incomeAccountId)?.name)) && (
+                          <Badge variant="outline" className="text-[10px] bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 border-emerald-300">
+                            Fund: {c.incomeAccount?.name || accounts.find(a => a.id === c.incomeAccountId)?.name}
+                          </Badge>
+                        )}
                         {c.isRecurring && (
                           <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 gap-1">
                             <RefreshCw className="h-2.5 w-2.5" />
@@ -841,6 +1107,11 @@ export function FinanceSettingsClient({
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-foreground">{c.name}</span>
                       {c.code && <span className="font-mono text-xs text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border/60">{c.code}</span>}
+                      {(c.expenseAccount?.name || (c.expenseAccountId && accounts.find(a => a.id === c.expenseAccountId)?.name)) && (
+                        <span className="text-[11px] text-muted-foreground">
+                          • Account: {c.expenseAccount?.name || accounts.find(a => a.id === c.expenseAccountId)?.name}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                       <Button
@@ -1086,6 +1357,20 @@ export function FinanceSettingsClient({
               />
             </FormField>
 
+            <FormField label={catType === "collection" ? "Parent Fund Category" : "Parent Expense Account"}>
+              <Select
+                value={catAccountId}
+                onChange={(e) => setCatAccountId(e.target.value)}
+              >
+                <option value="">Select Account / Fund (Optional)...</option>
+                {(catType === "collection" ? incomeAccounts : expenseAccounts).map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.name} {acc.code ? `(${acc.code})` : ""}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+
             <FormField label="Category Code (Optional)">
               <Input
                 placeholder="e.g. VARISA, JUMA, BLDG"
@@ -1288,6 +1573,20 @@ export function FinanceSettingsClient({
                 onChange={(e) => setEditCatName(e.target.value)}
                 required
               />
+            </FormField>
+
+            <FormField label={editCatTarget?.type === "collection" ? "Parent Fund Category" : "Parent Expense Account"}>
+              <Select
+                value={editCatAccountId}
+                onChange={(e) => setEditCatAccountId(e.target.value)}
+              >
+                <option value="">Select Account / Fund (Optional)...</option>
+                {(editCatTarget?.type === "collection" ? incomeAccounts : expenseAccounts).map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.name} {acc.code ? `(${acc.code})` : ""}
+                  </option>
+                ))}
+              </Select>
             </FormField>
 
             <FormField label="Category Code (Optional)">
@@ -1656,6 +1955,156 @@ export function FinanceSettingsClient({
         destructive
         isConfirming={isDeletingMethod}
         onConfirm={handleDeletePaymentMethod}
+      />
+
+      {/* Add Fund / Account Dialog */}
+      <Dialog open={fundModalOpen} onOpenChange={setFundModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl p-6">
+          <DialogHeader className="pb-3 border-b border-border/60">
+            <DialogTitle className="text-base font-bold">Add Operational Fund / Account</DialogTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Create a parent fund or account before setting up its specific categories.
+            </p>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateFund} className="space-y-4 pt-3">
+            <FormField label="Fund / Account Name" required>
+              <Input
+                placeholder="e.g. Building / Construction Fund, Zakat Fund, General Fund"
+                value={fundName}
+                onChange={(e) => setFundName(e.target.value)}
+                required
+              />
+            </FormField>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Fund Code / Abbreviation">
+                <Input
+                  placeholder="e.g. FUND-BLD"
+                  value={fundCode}
+                  onChange={(e) => setFundCode(e.target.value.toUpperCase())}
+                />
+              </FormField>
+
+              <FormField label="Type" required>
+                <Select value={fundType} onChange={(e) => setFundType(e.target.value as AccountType)}>
+                  <option value="INCOME">Income / Fund (Collections)</option>
+                  <option value="EXPENSE">Expense / Disbursement Account</option>
+                  <option value="ASSET">Asset (Cash / Bank)</option>
+                  <option value="LIABILITY">Liability / Dues</option>
+                </Select>
+              </FormField>
+            </div>
+
+            <FormField label="Opening Balance (₹)">
+              <Input
+                type="number"
+                step="any"
+                placeholder="0.00"
+                value={fundOpeningBalance}
+                onChange={(e) => setFundOpeningBalance(e.target.value)}
+              />
+            </FormField>
+
+            <FormField label="Description / Purpose (Optional)">
+              <Input
+                placeholder="Brief purpose of this fund or account"
+                value={fundDescription}
+                onChange={(e) => setFundDescription(e.target.value)}
+              />
+            </FormField>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setFundModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSavingFund} className="bg-blue-600 hover:bg-blue-700 text-white">
+                {isSavingFund ? "Creating..." : "Create Fund"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Fund / Account Dialog */}
+      <Dialog open={editFundTarget !== null} onOpenChange={(open) => !open && setEditFundTarget(null)}>
+        <DialogContent className="max-w-md rounded-2xl p-6">
+          <DialogHeader className="pb-3 border-b border-border/60">
+            <DialogTitle className="text-base font-bold">Edit Fund / Account</DialogTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Update fund name, code, or operational classification.
+            </p>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateFund} className="space-y-4 pt-3">
+            <FormField label="Fund / Account Name" required>
+              <Input
+                placeholder="e.g. Building / Construction Fund"
+                value={editFundName}
+                onChange={(e) => setEditFundName(e.target.value)}
+                required
+              />
+            </FormField>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Fund Code">
+                <Input
+                  placeholder="e.g. FUND-BLD"
+                  value={editFundCode}
+                  onChange={(e) => setEditFundCode(e.target.value.toUpperCase())}
+                />
+              </FormField>
+
+              <FormField label="Type" required>
+                <Select value={editFundType} onChange={(e) => setEditFundType(e.target.value as AccountType)}>
+                  <option value="INCOME">Income / Fund (Collections)</option>
+                  <option value="EXPENSE">Expense / Disbursement Account</option>
+                  <option value="ASSET">Asset (Cash / Bank)</option>
+                  <option value="LIABILITY">Liability / Dues</option>
+                </Select>
+              </FormField>
+            </div>
+
+            <FormField label="Opening Balance (₹)">
+              <Input
+                type="number"
+                step="any"
+                placeholder="0.00"
+                value={editFundOpeningBalance}
+                onChange={(e) => setEditFundOpeningBalance(e.target.value)}
+              />
+            </FormField>
+
+            <FormField label="Description / Purpose (Optional)">
+              <Input
+                placeholder="Brief purpose of this fund or account"
+                value={editFundDescription}
+                onChange={(e) => setEditFundDescription(e.target.value)}
+              />
+            </FormField>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditFundTarget(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSavingEditFund} className="bg-blue-600 hover:bg-blue-700 text-white">
+                {isSavingEditFund ? "Updating..." : "Save Changes"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Fund ConfirmDialog */}
+      <ConfirmDialog
+        open={deleteFundTarget !== null}
+        onOpenChange={(open) => !open && setDeleteFundTarget(null)}
+        title="Delete Fund / Account?"
+        description={`Are you sure you want to delete "${deleteFundTarget?.name}"? Make sure no active collections or categories are assigned to this fund.`}
+        confirmLabel="Delete Fund"
+        destructive
+        isConfirming={isDeletingFund}
+        onConfirm={handleDeleteFund}
       />
     </div>
   );

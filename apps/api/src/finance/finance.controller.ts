@@ -31,6 +31,8 @@ import { MarkDuePaidDto } from "./dto/mark-due-paid.dto";
 import { CreateSalaryRecordDto } from "./dto/create-salary-record.dto";
 import { MarkSalaryPaidDto } from "./dto/mark-salary-paid.dto";
 import { CreateCollectionDto } from "./dto/create-collection.dto";
+import { UpdateCollectionDto } from "./dto/update-collection.dto";
+import { BulkDeleteDto } from "./dto/bulk-delete.dto";
 import { CreateJournalEntryDto } from "./dto/create-journal-entry.dto";
 import { CreateFinancialYearDto } from "./dto/create-financial-year.dto";
 import { UpdateFinanceSettingsDto } from "./dto/update-finance-settings.dto";
@@ -391,6 +393,52 @@ export class FinanceController {
     return { collection };
   }
 
+  @Patch("collections/:id")
+  @RequirePermission("collections.update")
+  async updateCollection(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("id") id: string,
+    @Body() dto: UpdateCollectionDto,
+    @Req() req: Request
+  ): Promise<any> {
+    const collection = await this.collectionsService.updateCollection(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      id,
+      dto,
+      requestContext(req)
+    );
+    return { collection };
+  }
+
+  @Post("collections/bulk-delete")
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission("collections.delete")
+  async bulkDeleteCollections(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Body() dto: BulkDeleteDto,
+    @Req() req: Request
+  ): Promise<any> {
+    return this.collectionsService.bulkDeleteCollections(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      dto.ids,
+      requestContext(req)
+    );
+  }
+
+  @Delete("collections/:id")
+  @RequirePermission("collections.delete")
+  async deleteCollection(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("id") id: string,
+    @Req() req: Request
+  ): Promise<any> {
+    return this.collectionsService.deleteCollection(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      id,
+      requestContext(req)
+    );
+  }
+
   @Post("collections/:id/cancel")
   @RequirePermission("collections.cancel")
   async cancelCollection(
@@ -551,6 +599,35 @@ export class FinanceController {
       { userId: membership.userId, tenantId: membership.tenantId },
       id,
       dto.reason,
+      requestContext(req)
+    );
+  }
+
+  @Post("vouchers/bulk-delete")
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission("expenses.delete")
+  async bulkDeleteVouchers(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Body() dto: BulkDeleteDto,
+    @Req() req: Request
+  ): Promise<any> {
+    return this.expensesService.bulkDeleteVouchers(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      dto.ids,
+      requestContext(req)
+    );
+  }
+
+  @Delete("vouchers/:id")
+  @RequirePermission("expenses.delete")
+  async deleteVoucher(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("id") id: string,
+    @Req() req: Request
+  ): Promise<any> {
+    return this.expensesService.deleteVoucher(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      id,
       requestContext(req)
     );
   }

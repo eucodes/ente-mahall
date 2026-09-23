@@ -5,7 +5,8 @@ import { getMyTenantMembership } from "@/lib/tenants";
 import {
   getCollections,
   getCollectionCategories,
-  getPaymentMethods
+  getPaymentMethods,
+  getAccounts
 } from "@/lib/finance";
 import { getFamilies } from "@/lib/business-resources";
 import { getMembers } from "@/lib/members";
@@ -26,12 +27,14 @@ export default async function CollectionsPage({
   const [
     collectionsRes,
     categories,
+    accounts,
     paymentMethods,
     familiesRes,
     membersRes
   ] = await Promise.all([
     getCollections(slug, "page=1&pageSize=100"),
     getCollectionCategories(slug),
+    getAccounts(slug),
     getPaymentMethods(slug),
     getFamilies(slug, 1, 100),
     getMembers(slug, 1, 100)
@@ -42,14 +45,14 @@ export default async function CollectionsPage({
   return (
     <>
       <PageHeader
-        title="Collections & Inflows"
-        description="Record and reconcile Family collections, Friday Juma donations, box receipts, and general inflows."
+        title="Collections"
       />
       <CollectionsClient
         slug={slug}
         mahalleName={membership.tenant.name || "Mahall"}
         initialCollections={collections}
         categories={categories || []}
+        accounts={accounts || []}
         paymentMethods={paymentMethods || []}
         families={familiesRes?.items || []}
         members={membersRes?.members || []}

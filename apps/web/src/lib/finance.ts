@@ -107,6 +107,7 @@ export interface CollectionCategory {
   code?: string | null;
   description?: string | null;
   incomeAccountId?: string | null;
+  incomeAccount?: { id: string; name: string; code?: string | null } | null;
   targetType?: "ALL_FAMILIES" | "SPECIFIC_DIVISIONS" | "CATEGORY_BASED" | "GENERAL";
   isRecurring?: boolean;
   isSubscription?: boolean;
@@ -126,6 +127,7 @@ export interface ExpenseCategory {
   code?: string | null;
   description?: string | null;
   expenseAccountId?: string | null;
+  expenseAccount?: { id: string; name: string; code?: string | null } | null;
   isActive: boolean;
   displayOrder: number;
 }
@@ -182,7 +184,9 @@ export interface Voucher {
   account: { id: string; name: string; type: AccountType };
   memberId: string | null;
   member: { id: string; fullName: string } | null;
+  expenseCategoryId?: string | null;
   expenseCategory?: { id: string; name: string } | null;
+  bankAccountId?: string | null;
   bankAccount?: { id: string; accountName: string; bankName: string } | null;
   date: string;
   amount: string;

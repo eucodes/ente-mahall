@@ -7,7 +7,8 @@ import {
   getBankAccounts,
   getPaymentMethods,
   getCollectionCategories,
-  getExpenseCategories
+  getExpenseCategories,
+  getAccounts
 } from "@/lib/finance";
 import { getStructure } from "@/lib/structure";
 import { FinanceSettingsClient } from "./finance-settings-client";
@@ -30,6 +31,7 @@ export default async function FinanceSettingsPage({
     paymentMethods,
     collectionCategories,
     expenseCategories,
+    accounts,
     structureData
   ] = await Promise.all([
     getFinanceSettings(slug),
@@ -37,6 +39,7 @@ export default async function FinanceSettingsPage({
     getPaymentMethods(slug),
     getCollectionCategories(slug),
     getExpenseCategories(slug),
+    getAccounts(slug),
     getStructure(slug)
   ]);
 
@@ -53,6 +56,7 @@ export default async function FinanceSettingsPage({
         paymentMethods={paymentMethods ?? []}
         collectionCategories={collectionCategories ?? []}
         expenseCategories={expenseCategories ?? []}
+        accounts={accounts ?? []}
         divisions={structureData?.divisions ?? []}
       />
     </>

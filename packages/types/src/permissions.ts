@@ -96,6 +96,7 @@ export const PERMISSIONS = [
   "collections.create",
   "collections.update",
   "collections.cancel",
+  "collections.delete",
 
   "payments.view",
   "payments.create",
@@ -120,6 +121,7 @@ export const PERMISSIONS = [
   "expenses.update",
   "expenses.approve",
   "expenses.cancel",
+  "expenses.delete",
 
   "salary.view",
   "salary.create",

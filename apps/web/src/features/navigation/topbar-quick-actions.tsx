@@ -34,9 +34,9 @@ export function TopbarQuickActions({ slug }: { slug: string }) {
       onClick: () => router.push(`/${slug}/finance/collections`)
     },
     {
-      label: "Record Voucher",
+      label: "Record Payment",
       icon: <FileText className="h-4 w-4 text-amber-600" />,
-      onClick: () => router.push(`/${slug}/finance/vouchers`)
+      onClick: () => router.push(`/${slug}/finance/payments`)
     },
     {
       label: "Official Register Entry",
