@@ -6,8 +6,21 @@ export type VoucherType = "RECEIPT" | "PAYMENT";
 export type DueStatus = "PENDING" | "PAID" | "WAIVED";
 export type SalaryStatus = "PENDING" | "PAID";
 
+export interface FinanceFund {
+  id: string;
+  name: string;
+  code?: string | null;
+  description?: string | null;
+  color?: string | null;
+  isDefault?: boolean;
+  isActive?: boolean;
+  displayOrder?: number;
+}
+
 export interface Account {
   id: string;
+  fundId?: string | null;
+  fund?: FinanceFund | null;
   code?: string | null;
   name: string;
   type: AccountType;
@@ -103,6 +116,8 @@ export interface CollectionFormConfig {
 
 export interface CollectionCategory {
   id: string;
+  fundId?: string | null;
+  fund?: FinanceFund | null;
   name: string;
   code?: string | null;
   description?: string | null;
@@ -123,6 +138,8 @@ export interface CollectionCategory {
 
 export interface ExpenseCategory {
   id: string;
+  fundId?: string | null;
+  fund?: FinanceFund | null;
   name: string;
   code?: string | null;
   description?: string | null;
@@ -449,6 +466,9 @@ export const getCollectionCategories = (slug: string) =>
 
 export const getExpenseCategories = (slug: string) =>
   get<{ categories: ExpenseCategory[] }>(slug, "/settings/expense-categories").then((r) => r?.categories ?? null);
+
+export const getFinanceFunds = (slug: string) =>
+  get<{ funds: FinanceFund[] }>(slug, "/settings/funds").then((r) => r?.funds ?? null);
 
 export const getAreaFinanceAnalysis = (slug: string) =>
   get<{ areas: any[] }>(slug, "/reports/area-analysis").then((r) => r?.areas ?? null);

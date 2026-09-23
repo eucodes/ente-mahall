@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { getMyTenantMembership } from "@/lib/tenants";
 import {
   getAccounts,
+  getFinanceFunds,
   getCollectionCategories,
   getExpenseCategories,
   getCollections,
@@ -23,12 +24,14 @@ export default async function BulkUpdatePage({
   if (!membership) redirect("/");
 
   const [
+    funds,
     accounts,
     collectionCategories,
     expenseCategories,
     collectionsRes,
     vouchersRes
   ] = await Promise.all([
+    getFinanceFunds(slug).catch(() => []),
     getAccounts(slug).catch(() => []),
     getCollectionCategories(slug).catch(() => []),
     getExpenseCategories(slug).catch(() => []),
@@ -40,6 +43,7 @@ export default async function BulkUpdatePage({
     <BulkUpdateClient
       slug={slug}
       mahalleName={membership.tenant?.name || slug}
+      funds={funds || []}
       accounts={accounts || []}
       collectionCategories={collectionCategories || []}
       expenseCategories={expenseCategories || []}
