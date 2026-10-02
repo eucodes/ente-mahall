@@ -131,15 +131,15 @@ export default async function MarketingHomePage() {
         <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 px-6 text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
             <Sparkles className="h-3.5 w-3.5" />
-            <span>Islamic Civic Technology for Mosques & Communities</span>
+            <span>Islamic Civic Technology for Mosques</span>
           </div>
 
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-6xl text-balance">
-            The Modern Operating System for <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Mahalles & Mosques</span>
+            The Modern Operating System for <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Mahalles</span>
           </h1>
 
           <p className="max-w-2xl text-balance text-base sm:text-lg text-muted-foreground leading-relaxed">
-            Eliminate chaotic spreadsheets and manual register books. Unify member censuses, certified marriage & death records, monthly Varisa dues, and committee governance in one secure, multi-tenant platform.
+            Eliminate chaotic and manual register books. Unify member censuses, certified marriage & death records, monthly Varisa dues, and committee governance in one secure platform.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
