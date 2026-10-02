@@ -135,7 +135,7 @@ export default async function MarketingHomePage() {
           </div>
 
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-6xl text-balance">
-            The Modern Operating System for <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Mahalles & Mosques</span>
+            The Modern Operating System for <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Mahalles</span>
           </h1>
 
           <p className="max-w-2xl text-balance text-base sm:text-lg text-muted-foreground leading-relaxed">
