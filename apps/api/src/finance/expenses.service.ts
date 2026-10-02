@@ -126,7 +126,7 @@ export class ExpensesService {
     }
 
     // Resolve Chart of Accounts (COA) mapping
-    let coaAccountId = dto.accountId ?? expenseCategory?.expenseAccountId ?? null;
+    const coaAccountId = dto.accountId ?? expenseCategory?.expenseAccountId ?? null;
     if (coaAccountId) {
       await this.accountingService.findAccountOrThrow(actor.tenantId, coaAccountId);
     }
