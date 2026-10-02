@@ -139,7 +139,7 @@ export default async function MarketingHomePage() {
           </h1>
 
           <p className="max-w-2xl text-balance text-base sm:text-lg text-muted-foreground leading-relaxed">
-            Eliminate chaotic spreadsheets and manual register books. Unify member censuses, certified marriage & death records, monthly Varisa dues, and committee governance in one secure, multi-tenant platform.
+            Eliminate chaotic spreadsheets and manual register books. Unify member censuses, certified marriage & death records, monthly Varisa dues, and committee governance in one secure platform.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
