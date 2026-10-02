@@ -131,7 +131,7 @@ export default async function MarketingHomePage() {
         <div className="mx-auto flex max-w-4xl flex-col items-center gap-6 px-6 text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300">
             <Sparkles className="h-3.5 w-3.5" />
-            <span>Islamic Civic Technology for Mosques & Communities</span>
+            <span>Islamic Civic Technology for Mosques</span>
           </div>
 
           <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-6xl text-balance">
