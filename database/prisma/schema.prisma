@@ -157,6 +157,7 @@ model Tenant {
   interestFreeAccounts  InterestFreeAccount[]
   interestFreeTransactions InterestFreeTransaction[]
   taxLegalFilings       TaxLegalFiling[]
+  financeFunds          FinanceFund[]
 
   @@index([isActive])
   @@map("tenants")
@@ -1407,40 +1408,70 @@ model FinancialYear {
   @@map("finance_financial_years")
 }
 
+model FinanceFund {
+  id           String   @id @default(cuid())
+  tenantId     String
+  name         String
+  code         String?
+  description  String?
+  color        String?  @default("#059669")
+  isDefault    Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  collectionCategories CollectionCategory[]
+  expenseCategories    ExpenseCategory[]
+  collections          FinanceCollection[]
+  vouchers             Voucher[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive])
+  @@map("finance_funds")
+}
+
 model CollectionCategory {
-  id              String   @id @default(cuid())
-  tenantId        String
-  name            String
-  code            String?
-  description     String?
+  id                     String   @id @default(cuid())
+  tenantId               String
+  fundId                 String?
+  name                   String
+  code                   String?
+  description            String?
   incomeAccountId        String?
-  targetType             String   @default("ALL_FAMILIES")
+  targetType             String   @default("NO_TARGET") // NO_TARGET, DIVISION_BASED, FAMILY_BASED, MEMBER_BASED, CUSTOM
   isRecurring            Boolean  @default(false)
   isSubscription         Boolean  @default(false)
-  recurrenceFrequency    String?  @default("MONTHLY")
+  recurrenceFrequency    String?  @default("MONTHLY") // DAILY, WEEKLY, MONTHLY, QUARTERLY, YEARLY, CUSTOM
+  autoGenerate           Boolean  @default(false)
   targetEconomicCategory String?  @default("ALL")
   targetDivisionIds      String[] @default([])
   targetAmount           Decimal? @db.Decimal(12, 2)
   defaultAmount          Decimal? @db.Decimal(12, 2)
+  targetConfig           Json?
   formConfig             Json?
   isActive               Boolean  @default(true)
-  displayOrder    Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  displayOrder           Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fund          FinanceFund?        @relation(fields: [fundId], references: [id], onDelete: SetNull)
   incomeAccount Account?            @relation(fields: [incomeAccountId], references: [id], onDelete: SetNull)
   collections   FinanceCollection[]
   dues          Due[]
 
   @@unique([tenantId, name])
   @@index([tenantId, isActive])
+  @@index([fundId])
   @@map("finance_collection_categories")
 }
 
 model ExpenseCategory {
   id               String   @id @default(cuid())
   tenantId         String
+  fundId           String?
   name             String
   code             String?
   description      String?
@@ -1450,44 +1481,49 @@ model ExpenseCategory {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  expenseAccount Account?  @relation(fields: [expenseAccountId], references: [id], onDelete: SetNull)
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fund           FinanceFund? @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  expenseAccount Account?     @relation(fields: [expenseAccountId], references: [id], onDelete: SetNull)
   vouchers       Voucher[]
 
   @@unique([tenantId, name])
   @@index([tenantId, isActive])
+  @@index([fundId])
   @@map("finance_expense_categories")
 }
 
 model FinanceCollection {
-  id              String   @id @default(cuid())
-  tenantId        String
+  id               String   @id @default(cuid())
+  tenantId         String
+  fundId           String?
   collectionNumber String?
-  type            String   // FAMILY_COLLECTION, DAY_COLLECTION, FRIDAY_COLLECTION, DONATION, PROGRAM_COLLECTION, OTHER
-  categoryId      String?
-  familyId        String?
-  memberId        String?
-  donorName       String?
-  donorPhone      String?
-  donorAddress    String?
-  collectorName   String?
-  amount          Decimal  @db.Decimal(12, 2)
-  paymentMethodId String?
-  paymentMethod   String?
-  bankAccountId   String?
-  date            DateTime @default(now())
-  reference       String?
-  description     String?
-  notes           String?
-  attachmentUrl   String?
-  customFields    Json?
-  status          String   @default("COMPLETED") // COMPLETED, CANCELLED
-  receiptId       String?  @unique
-  journalEntryId  String?  @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  type             String   // FAMILY_COLLECTION, DAY_COLLECTION, FRIDAY_COLLECTION, DONATION, PROGRAM_COLLECTION, OTHER
+  categoryId       String?
+  familyId         String?
+  memberId         String?
+  donorName        String?
+  donorPhone       String?
+  donorAddress     String?
+  collectorName    String?
+  amount           Decimal  @db.Decimal(12, 2)
+  paymentMethodId  String?
+  paymentMethod    String?
+  bankAccountId    String?
+  date             DateTime @default(now())
+  reference        String?
+  description      String?
+  notes            String?
+  attachmentUrl    String?
+  customFields     Json?
+  status           String   @default("COMPLETED") // COMPLETED, CANCELLED
+  postingStatus    String   @default("UNPOSTED") // POSTED, UNPOSTED
+  receiptId        String?  @unique
+  journalEntryId   String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fund             FinanceFund?          @relation(fields: [fundId], references: [id], onDelete: SetNull)
   category         CollectionCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   family           Family?               @relation(fields: [familyId], references: [id], onDelete: SetNull)
   member           Member?               @relation(fields: [memberId], references: [id], onDelete: SetNull)
@@ -1502,6 +1538,7 @@ model FinanceCollection {
   @@index([familyId])
   @@index([memberId])
   @@index([categoryId])
+  @@index([fundId])
   @@map("finance_collections")
 }
 
@@ -1543,11 +1580,13 @@ enum VoucherType {
 model Voucher {
   id                String              @id @default(cuid())
   tenantId          String
+  fundId            String?
   voucherNumber     String?
   type              VoucherType
   voucherSubtype    String?             @default("PAYMENT") // EXPENSE, PAYMENT, GENERAL, RECEIPT
   status            String              @default("PAID") // DRAFT, SUBMITTED, APPROVED, PAID, CANCELLED
-  accountId         String
+  postingStatus     String              @default("UNPOSTED") // POSTED, UNPOSTED
+  accountId         String?
   memberId          String?
   eventId           String?
   expenseCategoryId String?
@@ -1570,7 +1609,8 @@ model Voucher {
   updatedAt         DateTime            @updatedAt
 
   tenant          Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  account         Account              @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  fund            FinanceFund?         @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  account         Account?             @relation(fields: [accountId], references: [id], onDelete: SetNull)
   member          Member?              @relation(fields: [memberId], references: [id], onDelete: SetNull)
   event           Event?               @relation(fields: [eventId], references: [id], onDelete: SetNull)
   expenseCategory ExpenseCategory?     @relation(fields: [expenseCategoryId], references: [id], onDelete: SetNull)
@@ -1585,6 +1625,7 @@ model Voucher {
   @@index([eventId])
   @@index([expenseCategoryId])
   @@index([bankAccountId])
+  @@index([fundId])
   @@map("finance_vouchers")
 }
 

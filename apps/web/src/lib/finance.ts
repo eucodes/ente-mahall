@@ -90,15 +90,35 @@ export interface FinanceBankAccount {
   isActive: boolean;
 }
 
-export interface CollectionCustomField {
-  id: string;
+export type DynamicFormFieldType =
+  | "family"
+  | "member"
+  | "amount"
+  | "date"
+  | "description"
+  | "file"
+  | "text"
+  | "number"
+  | "select"
+  | "multiselect"
+  | "checkbox"
+  | "radio";
+
+export interface DynamicFormFieldConfig {
+  id: string; // key name
+  type: DynamicFormFieldType;
   label: string;
-  type: "text" | "number" | "select";
+  enabled: boolean;
   required: boolean;
-  options?: string[];
+  placeholder?: string;
+  options?: string[]; // for select, multiselect, radio
+  defaultValue?: any;
+  order?: number;
 }
 
 export interface CollectionFormConfig {
+  fields?: DynamicFormFieldConfig[];
+  // Legacy / convenience properties
   enableFamily?: boolean;
   requireFamily?: boolean;
   enableMember?: boolean;
@@ -111,8 +131,29 @@ export interface CollectionFormConfig {
   enableNotes?: boolean;
   enableDescription?: boolean;
   enableAttachment?: boolean;
-  customFields?: CollectionCustomField[];
+  customFields?: any[];
 }
+
+export type TargetType =
+  | "NO_TARGET"
+  | "DIVISION_BASED"
+  | "FAMILY_BASED"
+  | "MEMBER_BASED"
+  | "CUSTOM_TARGET"
+  | "ALL_FAMILIES"
+  | "SPECIFIC_DIVISIONS"
+  | "CATEGORY_BASED"
+  | "GENERAL";
+
+export type RecurrenceFrequency =
+  | "DAILY"
+  | "WEEKLY"
+  | "MONTHLY"
+  | "QUARTERLY"
+  | "YEARLY"
+  | "CUSTOM"
+  | "ANNUAL"
+  | "ONE_TIME";
 
 export interface CollectionCategory {
   id: string;
@@ -123,14 +164,16 @@ export interface CollectionCategory {
   description?: string | null;
   incomeAccountId?: string | null;
   incomeAccount?: { id: string; name: string; code?: string | null } | null;
-  targetType?: "ALL_FAMILIES" | "SPECIFIC_DIVISIONS" | "CATEGORY_BASED" | "GENERAL";
+  targetType?: TargetType | string;
   isRecurring?: boolean;
   isSubscription?: boolean;
-  recurrenceFrequency?: "MONTHLY" | "ANNUAL" | "ONE_TIME" | string | null;
+  recurrenceFrequency?: RecurrenceFrequency | string | null;
+  autoGenerate?: boolean;
   targetEconomicCategory?: string | null;
   targetDivisionIds?: string[];
   targetAmount?: string | number | null;
   defaultAmount?: string | number | null;
+  targetConfig?: any | null;
   formConfig?: CollectionFormConfig | null;
   isActive: boolean;
   displayOrder: number;
@@ -151,6 +194,8 @@ export interface ExpenseCategory {
 
 export interface FinanceCollection {
   id: string;
+  fundId?: string | null;
+  fund?: FinanceFund | null;
   collectionNumber?: string | null;
   type: string;
   categoryId?: string | null;
@@ -172,6 +217,8 @@ export interface FinanceCollection {
   attachmentUrl?: string | null;
   customFields?: Record<string, any> | null;
   status: string;
+  postingStatus?: "POSTED" | "UNPOSTED" | string;
+  journalEntryId?: string | null;
   receipt?: { id: string; receiptNumber: string; status: string } | null;
 }
 
@@ -193,14 +240,18 @@ export interface FinanceReceipt {
 
 export interface Voucher {
   id: string;
+  fundId?: string | null;
+  fund?: FinanceFund | null;
   voucherNumber: string | null;
   type: VoucherType;
   voucherSubtype?: string | null;
   status?: string;
-  accountId: string;
-  account: { id: string; name: string; type: AccountType };
+  postingStatus?: "POSTED" | "UNPOSTED" | string;
+  journalEntryId?: string | null;
+  accountId?: string | null;
+  account?: { id: string; name: string; type: AccountType } | null;
   memberId: string | null;
-  member: { id: string; fullName: string } | null;
+  member?: { id: string; fullName: string } | null;
   expenseCategoryId?: string | null;
   expenseCategory?: { id: string; name: string } | null;
   bankAccountId?: string | null;
@@ -330,6 +381,20 @@ export interface FinanceSummary {
   netPosition: string;
 }
 
+export interface FundStat {
+  id: string;
+  name: string;
+  code?: string | null;
+  description?: string | null;
+  color?: string | null;
+  isDefault: boolean;
+  income: string;
+  expense: string;
+  balance: string;
+  categoriesCount: number;
+  transactionsCount: number;
+}
+
 export interface FinanceOverview {
   todayCollections: string;
   todayPayments: string;
@@ -344,6 +409,7 @@ export interface FinanceOverview {
   recentPayments: any[];
   recentPendingDues: any[];
   trend: { month: string; collections: number; expenses: number }[];
+  funds?: FundStat[];
 }
 
 // Helpers for API requests

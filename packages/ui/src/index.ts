@@ -15,6 +15,7 @@ export * from "./components/switch";
 export * from "./components/table";
 export * from "./components/pagination";
 export * from "./components/form-field";
+export * from "./components/form";
 export * from "./components/card";
 export * from "./components/settings-section";
 export * from "./components/description-list";
@@ -38,3 +39,4 @@ export * from "./components/permission-matrix";
 // Resolve ambiguity between lucide-react icons and UI components
 export { Badge } from "./components/badge";
 export { Table } from "./components/table";
+export { Form } from "./components/form";

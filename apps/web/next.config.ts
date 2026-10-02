@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, "../../"),
 
   // This app is deliberately visited through many hostnames (marketing,
-  // admin, control, and every tenant subdomain — see src/middleware.ts).
+  // admin, control, and every tenant subdomain — see src/proxy.ts).
   // Next's dev server blocks cross-origin HMR/dev-asset requests by default;
   // without this, every non-default host works for page loads but silently
   // breaks Fast Refresh/HMR in a way that looks like random state resets.

@@ -3,6 +3,7 @@ import { IsDateString, IsNumberString, IsOptional, IsString, MaxLength, MinLengt
 
 export class CreateCollectionDto {
   @IsString() @MinLength(1) @MaxLength(50) type!: string; // FAMILY_COLLECTION, DAY_COLLECTION, FRIDAY_COLLECTION, DONATION, PROGRAM_COLLECTION, OTHER
+  @IsOptional() @IsString() fundId?: string | null;
   @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @IsString() familyId?: string;
   @IsOptional() @IsString() memberId?: string;

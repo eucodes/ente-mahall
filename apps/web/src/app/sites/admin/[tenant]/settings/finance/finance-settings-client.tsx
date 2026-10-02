@@ -51,10 +51,13 @@ import type {
   FinancePaymentMethod,
   CollectionCategory,
   ExpenseCategory,
+  FinanceFund,
   Account,
   AccountType,
-  CollectionFormConfig
+  CollectionFormConfig,
+  DynamicFormFieldConfig
 } from "@/lib/finance";
+import { DynamicFormBuilder, DEFAULT_STANDARD_FIELDS } from "@/features/finance/dynamic-form-builder";
 
 interface Props {
   slug: string;
@@ -63,6 +66,7 @@ interface Props {
   paymentMethods: FinancePaymentMethod[];
   collectionCategories: CollectionCategory[];
   expenseCategories: ExpenseCategory[];
+  funds?: FinanceFund[];
   accounts?: Account[];
   divisions?: { id: string; name: string; code: string | null }[];
 }
@@ -117,7 +121,8 @@ export function FinanceSettingsClient({
   collectionCategories,
   expenseCategories,
   accounts = [],
-  divisions = []
+  divisions = [],
+  funds = []
 }: Props) {
   const router = useRouter();
   const { toast } = useToast();
@@ -126,7 +131,28 @@ export function FinanceSettingsClient({
   const incomeAccounts = accounts.filter((a) => a.type === "INCOME" || !a.type);
   const expenseAccounts = accounts.filter((a) => a.type === "EXPENSE" || !a.type);
 
-  // Fund / Account Management State
+  // Operational Funds (FinanceFund) State
+  const [operationalFunds, setOperationalFunds] = useState<FinanceFund[]>(funds);
+  const [opFundModalOpen, setOpFundModalOpen] = useState(false);
+  const [opFundName, setOpFundName] = useState("");
+  const [opFundCode, setOpFundCode] = useState("");
+  const [opFundDescription, setOpFundDescription] = useState("");
+  const [opFundColor, setOpFundColor] = useState("#059669");
+  const [opFundIsDefault, setOpFundIsDefault] = useState(false);
+  const [isSavingOpFund, setIsSavingOpFund] = useState(false);
+
+  const [editOpFundTarget, setEditOpFundTarget] = useState<FinanceFund | null>(null);
+  const [editOpFundName, setEditOpFundName] = useState("");
+  const [editOpFundCode, setEditOpFundCode] = useState("");
+  const [editOpFundDescription, setEditOpFundDescription] = useState("");
+  const [editOpFundColor, setEditOpFundColor] = useState("#059669");
+  const [editOpFundIsDefault, setEditOpFundIsDefault] = useState(false);
+  const [isSavingEditOpFund, setIsSavingEditOpFund] = useState(false);
+
+  const [deleteOpFundTarget, setDeleteOpFundTarget] = useState<FinanceFund | null>(null);
+  const [isDeletingOpFund, setIsDeletingOpFund] = useState(false);
+
+  // Chart of Accounts Fund / Account Management State
   const [fundModalOpen, setFundModalOpen] = useState(false);
   const [fundName, setFundName] = useState("");
   const [fundCode, setFundCode] = useState("");
@@ -173,20 +199,26 @@ export function FinanceSettingsClient({
   const [deleteBankTarget, setDeleteBankTarget] = useState<FinanceBankAccount | null>(null);
   const [isDeletingBank, setIsDeletingBank] = useState(false);
 
+  // Category Filter in Categories Tab
+  const [categoryFundFilter, setCategoryFundFilter] = useState("ALL");
+
   // Category Add Modal State
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [catType, setCatType] = useState<"collection" | "expense">("collection");
+  const [catFundId, setCatFundId] = useState("");
   const [catAccountId, setCatAccountId] = useState("");
   const [catName, setCatName] = useState("");
   const [catCode, setCatCode] = useState("");
-  const [catTargetType, setCatTargetType] = useState<"ALL_FAMILIES" | "SPECIFIC_DIVISIONS" | "CATEGORY_BASED" | "GENERAL">("ALL_FAMILIES");
+  const [catTargetType, setCatTargetType] = useState<string>("FAMILY_BASED");
   const [catIsRecurring, setCatIsRecurring] = useState(false);
   const [catIsSubscription, setCatIsSubscription] = useState(false);
-  const [catRecurrenceFrequency, setCatRecurrenceFrequency] = useState<"MONTHLY" | "ANNUAL" | "ONE_TIME">("MONTHLY");
+  const [catRecurrenceFrequency, setCatRecurrenceFrequency] = useState<string>("MONTHLY");
+  const [catAutoGenerate, setCatAutoGenerate] = useState(false);
   const [catEconomicCategory, setCatEconomicCategory] = useState("ALL");
   const [catTargetDivisions, setCatTargetDivisions] = useState<string[]>([]);
   const [catDefaultAmount, setCatDefaultAmount] = useState("");
   const [catTargetAmount, setCatTargetAmount] = useState("");
+  const [catDynamicFields, setCatDynamicFields] = useState<DynamicFormFieldConfig[]>(DEFAULT_STANDARD_FIELDS);
   const [isSavingCat, setIsSavingCat] = useState(false);
 
   // Category Edit & Delete State
@@ -194,17 +226,20 @@ export function FinanceSettingsClient({
     item: CollectionCategory | ExpenseCategory;
     type: "collection" | "expense";
   } | null>(null);
+  const [editCatFundId, setEditCatFundId] = useState("");
   const [editCatAccountId, setEditCatAccountId] = useState("");
   const [editCatName, setEditCatName] = useState("");
   const [editCatCode, setEditCatCode] = useState("");
-  const [editCatTargetType, setEditCatTargetType] = useState<"ALL_FAMILIES" | "SPECIFIC_DIVISIONS" | "CATEGORY_BASED" | "GENERAL">("ALL_FAMILIES");
+  const [editCatTargetType, setEditCatTargetType] = useState<string>("FAMILY_BASED");
   const [editCatIsRecurring, setEditCatIsRecurring] = useState(false);
   const [editCatIsSubscription, setEditCatIsSubscription] = useState(false);
-  const [editCatRecurrenceFrequency, setEditCatRecurrenceFrequency] = useState<"MONTHLY" | "ANNUAL" | "ONE_TIME">("MONTHLY");
+  const [editCatRecurrenceFrequency, setEditCatRecurrenceFrequency] = useState<string>("MONTHLY");
+  const [editCatAutoGenerate, setEditCatAutoGenerate] = useState(false);
   const [editCatEconomicCategory, setEditCatEconomicCategory] = useState("ALL");
   const [editCatTargetDivisions, setEditCatTargetDivisions] = useState<string[]>([]);
   const [editCatDefaultAmount, setEditCatDefaultAmount] = useState("");
   const [editCatTargetAmount, setEditCatTargetAmount] = useState("");
+  const [editCatDynamicFields, setEditCatDynamicFields] = useState<DynamicFormFieldConfig[]>(DEFAULT_STANDARD_FIELDS);
   const [isSavingEditCat, setIsSavingEditCat] = useState(false);
 
   const [deleteCatTarget, setDeleteCatTarget] = useState<{
@@ -455,6 +490,95 @@ export function FinanceSettingsClient({
   }
 
   // ---------------------------------------------------------------------------
+  // Operational Fund (FinanceFund) Handlers
+  // ---------------------------------------------------------------------------
+  async function handleCreateOpFund(e: React.FormEvent) {
+    e.preventDefault();
+    if (!opFundName.trim()) {
+      toast({ title: "Please enter fund name", variant: "destructive" });
+      return;
+    }
+    setIsSavingOpFund(true);
+    try {
+      const res = await apiClient.post<{ fund: FinanceFund }>(`/tenants/${slug}/finance/settings/funds`, {
+        name: opFundName.trim(),
+        code: opFundCode.trim() || undefined,
+        description: opFundDescription.trim() || undefined,
+        color: opFundColor || "#059669",
+        isDefault: opFundIsDefault
+      });
+      if (res?.fund) {
+        setOperationalFunds((prev) => [...prev, res.fund]);
+      }
+      toast({ title: "Operational Fund created successfully", variant: "success" });
+      setOpFundModalOpen(false);
+      setOpFundName("");
+      setOpFundCode("");
+      setOpFundDescription("");
+      setOpFundColor("#059669");
+      setOpFundIsDefault(false);
+      router.refresh();
+    } catch (err) {
+      toast({
+        title: "Error creating fund",
+        description: err instanceof ApiError ? err.message : "Failed to create fund",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSavingOpFund(false);
+    }
+  }
+
+  async function handleUpdateOpFund(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editOpFundTarget || !editOpFundName.trim()) return;
+    setIsSavingEditOpFund(true);
+    try {
+      const res = await apiClient.patch<{ fund: FinanceFund }>(`/tenants/${slug}/finance/settings/funds/${editOpFundTarget.id}`, {
+        name: editOpFundName.trim(),
+        code: editOpFundCode.trim() || undefined,
+        description: editOpFundDescription.trim() || undefined,
+        color: editOpFundColor || "#059669",
+        isDefault: editOpFundIsDefault
+      });
+      if (res?.fund) {
+        setOperationalFunds((prev) => prev.map((f) => (f.id === res.fund.id ? res.fund : f)));
+      }
+      toast({ title: "Operational Fund updated successfully", variant: "success" });
+      setEditOpFundTarget(null);
+      router.refresh();
+    } catch (err) {
+      toast({
+        title: "Error updating fund",
+        description: err instanceof ApiError ? err.message : "Failed to update fund",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSavingEditOpFund(false);
+    }
+  }
+
+  async function handleDeleteOpFund() {
+    if (!deleteOpFundTarget) return;
+    setIsDeletingOpFund(true);
+    try {
+      await apiClient.delete(`/tenants/${slug}/finance/settings/funds/${deleteOpFundTarget.id}`);
+      setOperationalFunds((prev) => prev.filter((f) => f.id !== deleteOpFundTarget.id));
+      toast({ title: "Operational Fund deleted", variant: "success" });
+      setDeleteOpFundTarget(null);
+      router.refresh();
+    } catch (err) {
+      toast({
+        title: "Error deleting fund",
+        description: err instanceof ApiError ? err.message : "Failed to delete fund",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeletingOpFund(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Category Handlers
   // ---------------------------------------------------------------------------
   async function handleCreateCategory(e: React.FormEvent) {
@@ -467,24 +591,48 @@ export function FinanceSettingsClient({
     setIsSavingCat(true);
     try {
       if (catType === "collection") {
+        const familyField = catDynamicFields.find((f) => f.type === "family");
+        const memberField = catDynamicFields.find((f) => f.type === "member");
+        const amountField = catDynamicFields.find((f) => f.type === "amount");
+        const dateField = catDynamicFields.find((f) => f.type === "date");
+        const descField = catDynamicFields.find((f) => f.type === "description");
+        const fileField = catDynamicFields.find((f) => f.type === "file");
+
+        const fullFormConfig: CollectionFormConfig = {
+          fields: catDynamicFields,
+          enableFamily: familyField ? familyField.enabled : true,
+          requireFamily: familyField ? familyField.required : false,
+          enableMember: memberField ? memberField.enabled : true,
+          requireMember: memberField ? memberField.required : false,
+          enableAmount: amountField ? amountField.enabled : true,
+          requireAmount: amountField ? amountField.required : true,
+          enableDate: dateField ? dateField.enabled : true,
+          enableNotes: descField ? descField.enabled : true,
+          enableDescription: descField ? descField.enabled : true,
+          enableAttachment: fileField ? fileField.enabled : false
+        };
+
         await apiClient.post(`/tenants/${slug}/finance/settings/collection-categories`, {
           name: catName.trim(),
           code: catCode.trim() || undefined,
+          fundId: catFundId || undefined,
           incomeAccountId: catAccountId || undefined,
           targetType: catTargetType,
           isRecurring: catIsRecurring,
           isSubscription: catIsSubscription,
           recurrenceFrequency: catIsRecurring ? catRecurrenceFrequency : undefined,
-          targetEconomicCategory: catTargetType === "CATEGORY_BASED" ? catEconomicCategory : undefined,
-          targetDivisionIds: catTargetType === "SPECIFIC_DIVISIONS" ? catTargetDivisions : undefined,
+          autoGenerate: catAutoGenerate,
+          targetEconomicCategory: catTargetType === "CUSTOM_TARGET" || catTargetType === "CATEGORY_BASED" ? catEconomicCategory : undefined,
+          targetDivisionIds: catTargetType === "DIVISION_BASED" || catTargetType === "SPECIFIC_DIVISIONS" ? catTargetDivisions : undefined,
           defaultAmount: catDefaultAmount ? Number(catDefaultAmount) : undefined,
           targetAmount: catTargetAmount ? Number(catTargetAmount) : undefined,
-          formConfig: catFormConfig
+          formConfig: fullFormConfig
         });
       } else {
         await apiClient.post(`/tenants/${slug}/finance/settings/expense-categories`, {
           name: catName.trim(),
           code: catCode.trim() || undefined,
+          fundId: catFundId || undefined,
           expenseAccountId: catAccountId || undefined
         });
       }
@@ -492,16 +640,18 @@ export function FinanceSettingsClient({
       setCatModalOpen(false);
       setCatName("");
       setCatCode("");
+      setCatFundId("");
       setCatAccountId("");
-      setCatTargetType("ALL_FAMILIES");
+      setCatTargetType("FAMILY_BASED");
       setCatIsRecurring(false);
       setCatIsSubscription(false);
       setCatRecurrenceFrequency("MONTHLY");
+      setCatAutoGenerate(false);
       setCatEconomicCategory("ALL");
       setCatTargetDivisions([]);
       setCatDefaultAmount("");
       setCatTargetAmount("");
-      setCatFormConfig(defaultFormConfig);
+      setCatDynamicFields(DEFAULT_STANDARD_FIELDS);
       router.refresh();
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Failed to add category";
@@ -515,29 +665,31 @@ export function FinanceSettingsClient({
     setEditCatTarget({ item, type });
     setEditCatName(item.name);
     setEditCatCode(item.code || "");
+    setEditCatFundId(item.fundId || "");
     if (type === "collection") {
       const col = item as CollectionCategory;
       setEditCatAccountId(col.incomeAccountId || "");
-      setEditCatTargetType(col.targetType || "ALL_FAMILIES");
+      setEditCatTargetType(col.targetType || "FAMILY_BASED");
       setEditCatIsRecurring(Boolean(col.isRecurring));
       setEditCatIsSubscription(Boolean(col.isSubscription));
-      setEditCatRecurrenceFrequency((col.recurrenceFrequency as any) || "MONTHLY");
+      setEditCatRecurrenceFrequency(String(col.recurrenceFrequency || "MONTHLY"));
+      setEditCatAutoGenerate(Boolean(col.autoGenerate));
       setEditCatEconomicCategory(col.targetEconomicCategory || "ALL");
       setEditCatTargetDivisions(col.targetDivisionIds || []);
       setEditCatDefaultAmount(col.defaultAmount != null ? String(col.defaultAmount) : "");
       setEditCatTargetAmount(col.targetAmount != null ? String(col.targetAmount) : "");
-      setEditCatFormConfig({
-        enableFamily: col.formConfig?.enableFamily ?? true,
-        requireFamily: col.formConfig?.requireFamily ?? true,
-        enableMember: col.formConfig?.enableMember ?? true,
-        requireMember: col.formConfig?.requireMember ?? false,
-        enableAmount: col.formConfig?.enableAmount ?? true,
-        requireAmount: col.formConfig?.requireAmount ?? true,
-        enablePaymentMethod: col.formConfig?.enablePaymentMethod ?? true,
-        enableDate: col.formConfig?.enableDate ?? true,
-        enableNotes: col.formConfig?.enableNotes ?? true,
-        enableAttachment: col.formConfig?.enableAttachment ?? false
-      });
+      if (col.formConfig?.fields && col.formConfig.fields.length > 0) {
+        setEditCatDynamicFields(col.formConfig.fields);
+      } else {
+        setEditCatDynamicFields([
+          { id: "family", type: "family", label: "Mahallu Family", enabled: col.formConfig?.enableFamily ?? true, required: col.formConfig?.requireFamily ?? true },
+          { id: "member", type: "member", label: "Family Member", enabled: col.formConfig?.enableMember ?? true, required: col.formConfig?.requireMember ?? false },
+          { id: "amount", type: "amount", label: "Amount (₹)", enabled: col.formConfig?.enableAmount ?? true, required: col.formConfig?.requireAmount ?? true },
+          { id: "date", type: "date", label: "Collection Date", enabled: col.formConfig?.enableDate ?? true, required: true },
+          { id: "description", type: "description", label: "Notes / Description", enabled: col.formConfig?.enableNotes ?? true, required: false },
+          { id: "file", type: "file", label: "Attachment / Receipt", enabled: col.formConfig?.enableAttachment ?? false, required: false }
+        ]);
+      }
     } else {
       const exp = item as ExpenseCategory;
       setEditCatAccountId(exp.expenseAccountId || "");
@@ -555,24 +707,48 @@ export function FinanceSettingsClient({
     setIsSavingEditCat(true);
     try {
       if (editCatTarget.type === "collection") {
+        const familyField = editCatDynamicFields.find((f) => f.type === "family");
+        const memberField = editCatDynamicFields.find((f) => f.type === "member");
+        const amountField = editCatDynamicFields.find((f) => f.type === "amount");
+        const dateField = editCatDynamicFields.find((f) => f.type === "date");
+        const descField = editCatDynamicFields.find((f) => f.type === "description");
+        const fileField = editCatDynamicFields.find((f) => f.type === "file");
+
+        const fullFormConfig: CollectionFormConfig = {
+          fields: editCatDynamicFields,
+          enableFamily: familyField ? familyField.enabled : true,
+          requireFamily: familyField ? familyField.required : false,
+          enableMember: memberField ? memberField.enabled : true,
+          requireMember: memberField ? memberField.required : false,
+          enableAmount: amountField ? amountField.enabled : true,
+          requireAmount: amountField ? amountField.required : true,
+          enableDate: dateField ? dateField.enabled : true,
+          enableNotes: descField ? descField.enabled : true,
+          enableDescription: descField ? descField.enabled : true,
+          enableAttachment: fileField ? fileField.enabled : false
+        };
+
         await apiClient.patch(`/tenants/${slug}/finance/settings/collection-categories/${editCatTarget.item.id}`, {
           name: editCatName.trim(),
           code: editCatCode.trim() || undefined,
+          fundId: editCatFundId || null,
           incomeAccountId: editCatAccountId || null,
           targetType: editCatTargetType,
           isRecurring: editCatIsRecurring,
           isSubscription: editCatIsSubscription,
           recurrenceFrequency: editCatIsRecurring ? editCatRecurrenceFrequency : undefined,
-          targetEconomicCategory: editCatTargetType === "CATEGORY_BASED" ? editCatEconomicCategory : undefined,
-          targetDivisionIds: editCatTargetType === "SPECIFIC_DIVISIONS" ? editCatTargetDivisions : undefined,
+          autoGenerate: editCatAutoGenerate,
+          targetEconomicCategory: editCatTargetType === "CUSTOM_TARGET" || editCatTargetType === "CATEGORY_BASED" ? editCatEconomicCategory : undefined,
+          targetDivisionIds: editCatTargetType === "DIVISION_BASED" || editCatTargetType === "SPECIFIC_DIVISIONS" ? editCatTargetDivisions : undefined,
           defaultAmount: editCatDefaultAmount ? Number(editCatDefaultAmount) : null,
           targetAmount: editCatTargetAmount ? Number(editCatTargetAmount) : null,
-          formConfig: editCatFormConfig
+          formConfig: fullFormConfig
         });
       } else {
         await apiClient.patch(`/tenants/${slug}/finance/settings/expense-categories/${editCatTarget.item.id}`, {
           name: editCatName.trim(),
           code: editCatCode.trim() || undefined,
+          fundId: editCatFundId || null,
           expenseAccountId: editCatAccountId || null
         });
       }
@@ -729,47 +905,48 @@ export function FinanceSettingsClient({
       {/* Funds & Accounts Tab */}
       {activeTab === "funds" && (
         <div className="space-y-6">
-          {/* Header Banner & Distinction Notice */}
-          <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* 1. Operational Funds (Finance Accounts: Masjid Fund, Madrasa Fund, etc.) */}
+          <div className="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-start gap-3">
-              <div className="p-2 rounded-xl bg-blue-600 text-white shrink-0 mt-0.5">
+              <div className="p-2 rounded-xl bg-emerald-600 text-white shrink-0 mt-0.5">
                 <Wallet className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-blue-950 dark:text-blue-200">
-                  Mahallu Operational Funds & Accounts
+                <h3 className="text-sm font-bold text-emerald-950 dark:text-emerald-200 flex items-center gap-2">
+                  Operational Funds & Accounts
+                  <Badge variant="secondary" className="text-[10px] bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300">
+                    Operational Layer
+                  </Badge>
                 </h3>
-                <p className="text-xs text-blue-800/80 dark:text-blue-300/80 mt-0.5 leading-relaxed">
-                  Create and manage your Mahal funds (e.g. General Fund, Building Fund, Zakat Fund, Madrasa Fund) before creating collection or expense categories.
+                <p className="text-xs text-emerald-800/80 dark:text-emerald-300/80 mt-0.5 leading-relaxed">
+                  Manage operational funds. Each fund has its own Income and Expense categories and reports.
                 </p>
-                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-blue-700 dark:text-blue-400 bg-blue-100/60 dark:bg-blue-900/40 px-2.5 py-1 rounded-lg w-fit">
-                  <Info className="h-3.5 w-3.5 shrink-0" />
-                  <span>
-                    <strong>Note:</strong> These are operational funds for inflows and outflows. Double-entry general ledgers are managed in the Chart of Accounts under Accountant.
-                  </span>
-                </div>
               </div>
             </div>
 
             <Button
               onClick={() => {
-                setFundType("INCOME");
-                setFundModalOpen(true);
+                setOpFundName("");
+                setOpFundCode("");
+                setOpFundDescription("");
+                setOpFundColor("#059669");
+                setOpFundIsDefault(false);
+                setOpFundModalOpen(true);
               }}
-              className="gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shrink-0 self-start md:self-center"
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shrink-0 self-start md:self-center"
             >
               <Plus className="h-4 w-4" />
-              Add Fund / Account
+              Add Operational Fund
             </Button>
           </div>
 
-          {/* Table of Funds */}
+          {/* Table of Operational Funds */}
           <Card className="rounded-2xl border border-border/80 shadow-sm">
             <CardHeader className="pb-3 border-b border-border/60 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-sm font-bold">Configured Funds & Accounts ({accounts.length})</CardTitle>
+                <CardTitle className="text-sm font-bold">Mahallu Operational Funds ({operationalFunds.length})</CardTitle>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Parent funds and financial accounts available for category grouping and transactions.
+                  Designated organizational funds used for collections, vouchers, and fund-level accounting.
                 </p>
               </div>
             </CardHeader>
@@ -777,38 +954,34 @@ export function FinanceSettingsClient({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Fund / Account Name</TableHead>
+                    <TableHead>Fund Name</TableHead>
                     <TableHead>Code</TableHead>
-                    <TableHead>Type</TableHead>
+                    <TableHead>Description</TableHead>
                     <TableHead>Linked Categories</TableHead>
-                    <TableHead>Opening Balance</TableHead>
+                    <TableHead>Default / Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {accounts.map((acc) => {
-                    const linkedCols = collectionCategories.filter((c) => c.incomeAccountId === acc.id);
-                    const linkedExps = expenseCategories.filter((c) => c.expenseAccountId === acc.id);
+                  {operationalFunds.map((f) => {
+                    const linkedCols = collectionCategories.filter((c) => c.fundId === f.id);
+                    const linkedExps = expenseCategories.filter((c) => c.fundId === f.id);
                     const totalLinked = linkedCols.length + linkedExps.length;
 
                     return (
-                      <TableRow key={acc.id}>
+                      <TableRow key={f.id}>
                         <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-xs text-foreground">{acc.name}</span>
-                            {acc.description && (
-                              <span className="text-[11px] text-muted-foreground line-clamp-1">{acc.description}</span>
-                            )}
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-3 h-3 rounded-full shrink-0"
+                              style={{ backgroundColor: f.color || "#059669" }}
+                            />
+                            <span className="font-semibold text-xs text-foreground">{f.name}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs font-mono">{acc.code || "—"}</TableCell>
-                        <TableCell className="text-xs">
-                          <Badge
-                            variant={acc.type === "INCOME" ? "success" : acc.type === "EXPENSE" ? "destructive" : "secondary"}
-                            className="text-[10px] uppercase font-bold"
-                          >
-                            {acc.type === "INCOME" ? "Income / Inflow Fund" : acc.type === "EXPENSE" ? "Expense Account" : acc.type || "Fund"}
-                          </Badge>
+                        <TableCell className="text-xs font-mono">{f.code || "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {f.description || "—"}
                         </TableCell>
                         <TableCell className="text-xs">
                           {totalLinked > 0 ? (
@@ -817,11 +990,20 @@ export function FinanceSettingsClient({
                               {totalLinked} {totalLinked === 1 ? "category" : "categories"}
                             </span>
                           ) : (
-                            <span className="text-muted-foreground/60">—</span>
+                            <span className="text-muted-foreground/60">0 categories</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-xs font-mono font-medium">
-                          {acc.openingBalance ? `₹${Number(acc.openingBalance).toLocaleString("en-IN")}` : "₹0.00"}
+                        <TableCell className="text-xs">
+                          <div className="flex items-center gap-1.5">
+                            {f.isDefault && (
+                              <Badge variant="success" className="text-[10px]">
+                                Default Fund
+                              </Badge>
+                            )}
+                            <Badge variant="secondary" className="text-[10px]">
+                              Active
+                            </Badge>
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -829,7 +1011,14 @@ export function FinanceSettingsClient({
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0 hover:bg-muted/80 text-muted-foreground hover:text-foreground"
-                              onClick={() => openEditFund(acc)}
+                              onClick={() => {
+                                setEditOpFundTarget(f);
+                                setEditOpFundName(f.name);
+                                setEditOpFundCode(f.code || "");
+                                setEditOpFundDescription(f.description || "");
+                                setEditOpFundColor(f.color || "#059669");
+                                setEditOpFundIsDefault(Boolean(f.isDefault));
+                              }}
                               title="Edit fund"
                             >
                               <Pencil className="h-3.5 w-3.5" />
@@ -838,7 +1027,7 @@ export function FinanceSettingsClient({
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                              onClick={() => setDeleteFundTarget(acc)}
+                              onClick={() => setDeleteOpFundTarget(f)}
                               title="Delete fund"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -848,10 +1037,10 @@ export function FinanceSettingsClient({
                       </TableRow>
                     );
                   })}
-                  {accounts.length === 0 && (
+                  {operationalFunds.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8 text-xs text-muted-foreground">
-                        No funds or accounts configured yet. Click &quot;Add Fund / Account&quot; to create your first fund.
+                        No operational funds configured yet. Click &quot;Add Operational Fund&quot; to create your first fund (e.g. Masjid Fund).
                       </TableCell>
                     </TableRow>
                   )}
@@ -859,6 +1048,116 @@ export function FinanceSettingsClient({
               </Table>
             </CardContent>
           </Card>
+
+          {/* 2. Chart of Accounts Ledgers */}
+          <div className="pt-2">
+            <Card className="rounded-2xl border border-border/80 shadow-sm">
+              <CardHeader className="pb-3 border-b border-border/60 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-blue-600" />
+                    Chart of Accounts Ledgers ({accounts.length})
+                    <Badge variant="outline" className="text-[10px] text-blue-700 dark:text-blue-300">
+                      Accounting Layer
+                    </Badge>
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Double-entry accounting backbone accounts. Operational categories are mapped to these ledgers.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    setFundType("INCOME");
+                    setFundModalOpen(true);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs rounded-xl"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Ledger Account
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ledger Account Name</TableHead>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Account Type</TableHead>
+                      <TableHead>Mapped Categories</TableHead>
+                      <TableHead>Balance</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {accounts.map((acc) => {
+                      const linkedCols = collectionCategories.filter((c) => c.incomeAccountId === acc.id);
+                      const linkedExps = expenseCategories.filter((c) => c.expenseAccountId === acc.id);
+                      const totalLinked = linkedCols.length + linkedExps.length;
+
+                      return (
+                        <TableRow key={acc.id}>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-xs text-foreground">{acc.name}</span>
+                              {acc.description && (
+                                <span className="text-[11px] text-muted-foreground line-clamp-1">{acc.description}</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">{acc.code || "—"}</TableCell>
+                          <TableCell className="text-xs">
+                            <Badge
+                              variant={acc.type === "INCOME" ? "success" : acc.type === "EXPENSE" ? "destructive" : "secondary"}
+                              className="text-[10px] uppercase font-bold"
+                            >
+                              {acc.type || "ACCOUNT"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {totalLinked > 0 ? (
+                              <span className="inline-flex items-center gap-1 font-medium text-primary">
+                                <Layers className="h-3 w-3" />
+                                {totalLinked} {totalLinked === 1 ? "category" : "categories"}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/60">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono font-medium">
+                            {acc.currentBalance ? `₹${Number(acc.currentBalance).toLocaleString("en-IN")}` : "₹0.00"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-muted/80 text-muted-foreground hover:text-foreground"
+                                onClick={() => openEditFund(acc)}
+                                title="Edit ledger account"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                                onClick={() => setDeleteFundTarget(acc)}
+                                title="Delete ledger account"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
@@ -978,171 +1277,235 @@ export function FinanceSettingsClient({
       )}
 
       {/* Categories Tab */}
-      {activeTab === "categories" && (
-        <div className="space-y-6">
-          <div className="flex justify-end gap-2">
-            <Button
-              onClick={() => {
-                setCatType("collection");
-                setCatModalOpen(true);
-              }}
-              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-            >
-              <Plus className="h-4 w-4" />
-              Add Collection Category
-            </Button>
-            <Button
-              onClick={() => {
-                setCatType("expense");
-                setCatModalOpen(true);
-              }}
-              variant="outline"
-              className="gap-2 rounded-xl"
-            >
-              <Plus className="h-4 w-4" />
-              Add Expense Category
-            </Button>
-          </div>
+      {activeTab === "categories" && (() => {
+        const filteredCollectionCategories = collectionCategories.filter((c) =>
+          categoryFundFilter === "ALL" || c.fundId === categoryFundFilter
+        );
+        const filteredExpenseCategories = expenseCategories.filter((c) =>
+          categoryFundFilter === "ALL" || c.fundId === categoryFundFilter
+        );
 
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Collection Categories */}
-            <Card className="rounded-2xl border border-border/80 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Collection Heads ({collectionCategories.length})</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2.5">
-                {collectionCategories.map((c) => (
-                  <div key={c.id} className="group flex items-start justify-between p-3 rounded-xl bg-muted/20 hover:bg-muted/40 transition-colors text-xs border border-transparent hover:border-border/60">
-                    <div className="space-y-1.5 min-w-0 pr-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-foreground text-sm">{c.name}</span>
-                        {c.code && (
-                          <span className="font-mono text-xs text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border/60">
-                            {c.code}
-                          </span>
-                        )}
-                        {(c.incomeAccount?.name || (c.incomeAccountId && accounts.find(a => a.id === c.incomeAccountId)?.name)) && (
-                          <Badge variant="outline" className="text-[10px] bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 border-emerald-300">
-                            Fund: {c.incomeAccount?.name || accounts.find(a => a.id === c.incomeAccountId)?.name}
-                          </Badge>
-                        )}
-                        {c.isRecurring && (
-                          <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 gap-1">
-                            <RefreshCw className="h-2.5 w-2.5" />
-                            {c.recurrenceFrequency || "MONTHLY"}
-                          </Badge>
-                        )}
-                        {c.isSubscription && (
-                          <Badge variant="secondary" className="text-[10px] bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200">
-                            Subscription
-                          </Badge>
-                        )}
-                        {c.defaultAmount != null && Number(c.defaultAmount) > 0 && (
-                          <Badge variant="outline" className="text-[10px] font-mono font-medium text-foreground">
-                            ₹{Number(c.defaultAmount).toLocaleString("en-IN")}
-                          </Badge>
-                        )}
-                        {c.targetAmount != null && Number(c.targetAmount) > 0 && (
-                          <Badge variant="outline" className="text-[10px] font-mono font-medium text-muted-foreground">
-                            Target: ₹{Number(c.targetAmount).toLocaleString("en-IN")}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap">
-                        {c.targetType === "GENERAL" ? (
-                          <span className="inline-flex items-center gap-1 text-sky-600 dark:text-sky-400 font-medium">
-                            <Globe className="h-3 w-3" /> General / Open (Donations / Hundi)
-                          </span>
-                        ) : c.targetType === "SPECIFIC_DIVISIONS" ? (
-                          <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
-                            <MapPin className="h-3 w-3" /> Specific Divisions ({c.targetDivisionIds?.length || 0})
-                          </span>
-                        ) : c.targetType === "CATEGORY_BASED" ? (
-                          <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400 font-medium">
-                            <Tag className="h-3 w-3" /> Economic Category: {c.targetEconomicCategory || "All"}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-400 font-medium">
-                            <Users className="h-3 w-3" /> All Families
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 hover:bg-muted text-muted-foreground hover:text-foreground"
-                        onClick={() => openEditCategory(c, "collection")}
-                        title="Edit category"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                        onClick={() => setDeleteCatTarget({ item: c, type: "collection" })}
-                        title="Delete category"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                {collectionCategories.length === 0 && (
-                  <p className="text-center py-4 text-xs text-muted-foreground">No collection categories configured.</p>
-                )}
-              </CardContent>
-            </Card>
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-foreground">Operational Fund:</span>
+                <Select
+                  value={categoryFundFilter}
+                  onChange={(e) => setCategoryFundFilter(e.target.value)}
+                  className="w-56 h-8 text-xs"
+                >
+                  <option value="ALL">All Operational Funds ({operationalFunds.length})</option>
+                  {operationalFunds.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} {f.code ? `(${f.code})` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </div>
 
-            {/* Expense Categories */}
-            <Card className="rounded-2xl border border-border/80 shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold">Expense Heads ({expenseCategories.length})</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {expenseCategories.map((c) => (
-                  <div key={c.id} className="group flex items-center justify-between p-2.5 rounded-xl bg-muted/20 hover:bg-muted/40 transition-colors text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-foreground">{c.name}</span>
-                      {c.code && <span className="font-mono text-xs text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border/60">{c.code}</span>}
-                      {(c.expenseAccount?.name || (c.expenseAccountId && accounts.find(a => a.id === c.expenseAccountId)?.name)) && (
-                        <span className="text-[11px] text-muted-foreground">
-                          • Account: {c.expenseAccount?.name || accounts.find(a => a.id === c.expenseAccountId)?.name}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 hover:bg-muted text-muted-foreground hover:text-foreground"
-                        onClick={() => openEditCategory(c, "expense")}
-                        title="Edit category"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                        onClick={() => setDeleteCatTarget({ item: c, type: "expense" })}
-                        title="Delete category"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                {expenseCategories.length === 0 && (
-                  <p className="text-center py-4 text-xs text-muted-foreground">No expense categories configured.</p>
-                )}
-              </CardContent>
-            </Card>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => {
+                    setCatType("collection");
+                    setCatFundId(categoryFundFilter !== "ALL" ? categoryFundFilter : (operationalFunds[0]?.id || ""));
+                    setCatModalOpen(true);
+                  }}
+                  className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs h-9"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Collection Category
+                </Button>
+                <Button
+                  onClick={() => {
+                    setCatType("expense");
+                    setCatFundId(categoryFundFilter !== "ALL" ? categoryFundFilter : (operationalFunds[0]?.id || ""));
+                    setCatModalOpen(true);
+                  }}
+                  variant="outline"
+                  className="gap-2 rounded-xl text-xs h-9"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Expense Category
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Collection Categories */}
+              <Card className="rounded-2xl border border-border/80 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                    <span>Collection Heads ({filteredCollectionCategories.length})</span>
+                    {categoryFundFilter !== "ALL" && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        Fund Filter Active
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2.5">
+                  {filteredCollectionCategories.map((c) => {
+                    const matchedFund = c.fund || operationalFunds.find((f) => f.id === c.fundId);
+                    const matchedCoa = c.incomeAccount || accounts.find((a) => a.id === c.incomeAccountId);
+
+                    return (
+                      <div key={c.id} className="group flex items-start justify-between p-3 rounded-xl bg-muted/20 hover:bg-muted/40 transition-colors text-xs border border-transparent hover:border-border/60">
+                        <div className="space-y-1.5 min-w-0 pr-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-foreground text-sm">{c.name}</span>
+                            {c.code && (
+                              <span className="font-mono text-xs text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border/60">
+                                {c.code}
+                              </span>
+                            )}
+                            {matchedFund && (
+                              <Badge variant="outline" className="text-[10px] bg-blue-500/5 text-blue-700 dark:text-blue-300 border-blue-300">
+                                Fund: {matchedFund.name}
+                              </Badge>
+                            )}
+                            {matchedCoa ? (
+                              <Badge variant="outline" className="text-[10px] bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 border-emerald-300">
+                                COA: {matchedCoa.name}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-300">
+                                Unposted (No COA)
+                              </Badge>
+                            )}
+                            {c.isRecurring && (
+                              <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 gap-1">
+                                <RefreshCw className="h-2.5 w-2.5" />
+                                {c.recurrenceFrequency || "MONTHLY"}
+                              </Badge>
+                            )}
+                            {c.autoGenerate && (
+                              <Badge variant="secondary" className="text-[10px] bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200">
+                                Auto-gen
+                              </Badge>
+                            )}
+                            {c.defaultAmount != null && Number(c.defaultAmount) > 0 && (
+                              <Badge variant="outline" className="text-[10px] font-mono font-medium text-foreground">
+                                ₹{Number(c.defaultAmount).toLocaleString("en-IN")}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap">
+                            <span className="inline-flex items-center gap-1 font-medium text-slate-600 dark:text-slate-400">
+                              Target: {c.targetType === "NO_TARGET" || c.targetType === "GENERAL"
+                                ? "No Target / Open"
+                                : c.targetType === "DIVISION_BASED" || c.targetType === "SPECIFIC_DIVISIONS"
+                                  ? `Division-based (${c.targetDivisionIds?.length || 0} Wards)`
+                                  : c.targetType === "CUSTOM_TARGET" || c.targetType === "CATEGORY_BASED"
+                                    ? `Custom (${c.targetEconomicCategory || "All"})`
+                                    : c.targetType === "MEMBER_BASED"
+                                      ? "Member-based"
+                                      : "Family-based"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 hover:bg-muted text-muted-foreground hover:text-foreground"
+                            onClick={() => openEditCategory(c, "collection")}
+                            title="Edit category"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                            onClick={() => setDeleteCatTarget({ item: c, type: "collection" })}
+                            title="Delete category"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {filteredCollectionCategories.length === 0 && (
+                    <p className="text-center py-4 text-xs text-muted-foreground">
+                      No collection categories found for selected fund.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Expense Categories */}
+              <Card className="rounded-2xl border border-border/80 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                    <span>Expense Heads ({filteredExpenseCategories.length})</span>
+                    {categoryFundFilter !== "ALL" && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        Fund Filter Active
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {filteredExpenseCategories.map((c) => {
+                    const matchedFund = c.fund || operationalFunds.find((f) => f.id === c.fundId);
+                    const matchedCoa = c.expenseAccount || accounts.find((a) => a.id === c.expenseAccountId);
+
+                    return (
+                      <div key={c.id} className="group flex items-center justify-between p-2.5 rounded-xl bg-muted/20 hover:bg-muted/40 transition-colors text-xs">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-foreground">{c.name}</span>
+                          {c.code && <span className="font-mono text-xs text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border/60">{c.code}</span>}
+                          {matchedFund && (
+                            <Badge variant="outline" className="text-[10px] bg-blue-500/5 text-blue-700 dark:text-blue-300 border-blue-300">
+                              Fund: {matchedFund.name}
+                            </Badge>
+                          )}
+                          {matchedCoa ? (
+                            <Badge variant="outline" className="text-[10px] bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 border-emerald-300">
+                              COA: {matchedCoa.name}
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-300">
+                              Unposted (No COA)
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 hover:bg-muted text-muted-foreground hover:text-foreground"
+                            onClick={() => openEditCategory(c, "expense")}
+                            title="Edit category"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                            onClick={() => setDeleteCatTarget({ item: c, type: "expense" })}
+                            title="Delete category"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {filteredExpenseCategories.length === 0 && (
+                    <p className="text-center py-4 text-xs text-muted-foreground">
+                      No expense categories found for selected fund.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Methods Tab */}
       {activeTab === "methods" && (
@@ -1341,64 +1704,226 @@ export function FinanceSettingsClient({
         onConfirm={handleDeleteBank}
       />
 
-      {/* Add Category Modal */}
-      <Dialog open={catModalOpen} onOpenChange={setCatModalOpen}>
-        <DialogContent className="max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+      {/* Add Operational Fund Modal */}
+      <Dialog open={opFundModalOpen} onOpenChange={setOpFundModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl p-6">
           <DialogHeader>
-            <DialogTitle>Add {catType === "collection" ? "Collection" : "Expense"} Category</DialogTitle>
+            <DialogTitle>Add Operational Fund / Account</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreateCategory} className="space-y-4 pt-2">
-            <FormField label="Category Name" required>
+          <form onSubmit={handleCreateOpFund} className="space-y-4 pt-2">
+            <FormField label="Fund Name" required>
               <Input
-                placeholder={catType === "collection" ? "e.g. Monthly Varisa, Juma Collection" : "e.g. Electricity, Maintenance"}
-                value={catName}
-                onChange={(e) => setCatName(e.target.value)}
+                placeholder="e.g. Masjid Fund, Madrasa Fund, Building Fund"
+                value={opFundName}
+                onChange={(e) => setOpFundName(e.target.value)}
                 required
               />
             </FormField>
 
-            <FormField label={catType === "collection" ? "Parent Fund Category" : "Parent Expense Account"}>
-              <Select
-                value={catAccountId}
-                onChange={(e) => setCatAccountId(e.target.value)}
-              >
-                <option value="">Select Account / Fund (Optional)...</option>
-                {(catType === "collection" ? incomeAccounts : expenseAccounts).map((acc) => (
-                  <option key={acc.id} value={acc.id}>
-                    {acc.name} {acc.code ? `(${acc.code})` : ""}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
-
-            <FormField label="Category Code (Optional)">
+            <FormField label="Fund Code (Short prefix)">
               <Input
-                placeholder="e.g. VARISA, JUMA, BLDG"
-                value={catCode}
-                onChange={(e) => setCatCode(e.target.value)}
+                placeholder="e.g. MSJ, MDR, BLD"
+                value={opFundCode}
+                onChange={(e) => setOpFundCode(e.target.value)}
+                className="font-mono"
               />
             </FormField>
+
+            <FormField label="Description">
+              <Input
+                placeholder="e.g. Primary fund for daily operations and utilities"
+                value={opFundDescription}
+                onChange={(e) => setOpFundDescription(e.target.value)}
+              />
+            </FormField>
+
+            <FormField label="Color Badge Theme">
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={opFundColor}
+                  onChange={(e) => setOpFundColor(e.target.value)}
+                  className="w-10 h-9 rounded cursor-pointer border border-border"
+                />
+                <span className="text-xs font-mono text-muted-foreground">{opFundColor}</span>
+              </div>
+            </FormField>
+
+            <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+              <Checkbox
+                checked={opFundIsDefault}
+                onChange={(e) => setOpFundIsDefault(e.target.checked)}
+              />
+              <span className="font-medium text-foreground">
+                Set as Default Operational Fund
+              </span>
+            </label>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-border/60">
+              <Button type="button" variant="outline" onClick={() => setOpFundModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSavingOpFund} className="bg-blue-600 hover:bg-blue-700 text-white">
+                {isSavingOpFund ? "Saving..." : "Create Fund"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Operational Fund Modal */}
+      <Dialog open={editOpFundTarget !== null} onOpenChange={(open) => !open && setEditOpFundTarget(null)}>
+        <DialogContent className="max-w-md rounded-2xl p-6">
+          <DialogHeader>
+            <DialogTitle>Edit Operational Fund</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdateOpFund} className="space-y-4 pt-2">
+            <FormField label="Fund Name" required>
+              <Input
+                value={editOpFundName}
+                onChange={(e) => setEditOpFundName(e.target.value)}
+                required
+              />
+            </FormField>
+
+            <FormField label="Fund Code">
+              <Input
+                value={editOpFundCode}
+                onChange={(e) => setEditOpFundCode(e.target.value)}
+                className="font-mono"
+              />
+            </FormField>
+
+            <FormField label="Description">
+              <Input
+                value={editOpFundDescription}
+                onChange={(e) => setEditOpFundDescription(e.target.value)}
+              />
+            </FormField>
+
+            <FormField label="Color Badge Theme">
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={editOpFundColor}
+                  onChange={(e) => setEditOpFundColor(e.target.value)}
+                  className="w-10 h-9 rounded cursor-pointer border border-border"
+                />
+                <span className="text-xs font-mono text-muted-foreground">{editOpFundColor}</span>
+              </div>
+            </FormField>
+
+            <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+              <Checkbox
+                checked={editOpFundIsDefault}
+                onChange={(e) => setEditOpFundIsDefault(e.target.checked)}
+              />
+              <span className="font-medium text-foreground">
+                Set as Default Operational Fund
+              </span>
+            </label>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-border/60">
+              <Button type="button" variant="outline" onClick={() => setEditOpFundTarget(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSavingEditOpFund} className="bg-blue-600 hover:bg-blue-700 text-white">
+                {isSavingEditOpFund ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Operational Fund ConfirmDialog */}
+      <ConfirmDialog
+        open={deleteOpFundTarget !== null}
+        onOpenChange={(open) => !open && setDeleteOpFundTarget(null)}
+        title="Delete Operational Fund?"
+        description={`Are you sure you want to delete "${deleteOpFundTarget?.name}"? Operational categories linked to this fund will need to be reallocated.`}
+        confirmLabel="Delete Fund"
+        destructive
+        isConfirming={isDeletingOpFund}
+        onConfirm={handleDeleteOpFund}
+      />
+
+      {/* Add Category Modal */}
+      <Dialog open={catModalOpen} onOpenChange={setCatModalOpen}>
+        <DialogContent className="max-w-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add {catType === "collection" ? "Collection" : "Expense"} Category</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateCategory} className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Operational Fund / Account" required>
+                <Select
+                  value={catFundId}
+                  onChange={(e) => setCatFundId(e.target.value)}
+                >
+                  <option value="">Select Operational Fund...</option>
+                  {operationalFunds.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} {f.code ? `(${f.code})` : ""} {f.isDefault ? "[Default]" : ""}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+
+              <FormField label={catType === "collection" ? "Chart of Accounts Mapping (Income)" : "Chart of Accounts Mapping (Expense)"}>
+                <Select
+                  value={catAccountId}
+                  onChange={(e) => setCatAccountId(e.target.value)}
+                >
+                  <option value="">Select COA Account (Required for Posting)...</option>
+                  {(catType === "collection" ? incomeAccounts : expenseAccounts).map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} {acc.code ? `(${acc.code})` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Category Name" required>
+                <Input
+                  placeholder={catType === "collection" ? "e.g. Monthly Varisa, Juma Collection" : "e.g. Electricity, Staff Salary"}
+                  value={catName}
+                  onChange={(e) => setCatName(e.target.value)}
+                  required
+                />
+              </FormField>
+
+              <FormField label="Category Code (Optional)">
+                <Input
+                  placeholder="e.g. VARISA, JUMA, BLDG"
+                  value={catCode}
+                  onChange={(e) => setCatCode(e.target.value)}
+                />
+              </FormField>
+            </div>
 
             {catType === "collection" && (
               <>
                 <div className="border-t border-border/60 pt-3 space-y-4">
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Collection Settings & Rules
+                    Target Configuration & Recurrence
                   </h4>
 
                   <FormField label="Target Scope">
                     <Select
                       value={catTargetType}
-                      onChange={(e) => setCatTargetType(e.target.value as any)}
+                      onChange={(e) => setCatTargetType(e.target.value)}
                     >
-                      <option value="ALL_FAMILIES">All Mahallu Families</option>
-                      <option value="SPECIFIC_DIVISIONS">Specific Divisions / Wards</option>
-                      <option value="CATEGORY_BASED">Economic Category (BPL / APL)</option>
-                      <option value="GENERAL">General / Open (Public Donation, Friday Juma, Hundi)</option>
+                      <option value="NO_TARGET">No Target / Open (General Public, Hundi, Juma)</option>
+                      <option value="FAMILY_BASED">Family-based (All Mahall Families)</option>
+                      <option value="DIVISION_BASED">Division-based (Select Specific Wards)</option>
+                      <option value="MEMBER_BASED">Member-based (Individual Members)</option>
+                      <option value="CUSTOM_TARGET">Custom Target (Economic Category: BPL / APL)</option>
                     </Select>
                   </FormField>
 
-                  {catTargetType === "SPECIFIC_DIVISIONS" && (
+                  {(catTargetType === "DIVISION_BASED" || catTargetType === "SPECIFIC_DIVISIONS") && (
                     <div className="space-y-2 p-3 bg-muted/20 rounded-xl border border-border/60">
                       <label className="text-xs font-medium text-foreground">Select Applicable Divisions/Wards</label>
                       <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto">
@@ -1420,14 +1945,11 @@ export function FinanceSettingsClient({
                             </label>
                           );
                         })}
-                        {divisions.length === 0 && (
-                          <p className="col-span-2 text-xs text-muted-foreground italic">No divisions found.</p>
-                        )}
                       </div>
                     </div>
                   )}
 
-                  {catTargetType === "CATEGORY_BASED" && (
+                  {(catTargetType === "CUSTOM_TARGET" || catTargetType === "CATEGORY_BASED") && (
                     <FormField label="Eligible Economic Category">
                       <Select
                         value={catEconomicCategory}
@@ -1462,88 +1984,58 @@ export function FinanceSettingsClient({
                         onChange={(e) => setCatTargetAmount(e.target.value)}
                       />
                     </FormField>
-
-                    {catIsRecurring && (
-                      <FormField label="Frequency">
-                        <Select
-                          value={catRecurrenceFrequency}
-                          onChange={(e) => setCatRecurrenceFrequency(e.target.value as any)}
-                        >
-                          <option value="MONTHLY">Monthly</option>
-                          <option value="ANNUAL">Annual</option>
-                          <option value="ONE_TIME">One Time</option>
-                        </Select>
-                      </FormField>
-                    )}
                   </div>
 
-                  <div className="space-y-2 pt-1">
+                  <div className="space-y-3 pt-1">
                     <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                       <Checkbox
                         checked={catIsRecurring}
                         onChange={(e) => setCatIsRecurring(e.target.checked)}
                       />
                       <span className="font-medium text-foreground">
-                        Recurring Collection (e.g. Monthly Varisa)
+                        Recurring Collection (e.g. Monthly Varisa, Annual Subscription)
                       </span>
                     </label>
-                    <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                      <Checkbox
-                        checked={catIsSubscription}
-                        onChange={(e) => setCatIsSubscription(e.target.checked)}
-                      />
-                      <span className="font-medium text-foreground">
-                        Subscription-based (assign to specific families/members)
-                      </span>
-                    </label>
+
+                    {catIsRecurring && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-6">
+                        <FormField label="Recurrence Frequency">
+                          <Select
+                            value={catRecurrenceFrequency}
+                            onChange={(e) => setCatRecurrenceFrequency(e.target.value)}
+                          >
+                            <option value="DAILY">Daily</option>
+                            <option value="WEEKLY">Weekly</option>
+                            <option value="MONTHLY">Monthly</option>
+                            <option value="QUARTERLY">Quarterly</option>
+                            <option value="YEARLY">Yearly</option>
+                            <option value="CUSTOM">Custom</option>
+                          </Select>
+                        </FormField>
+
+                        <div className="flex items-center pt-5">
+                          <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                            <Checkbox
+                              checked={catAutoGenerate}
+                              onChange={(e) => setCatAutoGenerate(e.target.checked)}
+                            />
+                            <span className="text-foreground">
+                              Auto-generate collections at start of period
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                </div>
+
+                <div className="border-t border-border/60 pt-3">
+                  <DynamicFormBuilder
+                    fields={catDynamicFields}
+                    onChange={setCatDynamicFields}
+                  />
                 </div>
               </>
-            )}
-
-            {catType === "collection" && (
-              <div className="border-t border-border/60 pt-3 space-y-3">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Form Field Configuration
-                </h4>
-                <p className="text-[11px] text-muted-foreground">Configure which fields appear in the collection recording form.</p>
-                <div className="space-y-2">
-                  <FormConfigRow
-                    label="Family Selection"
-                    enabled={catFormConfig.enableFamily ?? true}
-                    required={catFormConfig.requireFamily ?? false}
-                    onEnabledChange={(v) => setCatFormConfig(prev => ({ ...prev, enableFamily: v }))}
-                    onRequiredChange={(v) => setCatFormConfig(prev => ({ ...prev, requireFamily: v }))}
-                  />
-                  <FormConfigRow
-                    label="Member Selection"
-                    enabled={catFormConfig.enableMember ?? true}
-                    required={catFormConfig.requireMember ?? false}
-                    onEnabledChange={(v) => setCatFormConfig(prev => ({ ...prev, enableMember: v }))}
-                    onRequiredChange={(v) => setCatFormConfig(prev => ({ ...prev, requireMember: v }))}
-                  />
-                  <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors">
-                    <span className="text-xs font-medium text-foreground">Notes / Description</span>
-                    <label className="flex items-center gap-2 text-xs">
-                      <Checkbox
-                        checked={catFormConfig.enableNotes ?? true}
-                        onChange={(e) => setCatFormConfig(prev => ({ ...prev, enableNotes: e.target.checked }))}
-                      />
-                      <span className="text-muted-foreground">Enable</span>
-                    </label>
-                  </div>
-                  <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors">
-                    <span className="text-xs font-medium text-foreground">Attachment / Receipt Upload</span>
-                    <label className="flex items-center gap-2 text-xs">
-                      <Checkbox
-                        checked={catFormConfig.enableAttachment ?? false}
-                        onChange={(e) => setCatFormConfig(prev => ({ ...prev, enableAttachment: e.target.checked }))}
-                      />
-                      <span className="text-muted-foreground">Enable</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
             )}
 
             <div className="flex justify-end gap-2 pt-3 border-t border-border/60">
@@ -1560,62 +2052,81 @@ export function FinanceSettingsClient({
 
       {/* Edit Category Modal */}
       <Dialog open={editCatTarget !== null} onOpenChange={(open) => !open && setEditCatTarget(null)}>
-        <DialogContent className="max-w-lg rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Edit {editCatTarget?.type === "collection" ? "Collection" : "Expense"} Category
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleUpdateCategory} className="space-y-4 pt-2">
-            <FormField label="Category Name" required>
-              <Input
-                value={editCatName}
-                onChange={(e) => setEditCatName(e.target.value)}
-                required
-              />
-            </FormField>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Operational Fund / Account" required>
+                <Select
+                  value={editCatFundId}
+                  onChange={(e) => setEditCatFundId(e.target.value)}
+                >
+                  <option value="">Select Operational Fund...</option>
+                  {operationalFunds.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} {f.code ? `(${f.code})` : ""} {f.isDefault ? "[Default]" : ""}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
 
-            <FormField label={editCatTarget?.type === "collection" ? "Parent Fund Category" : "Parent Expense Account"}>
-              <Select
-                value={editCatAccountId}
-                onChange={(e) => setEditCatAccountId(e.target.value)}
-              >
-                <option value="">Select Account / Fund (Optional)...</option>
-                {(editCatTarget?.type === "collection" ? incomeAccounts : expenseAccounts).map((acc) => (
-                  <option key={acc.id} value={acc.id}>
-                    {acc.name} {acc.code ? `(${acc.code})` : ""}
-                  </option>
-                ))}
-              </Select>
-            </FormField>
+              <FormField label={editCatTarget?.type === "collection" ? "Chart of Accounts Mapping (Income)" : "Chart of Accounts Mapping (Expense)"}>
+                <Select
+                  value={editCatAccountId}
+                  onChange={(e) => setEditCatAccountId(e.target.value)}
+                >
+                  <option value="">Select COA Account (Required for Posting)...</option>
+                  {(editCatTarget?.type === "collection" ? incomeAccounts : expenseAccounts).map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} {acc.code ? `(${acc.code})` : ""}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            </div>
 
-            <FormField label="Category Code (Optional)">
-              <Input
-                value={editCatCode}
-                onChange={(e) => setEditCatCode(e.target.value)}
-              />
-            </FormField>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Category Name" required>
+                <Input
+                  value={editCatName}
+                  onChange={(e) => setEditCatName(e.target.value)}
+                  required
+                />
+              </FormField>
+
+              <FormField label="Category Code (Optional)">
+                <Input
+                  value={editCatCode}
+                  onChange={(e) => setEditCatCode(e.target.value)}
+                />
+              </FormField>
+            </div>
 
             {editCatTarget?.type === "collection" && (
               <>
                 <div className="border-t border-border/60 pt-3 space-y-4">
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Collection Settings & Rules
+                    Target Configuration & Recurrence
                   </h4>
 
                   <FormField label="Target Scope">
                     <Select
                       value={editCatTargetType}
-                      onChange={(e) => setEditCatTargetType(e.target.value as any)}
+                      onChange={(e) => setEditCatTargetType(e.target.value)}
                     >
-                      <option value="ALL_FAMILIES">All Mahallu Families</option>
-                      <option value="SPECIFIC_DIVISIONS">Specific Divisions / Wards</option>
-                      <option value="CATEGORY_BASED">Economic Category (BPL / APL)</option>
-                      <option value="GENERAL">General / Open (Public Donation, Friday Juma, Hundi)</option>
+                      <option value="NO_TARGET">No Target / Open (General Public, Hundi, Juma)</option>
+                      <option value="FAMILY_BASED">Family-based (All Mahall Families)</option>
+                      <option value="DIVISION_BASED">Division-based (Select Specific Wards)</option>
+                      <option value="MEMBER_BASED">Member-based (Individual Members)</option>
+                      <option value="CUSTOM_TARGET">Custom Target (Economic Category: BPL / APL)</option>
                     </Select>
                   </FormField>
 
-                  {editCatTargetType === "SPECIFIC_DIVISIONS" && (
+                  {(editCatTargetType === "DIVISION_BASED" || editCatTargetType === "SPECIFIC_DIVISIONS") && (
                     <div className="space-y-2 p-3 bg-muted/20 rounded-xl border border-border/60">
                       <label className="text-xs font-medium text-foreground">Select Applicable Divisions/Wards</label>
                       <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto">
@@ -1637,14 +2148,11 @@ export function FinanceSettingsClient({
                             </label>
                           );
                         })}
-                        {divisions.length === 0 && (
-                          <p className="col-span-2 text-xs text-muted-foreground italic">No divisions found.</p>
-                        )}
                       </div>
                     </div>
                   )}
 
-                  {editCatTargetType === "CATEGORY_BASED" && (
+                  {(editCatTargetType === "CUSTOM_TARGET" || editCatTargetType === "CATEGORY_BASED") && (
                     <FormField label="Eligible Economic Category">
                       <Select
                         value={editCatEconomicCategory}
@@ -1679,88 +2187,58 @@ export function FinanceSettingsClient({
                         onChange={(e) => setEditCatTargetAmount(e.target.value)}
                       />
                     </FormField>
-
-                    {editCatIsRecurring && (
-                      <FormField label="Frequency">
-                        <Select
-                          value={editCatRecurrenceFrequency}
-                          onChange={(e) => setEditCatRecurrenceFrequency(e.target.value as any)}
-                        >
-                          <option value="MONTHLY">Monthly</option>
-                          <option value="ANNUAL">Annual</option>
-                          <option value="ONE_TIME">One Time</option>
-                        </Select>
-                      </FormField>
-                    )}
                   </div>
 
-                  <div className="space-y-2 pt-1">
+                  <div className="space-y-3 pt-1">
                     <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                       <Checkbox
                         checked={editCatIsRecurring}
                         onChange={(e) => setEditCatIsRecurring(e.target.checked)}
                       />
                       <span className="font-medium text-foreground">
-                        Recurring Collection (e.g. Monthly Varisa)
+                        Recurring Collection (e.g. Monthly Varisa, Annual Subscription)
                       </span>
                     </label>
-                    <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                      <Checkbox
-                        checked={editCatIsSubscription}
-                        onChange={(e) => setEditCatIsSubscription(e.target.checked)}
-                      />
-                      <span className="font-medium text-foreground">
-                        Subscription-based (assign to specific families/members)
-                      </span>
-                    </label>
+
+                    {editCatIsRecurring && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-6">
+                        <FormField label="Recurrence Frequency">
+                          <Select
+                            value={editCatRecurrenceFrequency}
+                            onChange={(e) => setEditCatRecurrenceFrequency(e.target.value)}
+                          >
+                            <option value="DAILY">Daily</option>
+                            <option value="WEEKLY">Weekly</option>
+                            <option value="MONTHLY">Monthly</option>
+                            <option value="QUARTERLY">Quarterly</option>
+                            <option value="YEARLY">Yearly</option>
+                            <option value="CUSTOM">Custom</option>
+                          </Select>
+                        </FormField>
+
+                        <div className="flex items-center pt-5">
+                          <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                            <Checkbox
+                              checked={editCatAutoGenerate}
+                              onChange={(e) => setEditCatAutoGenerate(e.target.checked)}
+                            />
+                            <span className="text-foreground">
+                              Auto-generate collections at start of period
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                </div>
+
+                <div className="border-t border-border/60 pt-3">
+                  <DynamicFormBuilder
+                    fields={editCatDynamicFields}
+                    onChange={setEditCatDynamicFields}
+                  />
                 </div>
               </>
-            )}
-
-            {editCatTarget?.type === "collection" && (
-              <div className="border-t border-border/60 pt-3 space-y-3">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Form Field Configuration
-                </h4>
-                <p className="text-[11px] text-muted-foreground">Configure which fields appear in the collection recording form.</p>
-                <div className="space-y-2">
-                  <FormConfigRow
-                    label="Family Selection"
-                    enabled={editCatFormConfig.enableFamily ?? true}
-                    required={editCatFormConfig.requireFamily ?? false}
-                    onEnabledChange={(v) => setEditCatFormConfig(prev => ({ ...prev, enableFamily: v }))}
-                    onRequiredChange={(v) => setEditCatFormConfig(prev => ({ ...prev, requireFamily: v }))}
-                  />
-                  <FormConfigRow
-                    label="Member Selection"
-                    enabled={editCatFormConfig.enableMember ?? true}
-                    required={editCatFormConfig.requireMember ?? false}
-                    onEnabledChange={(v) => setEditCatFormConfig(prev => ({ ...prev, enableMember: v }))}
-                    onRequiredChange={(v) => setEditCatFormConfig(prev => ({ ...prev, requireMember: v }))}
-                  />
-                  <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors">
-                    <span className="text-xs font-medium text-foreground">Notes / Description</span>
-                    <label className="flex items-center gap-2 text-xs">
-                      <Checkbox
-                        checked={editCatFormConfig.enableNotes ?? true}
-                        onChange={(e) => setEditCatFormConfig(prev => ({ ...prev, enableNotes: e.target.checked }))}
-                      />
-                      <span className="text-muted-foreground">Enable</span>
-                    </label>
-                  </div>
-                  <div className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/20 hover:bg-muted/40 transition-colors">
-                    <span className="text-xs font-medium text-foreground">Attachment / Receipt Upload</span>
-                    <label className="flex items-center gap-2 text-xs">
-                      <Checkbox
-                        checked={editCatFormConfig.enableAttachment ?? false}
-                        onChange={(e) => setEditCatFormConfig(prev => ({ ...prev, enableAttachment: e.target.checked }))}
-                      />
-                      <span className="text-muted-foreground">Enable</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
             )}
 
             <div className="flex justify-end gap-2 pt-3 border-t border-border/60">

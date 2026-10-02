@@ -6,7 +6,8 @@ import {
   getCollections,
   getCollectionCategories,
   getPaymentMethods,
-  getAccounts
+  getAccounts,
+  getFinanceFunds
 } from "@/lib/finance";
 import { getFamilies } from "@/lib/business-resources";
 import { getMembers } from "@/lib/members";
@@ -30,14 +31,16 @@ export default async function CollectionsPage({
     accounts,
     paymentMethods,
     familiesRes,
-    membersRes
+    membersRes,
+    funds
   ] = await Promise.all([
     getCollections(slug, "page=1&pageSize=100"),
     getCollectionCategories(slug),
     getAccounts(slug),
     getPaymentMethods(slug),
     getFamilies(slug, 1, 100),
-    getMembers(slug, 1, 100)
+    getMembers(slug, 1, 100),
+    getFinanceFunds(slug)
   ]);
 
   const collections = collectionsRes?.collections ?? [];
@@ -53,6 +56,7 @@ export default async function CollectionsPage({
         initialCollections={collections}
         categories={categories || []}
         accounts={accounts || []}
+        funds={funds || []}
         paymentMethods={paymentMethods || []}
         families={familiesRes?.items || []}
         members={membersRes?.members || []}

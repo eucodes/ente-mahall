@@ -127,54 +127,59 @@ export class CollectionsService {
     const settings = await this.settingsService.getSettings(actor.tenantId);
     const date = dto.date ? new Date(dto.date) : new Date();
 
-    // Determine category and income account
+    // Determine category, operational fund, and income account
     let incomeAccountId: string | null = null;
     let categoryName = "General Collection";
+    let cat: any = null;
 
     if (dto.categoryId) {
-      const cat = await this.prisma.collectionCategory.findFirst({
+      cat = await this.prisma.collectionCategory.findFirst({
         where: { id: dto.categoryId, tenantId: actor.tenantId }
       });
       if (cat) {
-        incomeAccountId = cat.incomeAccountId;
+        incomeAccountId = cat.incomeAccountId ?? null;
         categoryName = cat.name;
       }
     }
 
-    if (!incomeAccountId) {
-      incomeAccountId = settings.defaultCollectionIncomeAccountId;
+    // Resolve operational fund: explicit dto.fundId > category.fundId > default fund
+    let fundId = dto.fundId ?? null;
+    if (!fundId && cat?.fundId) {
+      fundId = cat.fundId;
+    }
+    if (!fundId) {
+      const defaultFund = await this.prisma.financeFund.findFirst({
+        where: { tenantId: actor.tenantId, isActive: true },
+        orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }]
+      });
+      fundId = defaultFund?.id ?? null;
     }
 
-    // Fallback: search for income account if still missing
-    if (!incomeAccountId) {
-      const defaultAcc = await this.prisma.account.findFirst({
-        where: { tenantId: actor.tenantId, type: "INCOME", isActive: true }
-      });
-      incomeAccountId = defaultAcc?.id ?? null;
-    }
-
-    // Determine debit account (Cash vs Bank)
-    let debitAccountId = settings.defaultCashAccountId;
-    if (dto.bankAccountId) {
-      const bank = await this.prisma.financeBankAccount.findFirst({
-        where: { id: dto.bankAccountId, tenantId: actor.tenantId }
-      });
-      if (bank?.chartAccountId) {
-        debitAccountId = bank.chartAccountId;
-      } else if (settings.defaultBankAccountId) {
-        debitAccountId = settings.defaultBankAccountId;
+    // Determine debit account (Cash vs Bank) ONLY if category has a valid income COA mapping
+    let debitAccountId: string | null = null;
+    if (incomeAccountId) {
+      debitAccountId = settings.defaultCashAccountId;
+      if (dto.bankAccountId) {
+        const bank = await this.prisma.financeBankAccount.findFirst({
+          where: { id: dto.bankAccountId, tenantId: actor.tenantId }
+        });
+        if (bank?.chartAccountId) {
+          debitAccountId = bank.chartAccountId;
+        } else if (settings.defaultBankAccountId) {
+          debitAccountId = settings.defaultBankAccountId;
+        }
+      } else if (dto.paymentMethod === "Bank Transfer" || dto.paymentMethod === "UPI") {
+        if (settings.defaultBankAccountId) {
+          debitAccountId = settings.defaultBankAccountId;
+        }
       }
-    } else if (dto.paymentMethod === "Bank Transfer" || dto.paymentMethod === "UPI") {
-      if (settings.defaultBankAccountId) {
-        debitAccountId = settings.defaultBankAccountId;
-      }
-    }
 
-    if (!debitAccountId) {
-      const defaultCash = await this.prisma.account.findFirst({
-        where: { tenantId: actor.tenantId, type: "ASSET", isActive: true }
-      });
-      debitAccountId = defaultCash?.id ?? null;
+      if (!debitAccountId) {
+        const defaultCash = await this.prisma.account.findFirst({
+          where: { tenantId: actor.tenantId, type: "ASSET", isActive: true }
+        });
+        debitAccountId = defaultCash?.id ?? null;
+      }
     }
 
     // Generate collection number and receipt number
@@ -192,7 +197,7 @@ export class CollectionsService {
       if (fam) receivedFrom = `Family: ${fam.name}`;
     }
 
-    // Atomic transaction: Collection + Receipt + Journal Entry
+    // Atomic transaction: Collection + Receipt + (conditional) Journal Entry
     const result = await this.prisma.$transaction(async (tx) => {
       // 1. Create Receipt
       const receipt = await tx.financeReceipt.create({
@@ -211,8 +216,10 @@ export class CollectionsService {
         }
       });
 
-      // 2. Create Journal Entry if accounts are mapped
+      // 2. Create Journal Entry ONLY if category has a valid Chart of Accounts mapping (Requirement 6)
       let journalEntryId: string | null = null;
+      let postingStatus = "UNPOSTED";
+
       if (debitAccountId && incomeAccountId) {
         const entryNumber = await this.certificates.nextNumber(actor.tenantId, "JOURNAL_ENTRY", "JRN");
         const activeFy = await this.accountingService.getCurrentFinancialYear(actor.tenantId);
@@ -240,6 +247,7 @@ export class CollectionsService {
           }
         });
         journalEntryId = journal.id;
+        postingStatus = "POSTED";
 
         // Update account balances
         await tx.account.update({ where: { id: debitAccountId }, data: { currentBalance: { increment: amount } } });
@@ -257,6 +265,7 @@ export class CollectionsService {
       const collection = await tx.financeCollection.create({
         data: {
           tenantId: actor.tenantId,
+          fundId,
           collectionNumber,
           type: dto.type,
           categoryId: dto.categoryId ?? null,
@@ -277,10 +286,12 @@ export class CollectionsService {
           attachmentUrl: dto.attachmentUrl ?? null,
           customFields: dto.customFields ?? null,
           status: "COMPLETED",
+          postingStatus,
           receiptId: receipt.id,
           journalEntryId
         },
         include: {
+          fund: true,
           category: true,
           receipt: true,
           family: true,
@@ -781,4 +792,116 @@ export class CollectionsService {
 
     return { success: true, count };
   }
+
+  /**
+   * Generates recurring collection records according to category recurrence and target configuration.
+   * Requirement 3:
+   * The system should be capable of automatically generating recurring collection records according to the configured schedule.
+   * Categories should also support Target Configuration:
+   * No Target, Division-based, Family-based, Person/Member-based, Other configurable targets.
+   */
+  async generateRecurringCollections(
+    actor: ActorContext,
+    dto: { categoryId: string; period: string; dueDate: string; description?: string },
+    context: RequestContext
+  ) {
+    const category = await this.prisma.collectionCategory.findFirst({
+      where: { id: dto.categoryId, tenantId: actor.tenantId }
+    });
+    if (!category) throw new NotFoundException("Collection category not found");
+
+    const amount = category.targetAmount || category.defaultAmount || new Prisma.Decimal(0);
+    const dueDate = new Date(dto.dueDate);
+
+    let generatedCount = 0;
+    const targetType = category.targetType || "ALL_FAMILIES";
+
+    if (targetType === "MEMBER_BASED") {
+      const members = await this.prisma.member.findMany({
+        where: { tenantId: actor.tenantId, isActive: true },
+        select: { id: true, fullName: true, familyId: true }
+      });
+
+      for (const m of members) {
+        const existingDue = await this.prisma.due.findFirst({
+          where: { tenantId: actor.tenantId, categoryId: category.id, memberId: m.id, period: dto.period }
+        });
+        if (!existingDue) {
+          await this.prisma.due.create({
+            data: {
+              tenantId: actor.tenantId,
+              categoryId: category.id,
+              memberId: m.id,
+              familyId: m.familyId,
+              title: `${category.name} - ${dto.period}`,
+              period: dto.period,
+              dueDate,
+              amount,
+              paidAmount: new Prisma.Decimal(0),
+              outstandingAmount: amount,
+              status: "PENDING"
+            }
+          });
+          generatedCount++;
+        }
+      }
+    } else {
+      // Family-based / Division-based / All Families
+      const divisionFilter =
+        targetType === "DIVISION_BASED" && category.targetDivisionIds && category.targetDivisionIds.length > 0
+          ? { house: { divisionId: { in: category.targetDivisionIds } } }
+          : {};
+
+      const families = await this.prisma.family.findMany({
+        where: { tenantId: actor.tenantId, isActive: true, ...divisionFilter },
+        select: { id: true, name: true, members: { take: 1, select: { id: true } } }
+      });
+
+      for (const fam of families) {
+        const memberId = fam.members[0]?.id;
+        if (!memberId) continue;
+
+        const existingDue = await this.prisma.due.findFirst({
+          where: { tenantId: actor.tenantId, categoryId: category.id, familyId: fam.id, period: dto.period }
+        });
+        if (!existingDue) {
+          await this.prisma.due.create({
+            data: {
+              tenantId: actor.tenantId,
+              categoryId: category.id,
+              memberId,
+              familyId: fam.id,
+              title: `${category.name} - ${dto.period}`,
+              period: dto.period,
+              dueDate,
+              amount,
+              paidAmount: new Prisma.Decimal(0),
+              outstandingAmount: amount,
+              status: "PENDING"
+            }
+          });
+          generatedCount++;
+        }
+      }
+    }
+
+    await this.audit.record({
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      action: "collections.recurring.generate",
+      targetType: "CollectionCategory",
+      targetId: category.id,
+      metadata: { categoryName: category.name, period: dto.period, generatedCount },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+
+    return {
+      success: true,
+      categoryName: category.name,
+      period: dto.period,
+      generatedCount
+    };
+  }
 }
+

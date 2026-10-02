@@ -82,6 +82,7 @@ export function BulkUpdateClient({
   const [targetCategoryType, setTargetCategoryType] = useState("");
   const [targetChartAccount, setTargetChartAccount] = useState("");
   const [targetStatus, setTargetStatus] = useState<"ACTIVE" | "INACTIVE" | "">("");
+  const [postPendingTransactions, setPostPendingTransactions] = useState(true);
 
   // Tab 2: Chart of Accounts State
   const [accountTypeFilter, setAccountTypeFilter] = useState<string>("ALL");
@@ -250,22 +251,36 @@ export function BulkUpdateClient({
 
     setIsUpdating(true);
     try {
-      // Split selected categories by income / expense
-      for (const id of selectedIds) {
-        const cat = allCategories.find((c) => c.id === id);
-        if (!cat) continue;
+      // 1. If Chart of Accounts mapping was requested, use atomic bulk COA endpoint (Requirement 7)
+      if (targetChartAccount) {
+        const incomeCatIds = selectedIds.filter((id) => allCategories.find((c) => c.id === id)?.kind === "INCOME");
+        const expenseCatIds = selectedIds.filter((id) => allCategories.find((c) => c.id === id)?.kind === "EXPENSE");
 
-        const isIncome = cat.kind === "INCOME";
-        const endpoint = isIncome
-          ? `/tenants/${encodeURIComponent(slug)}/finance/settings/collection-categories/${encodeURIComponent(id)}`
-          : `/tenants/${encodeURIComponent(slug)}/finance/settings/expense-categories/${encodeURIComponent(id)}`;
+        await apiClient.post(`/tenants/${encodeURIComponent(slug)}/finance/bulk-update/coa-mappings`, {
+          collectionCategoryIds: incomeCatIds,
+          expenseCategoryIds: expenseCatIds,
+          incomeAccountId: targetChartAccount === "NONE" ? null : targetChartAccount,
+          expenseAccountId: targetChartAccount === "NONE" ? null : targetChartAccount,
+          postPendingTransactions
+        });
+      }
 
-        const payload: Record<string, any> = {};
-        if (targetCategoryFund) payload.fundId = targetCategoryFund === "NONE" ? null : targetCategoryFund;
-        if (targetStatus) payload.isActive = targetStatus === "ACTIVE";
+      // 2. If other fields (fund, status, scope/type) were set, apply them to categories
+      if (targetCategoryFund || targetCategoryType || targetStatus) {
+        for (const id of selectedIds) {
+          const cat = allCategories.find((c) => c.id === id);
+          if (!cat) continue;
 
-        if (isIncome) {
-          if (targetCategoryType) {
+          const isIncome = cat.kind === "INCOME";
+          const endpoint = isIncome
+            ? `/tenants/${encodeURIComponent(slug)}/finance/settings/collection-categories/${encodeURIComponent(id)}`
+            : `/tenants/${encodeURIComponent(slug)}/finance/settings/expense-categories/${encodeURIComponent(id)}`;
+
+          const payload: Record<string, any> = {};
+          if (targetCategoryFund) payload.fundId = targetCategoryFund === "NONE" ? null : targetCategoryFund;
+          if (targetStatus) payload.isActive = targetStatus === "ACTIVE";
+
+          if (isIncome && targetCategoryType) {
             if (targetCategoryType === "SUBSCRIPTION") {
               payload.isSubscription = true;
               payload.isRecurring = true;
@@ -279,21 +294,18 @@ export function BulkUpdateClient({
               payload.targetType = targetCategoryType;
             }
           }
-          if (targetChartAccount) {
-            payload.incomeAccountId = targetChartAccount === "NONE" ? null : targetChartAccount;
-          }
-        } else {
-          if (targetChartAccount) {
-            payload.expenseAccountId = targetChartAccount === "NONE" ? null : targetChartAccount;
+
+          if (Object.keys(payload).length > 0) {
+            await apiClient.patch(endpoint, payload);
           }
         }
-
-        await apiClient.patch(endpoint, payload);
       }
 
       toast({
         title: "Categories Updated Successfully",
-        description: `Updated ${selectedIds.length} categories with chosen configuration.`
+        description: `Updated ${selectedIds.length} categories with chosen configuration${
+          targetChartAccount && postPendingTransactions ? " and posted pending transactions to journal entries" : ""
+        }.`
       });
       setSelectedIds([]);
       router.refresh();
@@ -406,9 +418,7 @@ export function BulkUpdateClient({
               Accountant Center
             </span>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Batch configure public categories, Chart of Accounts ledgers, and historic transaction allocations for {mahalleName}
-          </p>
+
         </div>
 
         {/* Tab Switcher */}
@@ -587,6 +597,21 @@ export function BulkUpdateClient({
                       )}
                     </Button>
                   </div>
+
+                  {/* Post Pending Checkbox (Requirement 6 & 7) */}
+                  {targetChartAccount && targetChartAccount !== "NONE" && (
+                    <div className="w-full pt-2 border-t border-blue-200 dark:border-blue-900/60 flex items-center gap-2">
+                      <label className="flex items-center gap-2 text-xs font-semibold text-blue-950 dark:text-blue-200 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={postPendingTransactions}
+                          onChange={(e) => setPostPendingTransactions(e.target.checked)}
+                          className="h-4 w-4 rounded border-blue-400 text-blue-600 cursor-pointer"
+                        />
+                        <span>Post historical unposted transactions under selected categories to Journal Entries immediately</span>
+                      </label>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}

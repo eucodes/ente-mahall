@@ -7,7 +7,8 @@ import {
   getAccounts,
   getExpenseCategories,
   getPaymentMethods,
-  getBankAccounts
+  getBankAccounts,
+  getFinanceFunds
 } from "@/lib/finance";
 import { VouchersClient } from "./vouchers-client";
 
@@ -28,13 +29,15 @@ export default async function VouchersPage({
     accounts,
     categories,
     paymentMethods,
-    bankAccounts
+    bankAccounts,
+    funds
   ] = await Promise.all([
     getVouchers(slug, 1, 100),
     getAccounts(slug),
     getExpenseCategories(slug),
     getPaymentMethods(slug),
-    getBankAccounts(slug)
+    getBankAccounts(slug),
+    getFinanceFunds(slug)
   ]);
 
   return (
@@ -46,6 +49,7 @@ export default async function VouchersPage({
         slug={slug}
         initialVouchers={vouchersRes?.vouchers ?? []}
         accounts={accounts ?? []}
+        funds={funds ?? []}
         expenseCategories={categories ?? []}
         paymentMethods={paymentMethods ?? []}
         bankAccounts={bankAccounts ?? []}

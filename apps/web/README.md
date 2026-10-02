@@ -9,7 +9,7 @@ Next.js frontend for the Mahalle SaaS platform. Serves four hostnames from one a
 | `control.example.com` | `sites/control` | Platform control plane |
 | `<slug>.example.com` | `sites/tenant/[tenant]` | Tenant public site + `/dashboard` |
 
-[`src/middleware.ts`](src/middleware.ts) resolves the host and rewrites into the
+[`src/proxy.ts`](src/proxy.ts) resolves the host and rewrites into the
 matching route group. This is routing only — it never makes an authorization
 decision; the API independently re-resolves tenant/role/permission on every
 request.

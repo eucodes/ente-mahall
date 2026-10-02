@@ -268,11 +268,20 @@ export class FinanceSettingsService {
 
   // --- Collection Categories ------------------------------------------------
 
-  async listCollectionCategories(tenantId: string) {
+  // --- Collection Categories ------------------------------------------------
+
+  async listCollectionCategories(tenantId: string, fundId?: string) {
     return this.prisma.collectionCategory.findMany({
-      where: { tenantId, isActive: true },
-      orderBy: { displayOrder: "asc" },
-      include: { incomeAccount: { select: { id: true, name: true, code: true } } }
+      where: {
+        tenantId,
+        isActive: true,
+        ...(fundId ? { fundId } : {})
+      },
+      orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+      include: {
+        fund: { select: { id: true, name: true, color: true, code: true } },
+        incomeAccount: { select: { id: true, name: true, code: true } }
+      }
     });
   }
 
@@ -282,12 +291,28 @@ export class FinanceSettingsService {
     });
     if (existing) throw new ConflictException(`A collection category with name "${dto.name}" already exists.`);
 
-    const { defaultAmount, ...rest } = dto;
+    // If fundId not passed, resolve to default or first active fund
+    let resolvedFundId = dto.fundId;
+    if (!resolvedFundId) {
+      const defaultFund = await this.prisma.financeFund.findFirst({
+        where: { tenantId: actor.tenantId, isActive: true },
+        orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }]
+      });
+      resolvedFundId = defaultFund?.id ?? null;
+    }
+
+    const { defaultAmount, targetAmount, ...rest } = dto;
     const cat = await this.prisma.collectionCategory.create({
       data: {
         ...rest,
+        fundId: resolvedFundId,
+        targetAmount: targetAmount !== undefined && targetAmount !== null && targetAmount !== "" ? new Prisma.Decimal(targetAmount) : null,
         defaultAmount: defaultAmount !== undefined && defaultAmount !== null && defaultAmount !== "" ? new Prisma.Decimal(defaultAmount) : null,
         tenantId: actor.tenantId
+      },
+      include: {
+        fund: { select: { id: true, name: true, color: true, code: true } },
+        incomeAccount: { select: { id: true, name: true, code: true } }
       }
     });
 
@@ -297,7 +322,7 @@ export class FinanceSettingsService {
       action: "finance.collectionCategory.create",
       targetType: "CollectionCategory",
       targetId: cat.id,
-      metadata: { name: cat.name },
+      metadata: { name: cat.name, fundId: cat.fundId },
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     });
@@ -309,14 +334,21 @@ export class FinanceSettingsService {
     const cat = await this.prisma.collectionCategory.findFirst({ where: { id, tenantId: actor.tenantId } });
     if (!cat) throw new NotFoundException("Collection category not found");
 
-    const { defaultAmount, ...rest } = dto;
+    const { defaultAmount, targetAmount, ...rest } = dto;
     const updated = await this.prisma.collectionCategory.update({
       where: { id },
       data: {
         ...rest,
+        ...(targetAmount !== undefined ? {
+          targetAmount: targetAmount !== null && targetAmount !== "" ? new Prisma.Decimal(targetAmount) : null
+        } : {}),
         ...(defaultAmount !== undefined ? {
           defaultAmount: defaultAmount !== null && defaultAmount !== "" ? new Prisma.Decimal(defaultAmount) : null
         } : {})
+      },
+      include: {
+        fund: { select: { id: true, name: true, color: true, code: true } },
+        incomeAccount: { select: { id: true, name: true, code: true } }
       }
     });
 
@@ -361,11 +393,18 @@ export class FinanceSettingsService {
 
   // --- Expense Categories ---------------------------------------------------
 
-  async listExpenseCategories(tenantId: string) {
+  async listExpenseCategories(tenantId: string, fundId?: string) {
     return this.prisma.expenseCategory.findMany({
-      where: { tenantId, isActive: true },
-      orderBy: { displayOrder: "asc" },
-      include: { expenseAccount: { select: { id: true, name: true, code: true } } }
+      where: {
+        tenantId,
+        isActive: true,
+        ...(fundId ? { fundId } : {})
+      },
+      orderBy: [{ displayOrder: "asc" }, { name: "asc" }],
+      include: {
+        fund: { select: { id: true, name: true, color: true, code: true } },
+        expenseAccount: { select: { id: true, name: true, code: true } }
+      }
     });
   }
 
@@ -375,8 +414,25 @@ export class FinanceSettingsService {
     });
     if (existing) throw new ConflictException(`An expense category with name "${dto.name}" already exists.`);
 
+    let resolvedFundId = dto.fundId;
+    if (!resolvedFundId) {
+      const defaultFund = await this.prisma.financeFund.findFirst({
+        where: { tenantId: actor.tenantId, isActive: true },
+        orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }]
+      });
+      resolvedFundId = defaultFund?.id ?? null;
+    }
+
     const cat = await this.prisma.expenseCategory.create({
-      data: { ...dto, tenantId: actor.tenantId }
+      data: {
+        ...dto,
+        fundId: resolvedFundId,
+        tenantId: actor.tenantId
+      },
+      include: {
+        fund: { select: { id: true, name: true, color: true, code: true } },
+        expenseAccount: { select: { id: true, name: true, code: true } }
+      }
     });
 
     await this.audit.record({
@@ -385,7 +441,7 @@ export class FinanceSettingsService {
       action: "finance.expenseCategory.create",
       targetType: "ExpenseCategory",
       targetId: cat.id,
-      metadata: { name: cat.name },
+      metadata: { name: cat.name, fundId: cat.fundId },
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     });
@@ -399,7 +455,11 @@ export class FinanceSettingsService {
 
     const updated = await this.prisma.expenseCategory.update({
       where: { id },
-      data: dto
+      data: dto,
+      include: {
+        fund: { select: { id: true, name: true, color: true, code: true } },
+        expenseAccount: { select: { id: true, name: true, code: true } }
+      }
     });
 
     await this.audit.record({

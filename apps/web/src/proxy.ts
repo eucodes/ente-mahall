@@ -11,7 +11,7 @@ const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? "mahalle.test:3000";
  * and re-checks membership/role/permission on every request. Nothing here is
  * ever treated as an authorization decision.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const url = request.nextUrl;
   const host = (request.headers.get("host") ?? ROOT_DOMAIN).toLowerCase();
 

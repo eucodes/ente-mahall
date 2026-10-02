@@ -29,13 +29,15 @@ import {
   Trash2,
   Settings,
   MoreVertical,
+  CheckCircle2,
+  AlertCircle,
   useToast
 } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { RecordCollectionModal } from "@/features/finance/record-collection-modal";
 import { EditCollectionModal } from "@/features/finance/edit-collection-modal";
 import { UniversalReceiptModal, type UniversalReceiptData } from "@/features/finance/universal-receipt-modal";
-import type { Account, FinanceCollection, CollectionCategory, FinancePaymentMethod } from "@/lib/finance";
+import type { Account, FinanceCollection, CollectionCategory, FinancePaymentMethod, FinanceFund } from "@/lib/finance";
 
 interface Props {
   slug: string;
@@ -43,6 +45,7 @@ interface Props {
   initialCollections: FinanceCollection[];
   categories: CollectionCategory[];
   accounts?: Account[];
+  funds?: FinanceFund[];
   paymentMethods: FinancePaymentMethod[];
   families: any[];
   members: any[];
@@ -54,6 +57,7 @@ export function CollectionsClient({
   initialCollections,
   categories,
   accounts = [],
+  funds = [],
   paymentMethods,
   families,
   members
@@ -79,6 +83,8 @@ export function CollectionsClient({
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
+  const [fundFilter, setFundFilter] = useState("ALL");
+  const [postingStatusFilter, setPostingStatusFilter] = useState<"ALL" | "POSTED" | "UNPOSTED">("ALL");
   const [accountFilter, setAccountFilter] = useState("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
@@ -88,6 +94,15 @@ export function CollectionsClient({
   const filteredCollections = initialCollections.filter((c) => {
     if (typeFilter !== "ALL" && c.type !== typeFilter) return false;
     if (categoryFilter !== "ALL" && c.categoryId !== categoryFilter) return false;
+    if (fundFilter !== "ALL") {
+      const cat = categories.find((catItem) => catItem.id === c.categoryId);
+      const effectiveFundId = c.fundId || cat?.fundId;
+      if (effectiveFundId !== fundFilter) return false;
+    }
+    if (postingStatusFilter !== "ALL") {
+      const effectiveStatus = c.postingStatus || (c.journalEntryId ? "POSTED" : "UNPOSTED");
+      if (effectiveStatus !== postingStatusFilter) return false;
+    }
     if (accountFilter !== "ALL") {
       const cat = categories.find((catItem) => catItem.id === c.categoryId);
       if (cat?.incomeAccountId !== accountFilter) return false;
@@ -185,21 +200,32 @@ export function CollectionsClient({
             className="w-56 h-9 text-xs"
           />
 
-          {/* Account / Fund Filter */}
-          {incomeAccounts.length > 0 && (
+          {/* Operational Fund Filter */}
+          {funds.length > 0 && (
             <Select
-              value={accountFilter}
-              onChange={(e) => setAccountFilter(e.target.value)}
-              className="w-44 h-9 text-xs"
+              value={fundFilter}
+              onChange={(e) => setFundFilter(e.target.value)}
+              className="w-40 h-9 text-xs"
             >
-              <option value="ALL">All Accounts / Funds</option>
-              {incomeAccounts.map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.name}
+              <option value="ALL">All Operational Funds</option>
+              {funds.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
                 </option>
               ))}
             </Select>
           )}
+
+          {/* Posting Status Filter */}
+          <Select
+            value={postingStatusFilter}
+            onChange={(e) => setPostingStatusFilter(e.target.value as any)}
+            className="w-36 h-9 text-xs"
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="POSTED">Posted (COA)</option>
+            <option value="UNPOSTED">Unposted (Pending)</option>
+          </Select>
 
           {/* Category Filter */}
           <Select
@@ -294,6 +320,7 @@ export function CollectionsClient({
                     <TableHead>Receipt #</TableHead>
                     <TableHead>Payer / Member</TableHead>
                     <TableHead>Category / Fund</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Method</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -304,6 +331,11 @@ export function CollectionsClient({
                     const isChecked = selectedIds.includes(c.id);
                     const matchedCat = categories.find((cat) => cat.id === c.categoryId);
                     const fundName = matchedCat?.incomeAccount?.name;
+                    const operationalFund =
+                      funds.find((f) => f.id === (c.fundId || matchedCat?.fundId))?.name ||
+                      c.fund?.name ||
+                      matchedCat?.fund?.name;
+                    const effectiveStatus = c.postingStatus || (c.journalEntryId ? "POSTED" : "UNPOSTED");
 
                     return (
                       <TableRow key={c.id} className={isChecked ? "bg-muted/40" : ""}>
@@ -334,12 +366,29 @@ export function CollectionsClient({
                             <Badge variant="outline" className="text-[10px] w-fit">
                               {c.category?.name || c.type}
                             </Badge>
-                            {fundName && (
+                            {operationalFund ? (
+                              <span className="text-[10px] text-muted-foreground font-medium">
+                                Fund: {operationalFund}
+                              </span>
+                            ) : fundName ? (
                               <span className="text-[10px] text-muted-foreground">
                                 Fund: {fundName}
                               </span>
-                            )}
+                            ) : null}
                           </div>
+                        </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">
+                          {effectiveStatus === "POSTED" ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Posted
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full" title="Pending Chart of Accounts mapping. No journal entry generated.">
+                              <AlertCircle className="h-3 w-3" />
+                              Unposted
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {c.paymentMethod || "Cash"}
@@ -400,6 +449,7 @@ export function CollectionsClient({
         onOpenChange={setModalOpen}
         categories={categories}
         accounts={incomeAccounts}
+        funds={funds}
         paymentMethods={paymentMethods}
         families={families}
         members={members}

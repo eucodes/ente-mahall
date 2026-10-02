@@ -11,6 +11,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Form,
   FormField,
   Input,
   Select,
@@ -726,7 +727,7 @@ export function MemberFormDialog({
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0" noValidate>
+          <Form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0" noValidate>
             <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-5">
               {error && (
                 <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive font-medium">
@@ -1921,7 +1922,7 @@ export function MemberFormDialog({
                 </Button>
               </div>
             </DialogFooter>
-          </form>
+          </Form>
         </DialogContent>
       </Dialog>
 

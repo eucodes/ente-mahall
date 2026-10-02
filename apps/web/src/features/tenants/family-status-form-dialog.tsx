@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, FormField, Input, Textarea, Select, useToast } from "@mahalle/ui";
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Form, FormField, Input, Textarea, Select, useToast } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { FamilyStatus } from "@/lib/structure";
 
@@ -97,7 +97,7 @@ export function FamilyStatusFormDialog({
         <DialogHeader className="p-5 pb-3 border-b border-border bg-muted/20 shrink-0">
           <DialogTitle>{editingStatus ? `Edit ${label}` : `Add ${label}`}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1" noValidate>
+        <Form onSubmit={handleSubmit} className="flex flex-col flex-1" noValidate>
           <div className="p-5 space-y-4">
             <FormField label="Status Name" htmlFor="status-name" required error={error ?? undefined}>
               <Input
@@ -149,7 +149,7 @@ export function FamilyStatusFormDialog({
               {isSubmitting ? "Saving..." : editingStatus ? "Update Status" : "Save Status"}
             </Button>
           </DialogFooter>
-        </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

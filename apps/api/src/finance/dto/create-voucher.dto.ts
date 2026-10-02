@@ -6,7 +6,8 @@ export class CreateVoucherDto {
   @IsEnum(VoucherType) type!: VoucherType;
   @IsOptional() @IsString() @MaxLength(50) voucherSubtype?: string; // EXPENSE, PAYMENT, GENERAL, RECEIPT
   @IsOptional() @IsString() @MaxLength(50) status?: string; // DRAFT, SUBMITTED, APPROVED, PAID, CANCELLED
-  @IsString() accountId!: string;
+  @IsOptional() @IsString() fundId?: string;
+  @IsOptional() @IsString() accountId?: string;
   @IsOptional() @IsString() memberId?: string;
   @IsOptional() @IsString() eventId?: string;
   @IsOptional() @IsString() expenseCategoryId?: string;

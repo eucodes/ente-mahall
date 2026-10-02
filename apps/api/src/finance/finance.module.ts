@@ -15,11 +15,14 @@ import { TaxesLegalService } from "./taxes-legal.service";
 import { FinanceSettingsService } from "./finance-settings.service";
 import { FinanceReportsService } from "./finance-reports.service";
 
+import { FundsService } from "./funds.service";
+
 @Module({
   imports: [TenantsModule, MembershipsModule, PermissionsModule],
   controllers: [FinanceController],
   providers: [
     FinanceService,
+    FundsService,
     AccountingService,
     CollectionsService,
     ExpensesService,
@@ -33,6 +36,7 @@ import { FinanceReportsService } from "./finance-reports.service";
   ],
   exports: [
     FinanceService,
+    FundsService,
     AccountingService,
     CollectionsService,
     ExpensesService,

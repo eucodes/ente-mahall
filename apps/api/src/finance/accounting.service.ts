@@ -1049,4 +1049,258 @@ export class AccountingService {
       isBalanced: totalAssets.equals(totalLiabilitiesAndEquity)
     };
   }
+
+  /**
+   * Posts unposted collections for a category once a valid COA account mapping is assigned.
+   * Requirement 6: The accounting flow should be:
+   * Finance Account → Category → Transaction → COA Mapping → Journal Entry
+   */
+  async postUnpostedCollectionsForCategory(actor: ActorContext, categoryId: string, context?: RequestContext) {
+    const category = await this.prisma.collectionCategory.findFirst({
+      where: { id: categoryId, tenantId: actor.tenantId },
+      include: { incomeAccount: true }
+    });
+    if (!category || !category.incomeAccountId) return { postedCount: 0 };
+
+    const unposted = await this.prisma.financeCollection.findMany({
+      where: {
+        tenantId: actor.tenantId,
+        categoryId,
+        status: "COMPLETED",
+        OR: [{ postingStatus: "UNPOSTED" }, { journalEntryId: null }]
+      },
+      include: { bankAccount: true }
+    });
+
+    if (unposted.length === 0) return { postedCount: 0 };
+
+    const settings = await this.prisma.financeSettings.findUnique({ where: { tenantId: actor.tenantId } });
+    const defaultCash = await this.prisma.account.findFirst({
+      where: { tenantId: actor.tenantId, type: "ASSET", isActive: true }
+    });
+    const activeFy = await this.getCurrentFinancialYear(actor.tenantId);
+
+    let postedCount = 0;
+    for (const col of unposted) {
+      let debitAccountId = settings?.defaultCashAccountId;
+      if (col.bankAccount?.chartAccountId) {
+        debitAccountId = col.bankAccount.chartAccountId;
+      } else if (settings?.defaultBankAccountId && (col.paymentMethod === "Bank Transfer" || col.paymentMethod === "UPI")) {
+        debitAccountId = settings.defaultBankAccountId;
+      }
+      if (!debitAccountId) debitAccountId = defaultCash?.id;
+      if (!debitAccountId) continue;
+
+      const entryNumber = await this.certificates.nextNumber(actor.tenantId, "JOURNAL_ENTRY", "JRN");
+      await this.prisma.$transaction(async (tx) => {
+        const journal = await tx.journalEntry.create({
+          data: {
+            tenantId: actor.tenantId,
+            entryNumber,
+            date: col.date,
+            description: `Collection: ${category.name} - ${col.donorName || "Receipt"} [${col.collectionNumber || col.id}]`,
+            sourceType: "COLLECTION",
+            sourceId: col.id,
+            status: "POSTED",
+            totalDebit: col.amount,
+            totalCredit: col.amount,
+            financialYearId: activeFy?.id ?? null,
+            lines: {
+              create: [
+                {
+                  accountId: debitAccountId!,
+                  debit: col.amount,
+                  credit: new Prisma.Decimal(0),
+                  description: `Collection Inflow (${col.paymentMethod || "Cash"})`
+                },
+                {
+                  accountId: category.incomeAccountId!,
+                  debit: new Prisma.Decimal(0),
+                  credit: col.amount,
+                  description: `${category.name} Revenue`
+                }
+              ]
+            }
+          }
+        });
+
+        await tx.financeCollection.update({
+          where: { id: col.id },
+          data: {
+            journalEntryId: journal.id,
+            postingStatus: "POSTED"
+          }
+        });
+      });
+      postedCount++;
+    }
+
+    return { postedCount };
+  }
+
+  /**
+   * Posts unposted payment vouchers for an expense category once a valid COA account mapping is assigned.
+   */
+  async postUnpostedVouchersForCategory(actor: ActorContext, expenseCategoryId: string, context?: RequestContext) {
+    const category = await this.prisma.expenseCategory.findFirst({
+      where: { id: expenseCategoryId, tenantId: actor.tenantId },
+      include: { expenseAccount: true }
+    });
+    if (!category || !category.expenseAccountId) return { postedCount: 0 };
+
+    const unposted = await this.prisma.voucher.findMany({
+      where: {
+        tenantId: actor.tenantId,
+        expenseCategoryId,
+        status: "PAID",
+        type: "PAYMENT",
+        OR: [{ postingStatus: "UNPOSTED" }, { journalEntryId: null }]
+      },
+      include: { bankAccount: true }
+    });
+
+    if (unposted.length === 0) return { postedCount: 0 };
+
+    const settings = await this.prisma.financeSettings.findUnique({ where: { tenantId: actor.tenantId } });
+    const defaultCash = await this.prisma.account.findFirst({
+      where: { tenantId: actor.tenantId, type: "ASSET", isActive: true }
+    });
+    const activeFy = await this.getCurrentFinancialYear(actor.tenantId);
+
+    let postedCount = 0;
+    for (const vch of unposted) {
+      let creditAccountId = settings?.defaultCashAccountId;
+      if (vch.bankAccount?.chartAccountId) {
+        creditAccountId = vch.bankAccount.chartAccountId;
+      } else if (settings?.defaultBankAccountId && (vch.paymentMethod === "Bank Transfer" || vch.paymentMethod === "UPI")) {
+        creditAccountId = settings.defaultBankAccountId;
+      }
+      if (!creditAccountId) creditAccountId = defaultCash?.id;
+      if (!creditAccountId) continue;
+
+      const entryNumber = await this.certificates.nextNumber(actor.tenantId, "JOURNAL_ENTRY", "JRN");
+      await this.prisma.$transaction(async (tx) => {
+        const journal = await tx.journalEntry.create({
+          data: {
+            tenantId: actor.tenantId,
+            entryNumber,
+            date: vch.date,
+            description: `Payment: ${category.name} - ${vch.payeeName || vch.partyName || "Payee"} [${vch.voucherNumber || vch.id}]`,
+            sourceType: "EXPENSE",
+            sourceId: vch.id,
+            status: "POSTED",
+            totalDebit: vch.amount,
+            totalCredit: vch.amount,
+            financialYearId: activeFy?.id ?? null,
+            lines: {
+              create: [
+                {
+                  accountId: category.expenseAccountId!,
+                  debit: vch.amount,
+                  credit: new Prisma.Decimal(0),
+                  description: `${category.name} Expense`
+                },
+                {
+                  accountId: creditAccountId!,
+                  debit: new Prisma.Decimal(0),
+                  credit: vch.amount,
+                  description: `Payment Outflow (${vch.paymentMethod || "Cash"})`
+                }
+              ]
+            }
+          }
+        });
+
+        await tx.voucher.update({
+          where: { id: vch.id },
+          data: {
+            accountId: category.expenseAccountId,
+            journalEntryId: journal.id,
+            postingStatus: "POSTED"
+          }
+        });
+      });
+      postedCount++;
+    }
+
+    return { postedCount };
+  }
+
+  /**
+   * Bulk Update interface for COA mappings (Requirement 7).
+   */
+  async bulkUpdateCoaMappings(
+    actor: ActorContext,
+    dto: {
+      categoryIds: string[];
+      categoryType: "INCOME" | "EXPENSE" | "COLLECTION";
+      coaAccountId?: string | null;
+      fundId?: string | null;
+      postPendingTransactions?: boolean;
+    },
+    context: RequestContext
+  ) {
+    if (!dto.categoryIds || dto.categoryIds.length === 0) {
+      throw new BadRequestException("No categories selected for bulk update.");
+    }
+
+    let totalPosted = 0;
+
+    if (dto.categoryType === "EXPENSE") {
+      await this.prisma.expenseCategory.updateMany({
+        where: { id: { in: dto.categoryIds }, tenantId: actor.tenantId },
+        data: {
+          ...(dto.coaAccountId !== undefined ? { expenseAccountId: dto.coaAccountId } : {}),
+          ...(dto.fundId !== undefined ? { fundId: dto.fundId } : {})
+        }
+      });
+
+      if (dto.postPendingTransactions && dto.coaAccountId) {
+        for (const catId of dto.categoryIds) {
+          const res = await this.postUnpostedVouchersForCategory(actor, catId, context);
+          totalPosted += res.postedCount;
+        }
+      }
+    } else {
+      // INCOME / COLLECTION
+      await this.prisma.collectionCategory.updateMany({
+        where: { id: { in: dto.categoryIds }, tenantId: actor.tenantId },
+        data: {
+          ...(dto.coaAccountId !== undefined ? { incomeAccountId: dto.coaAccountId } : {}),
+          ...(dto.fundId !== undefined ? { fundId: dto.fundId } : {})
+        }
+      });
+
+      if (dto.postPendingTransactions && dto.coaAccountId) {
+        for (const catId of dto.categoryIds) {
+          const res = await this.postUnpostedCollectionsForCategory(actor, catId, context);
+          totalPosted += res.postedCount;
+        }
+      }
+    }
+
+    await this.audit.record({
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      action: "accounting.coa.bulkUpdate",
+      targetType: "CategoryMapping",
+      targetId: dto.categoryIds[0],
+      metadata: {
+        categoryCount: dto.categoryIds.length,
+        categoryType: dto.categoryType,
+        coaAccountId: dto.coaAccountId,
+        fundId: dto.fundId,
+        totalPosted
+      },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+
+    return {
+      success: true,
+      updatedCount: dto.categoryIds.length,
+      postedTransactionsCount: totalPosted
+    };
+  }
 }
+

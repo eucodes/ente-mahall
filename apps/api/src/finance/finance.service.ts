@@ -114,7 +114,9 @@ export class FinanceService {
   }
 
   async createVoucher(actor: ActorContext, dto: CreateVoucherDto, context: RequestContext): Promise<VoucherWithDetail> {
-    await this.findAccountOrThrow(actor.tenantId, dto.accountId);
+    if (dto.accountId) {
+      await this.findAccountOrThrow(actor.tenantId, dto.accountId);
+    }
     const prefix = dto.type === "RECEIPT" ? "RCT" : "PAY";
     const voucherNumber = await this.certificates.nextNumber(actor.tenantId, `VOUCHER_${dto.type}`, prefix);
     const { date, ...rest } = dto;
@@ -531,6 +533,52 @@ export class FinanceService {
       });
     }
 
+    // Operational Funds Breakdown (Requirement 1)
+    const rawFunds = await this.prisma.financeFund.findMany({
+      where: { tenantId, isActive: true },
+      orderBy: [{ isDefault: "desc" }, { displayOrder: "asc" }, { name: "asc" }],
+      include: {
+        _count: {
+          select: {
+            collectionCategories: true,
+            expenseCategories: true,
+            collections: true,
+            vouchers: true
+          }
+        }
+      }
+    });
+
+    const fundStats = await Promise.all(
+      rawFunds.map(async (f) => {
+        const [cAgg, vAgg] = await Promise.all([
+          this.prisma.financeCollection.aggregate({
+            where: { tenantId, fundId: f.id, status: "COMPLETED" },
+            _sum: { amount: true }
+          }),
+          this.prisma.voucher.aggregate({
+            where: { tenantId, fundId: f.id, status: "PAID", type: "PAYMENT" },
+            _sum: { amount: true }
+          })
+        ]);
+        const income = cAgg._sum.amount ?? new Prisma.Decimal(0);
+        const expense = vAgg._sum.amount ?? new Prisma.Decimal(0);
+        return {
+          id: f.id,
+          name: f.name,
+          code: f.code,
+          description: f.description,
+          color: f.color,
+          isDefault: f.isDefault,
+          income: income.toFixed(2),
+          expense: expense.toFixed(2),
+          balance: income.minus(expense).toFixed(2),
+          categoriesCount: f._count.collectionCategories + f._count.expenseCategories,
+          transactionsCount: f._count.collections + f._count.vouchers
+        };
+      })
+    );
+
     return {
       todayCollections: todayCollectionsAgg._sum.amount?.toFixed(2) ?? "0.00",
       todayPayments: todayPaymentsAgg._sum.amount?.toFixed(2) ?? "0.00",
@@ -544,7 +592,8 @@ export class FinanceService {
       recentReceipts,
       recentPayments,
       recentPendingDues,
-      trend
+      trend,
+      funds: fundStats
     };
   }
 }

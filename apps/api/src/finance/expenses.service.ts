@@ -19,6 +19,7 @@ interface ActorContext {
 }
 
 const VOUCHER_INCLUDE = {
+  fund: { select: { id: true, name: true, color: true, code: true } },
   account: true,
   member: { select: { id: true, fullName: true } },
   expenseCategory: true,
@@ -94,7 +95,7 @@ export class ExpensesService {
     return { vouchers, total };
   }
 
-  async findVoucherOrThrow(tenantId: string, id: string): Promise<Voucher> {
+  async findVoucherOrThrow(tenantId: string, id: string) {
     const voucher = await this.prisma.voucher.findFirst({
       where: { id, tenantId },
       include: VOUCHER_INCLUDE
@@ -104,7 +105,31 @@ export class ExpensesService {
   }
 
   async createVoucher(actor: ActorContext, dto: CreateVoucherDto, context: RequestContext) {
-    await this.accountingService.findAccountOrThrow(actor.tenantId, dto.accountId);
+    let expenseCategory: any = null;
+    if (dto.expenseCategoryId) {
+      expenseCategory = await this.prisma.expenseCategory.findFirst({
+        where: { id: dto.expenseCategoryId, tenantId: actor.tenantId }
+      });
+    }
+
+    // Resolve operational fund: explicit dto.fundId > category.fundId > default fund
+    let fundId = dto.fundId ?? null;
+    if (!fundId && expenseCategory?.fundId) {
+      fundId = expenseCategory.fundId;
+    }
+    if (!fundId) {
+      const defaultFund = await this.prisma.financeFund.findFirst({
+        where: { tenantId: actor.tenantId, isActive: true },
+        orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }]
+      });
+      fundId = defaultFund?.id ?? null;
+    }
+
+    // Resolve Chart of Accounts (COA) mapping
+    let coaAccountId = dto.accountId ?? expenseCategory?.expenseAccountId ?? null;
+    if (coaAccountId) {
+      await this.accountingService.findAccountOrThrow(actor.tenantId, coaAccountId);
+    }
 
     const settings = await this.settingsService.getSettings(actor.tenantId);
     const prefix = dto.type === "RECEIPT" ? (settings.receiptPrefix || "RCT") : (settings.voucherPrefix || "VCH");
@@ -115,9 +140,10 @@ export class ExpensesService {
     const status = dto.status ?? "PAID";
 
     let journalEntryId: string | null = null;
+    let postingStatus = "UNPOSTED";
 
-    // If created directly in PAID state (e.g. direct receipt or instant cash payment)
-    if (status === "PAID" && dto.type === "PAYMENT") {
+    // Requirement 6: Post Journal Entry ONLY if category has a valid Chart of Accounts mapping!
+    if (status === "PAID" && dto.type === "PAYMENT" && coaAccountId) {
       let creditAccountId = settings.defaultCashAccountId;
       if (dto.bankAccountId) {
         const bank = await this.prisma.financeBankAccount.findFirst({ where: { id: dto.bankAccountId, tenantId: actor.tenantId } });
@@ -143,13 +169,14 @@ export class ExpensesService {
             description: dto.description || `Payment to ${dto.payeeName || dto.partyName || "Payee"}`,
             sourceType: "EXPENSE",
             lines: [
-              { accountId: dto.accountId, debit: amount.toFixed(2), credit: "0.00", description: dto.description },
+              { accountId: coaAccountId, debit: amount.toFixed(2), credit: "0.00", description: dto.description },
               { accountId: creditAccountId, debit: "0.00", credit: amount.toFixed(2), description: `Paid via ${dto.paymentMethod || "Cash"}` }
             ]
           },
           context
         );
         journalEntryId = entry.id;
+        postingStatus = "POSTED";
 
         if (dto.bankAccountId) {
           await this.prisma.financeBankAccount.update({
@@ -163,11 +190,13 @@ export class ExpensesService {
     const voucher = await this.prisma.voucher.create({
       data: {
         tenantId: actor.tenantId,
+        fundId,
         voucherNumber,
         type: dto.type,
         voucherSubtype: dto.voucherSubtype ?? "EXPENSE",
         status,
-        accountId: dto.accountId,
+        postingStatus,
+        accountId: coaAccountId,
         memberId: dto.memberId ?? null,
         eventId: dto.eventId ?? null,
         expenseCategoryId: dto.expenseCategoryId ?? null,
@@ -205,11 +234,14 @@ export class ExpensesService {
     const existing = await this.findVoucherOrThrow(actor.tenantId, id);
 
     const newAmount = dto.amount != null ? new Prisma.Decimal(dto.amount) : existing.amount;
-    const newAccountId = dto.accountId ?? existing.accountId;
+    const newAccountId = dto.accountId !== undefined ? dto.accountId : (existing.accountId ?? existing.expenseCategory?.expenseAccountId ?? null);
     const newBankAccountId = dto.bankAccountId !== undefined ? dto.bankAccountId : existing.bankAccountId;
     const newPaymentMethod = dto.paymentMethod ?? existing.paymentMethod ?? "Cash";
 
     const result = await this.prisma.$transaction(async (tx) => {
+      let journalEntryId = existing.journalEntryId;
+      let postingStatus = existing.postingStatus;
+
       // If journal entry exists, adjust account balances and journal lines if amount or accounts changed
       if (existing.journalEntryId && existing.status === "PAID") {
         const journal = await tx.journalEntry.findUnique({
@@ -252,7 +284,7 @@ export class ExpensesService {
             creditAccountId = defaultCash?.id ?? null;
           }
 
-          if (creditAccountId) {
+          if (creditAccountId && newAccountId) {
             // Update journal entry
             await tx.journalEntryLine.deleteMany({ where: { journalEntryId: journal.id } });
             await tx.journalEntry.update({
@@ -280,6 +312,12 @@ export class ExpensesService {
                 data: { currentBalance: { decrement: newAmount } }
               });
             }
+          } else {
+            // No longer mapped to an account -> remove journal entry and mark unposted
+            await tx.journalEntryLine.deleteMany({ where: { journalEntryId: journal.id } });
+            await tx.journalEntry.delete({ where: { id: journal.id } });
+            journalEntryId = null;
+            postingStatus = "UNPOSTED";
           }
         }
       }
@@ -290,7 +328,9 @@ export class ExpensesService {
           ...dto,
           ...(dto.date ? { date: new Date(dto.date) } : {}),
           ...(dto.amount ? { amount: new Prisma.Decimal(dto.amount) } : {}),
-          ...(dto.payeeName ? { payeeName: dto.payeeName } : dto.partyName ? { payeeName: dto.partyName } : {})
+          ...(dto.payeeName ? { payeeName: dto.payeeName } : dto.partyName ? { payeeName: dto.partyName } : {}),
+          journalEntryId,
+          postingStatus
         },
         include: VOUCHER_INCLUDE
       });
@@ -397,37 +437,47 @@ export class ExpensesService {
       throw new BadRequestException("No cash or bank account configured to disburse payment from.");
     }
 
-    // Atomic post journal + update voucher
+    const coaAccountId = voucher.accountId || voucher.expenseCategory?.expenseAccountId || null;
+
+    // Atomic post journal (if mapped) + update voucher
     const result = await this.prisma.$transaction(async (tx) => {
-      const entryNumber = await this.certificates.nextNumber(actor.tenantId, "JOURNAL_ENTRY", "JRN");
-      const activeFy = await this.accountingService.getCurrentFinancialYear(actor.tenantId);
+      let journalId: string | null = null;
+      let postingStatus = "UNPOSTED";
 
-      const journal = await tx.journalEntry.create({
-        data: {
-          tenantId: actor.tenantId,
-          entryNumber,
-          financialYearId: activeFy?.id ?? null,
-          date: new Date(),
-          reference: voucher.voucherNumber ?? undefined,
-          description: voucher.description || `Disbursement to ${voucher.payeeName || voucher.partyName || "Payee"}`,
-          sourceType: "EXPENSE",
-          sourceId: voucher.id,
-          status: "POSTED",
-          totalDebit: voucher.amount,
-          totalCredit: voucher.amount,
-          postedAt: new Date(),
-          postedBy: actor.userId,
-          lines: {
-            create: [
-              { accountId: voucher.accountId, debit: voucher.amount, credit: new Prisma.Decimal(0), description: voucher.description },
-              { accountId: creditAccountId, debit: new Prisma.Decimal(0), credit: voucher.amount, description: `Paid via ${paymentMethod}` }
-            ]
+      if (coaAccountId && creditAccountId) {
+        const entryNumber = await this.certificates.nextNumber(actor.tenantId, "JOURNAL_ENTRY", "JRN");
+        const activeFy = await this.accountingService.getCurrentFinancialYear(actor.tenantId);
+
+        const journal = await tx.journalEntry.create({
+          data: {
+            tenantId: actor.tenantId,
+            entryNumber,
+            financialYearId: activeFy?.id ?? null,
+            date: new Date(),
+            reference: voucher.voucherNumber ?? undefined,
+            description: voucher.description || `Disbursement to ${voucher.payeeName || voucher.partyName || "Payee"}`,
+            sourceType: "EXPENSE",
+            sourceId: voucher.id,
+            status: "POSTED",
+            totalDebit: voucher.amount,
+            totalCredit: voucher.amount,
+            postedAt: new Date(),
+            postedBy: actor.userId,
+            lines: {
+              create: [
+                { accountId: coaAccountId, debit: voucher.amount, credit: new Prisma.Decimal(0), description: voucher.description },
+                { accountId: creditAccountId, debit: new Prisma.Decimal(0), credit: voucher.amount, description: `Paid via ${paymentMethod}` }
+              ]
+            }
           }
-        }
-      });
+        });
 
-      await tx.account.update({ where: { id: voucher.accountId }, data: { currentBalance: { increment: voucher.amount } } });
-      await tx.account.update({ where: { id: creditAccountId }, data: { currentBalance: { decrement: voucher.amount } } });
+        await tx.account.update({ where: { id: coaAccountId }, data: { currentBalance: { increment: voucher.amount } } });
+        await tx.account.update({ where: { id: creditAccountId }, data: { currentBalance: { decrement: voucher.amount } } });
+
+        journalId = journal.id;
+        postingStatus = "POSTED";
+      }
 
       if (bankAccountId) {
         await tx.financeBankAccount.update({
@@ -443,7 +493,8 @@ export class ExpensesService {
           paidAt: new Date(),
           paymentMethod,
           bankAccountId,
-          journalEntryId: journal.id
+          journalEntryId: journalId,
+          postingStatus
         },
         include: VOUCHER_INCLUDE
       });

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, FormField, Input, Select, Textarea, useToast } from "@mahalle/ui";
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Form, FormField, Input, Select, Textarea, useToast } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { House } from "@/lib/houses";
 import type { Division } from "@/lib/structure";
@@ -101,7 +101,7 @@ export function HouseFormDialog({
         <DialogHeader className="p-5 pb-3 border-b border-border bg-muted/20 shrink-0">
           <DialogTitle>{editingHouse ? "Edit house" : "Add a house"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1" noValidate>
+        <Form onSubmit={handleSubmit} className="flex flex-col flex-1" noValidate>
           <div className="p-5 space-y-4">
             <FormField
               label="House number"
@@ -157,7 +157,7 @@ export function HouseFormDialog({
               {editingHouse ? "Save Changes" : "Add House"}
             </Button>
           </DialogFooter>
-        </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

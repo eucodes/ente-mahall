@@ -15,7 +15,7 @@ export function adminHost(): string {
  * Which app a request's session cookies belong to — the API scopes cookies
  * per app (see apps/api's app-scope.ts) so logging into admin.mahalle.test
  * doesn't also sign you into control.mahalle.test or any tenant subdomain.
- * Mirrors the host matching in middleware.ts, plus the bare root domain
+ * Mirrors the host matching in proxy.ts, plus the bare root domain
  * (marketing site), which is folded into "admin" since its only
  * auth-touching feature — the "Get started" onboarding flow — creates an
  * admin/owner account and hands off straight to admin.mahalle.test.

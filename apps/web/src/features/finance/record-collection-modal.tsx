@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   Button,
+  Badge,
   Input,
   Select,
   SearchableSelect,
@@ -17,10 +18,12 @@ import {
   RefreshCw,
   Plus,
   Settings,
+  AlertCircle,
+  CheckCircle2,
   useToast
 } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
-import type { Account, CollectionCategory, FinancePaymentMethod } from "@/lib/finance";
+import type { Account, CollectionCategory, FinancePaymentMethod, FinanceFund, DynamicFormFieldConfig } from "@/lib/finance";
 import { QuickAddAccountModal } from "./quick-add-account-modal";
 import { QuickAddCategoryModal } from "./quick-add-category-modal";
 import { UniversalReceiptModal, type UniversalReceiptData } from "./universal-receipt-modal";
@@ -44,6 +47,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   categories: CollectionCategory[];
   accounts?: Account[];
+  funds?: FinanceFund[];
   paymentMethods: (FinancePaymentMethod | { id: string; name: string })[];
   families: FamilyItem[];
   members: MemberItem[];
@@ -56,6 +60,7 @@ export function RecordCollectionModal({
   onOpenChange,
   categories: initialCategories,
   accounts: initialAccounts = [],
+  funds = [],
   paymentMethods,
   families: initialFamilies,
   members: initialMembers,
@@ -78,6 +83,7 @@ export function RecordCollectionModal({
   const [quickCategoryOpen, setQuickCategoryOpen] = useState(false);
 
   // Form State
+  const [fundId, setFundId] = useState<string>("");
   const [accountId, setAccountId] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [familyId, setFamilyId] = useState<string>("");
@@ -90,6 +96,7 @@ export function RecordCollectionModal({
   const [period, setPeriod] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [attachmentUrl, setAttachmentUrl] = useState<string>("");
+  const [customFields, setCustomFields] = useState<Record<string, any>>({});
 
   // Sync props to state
   useEffect(() => {
@@ -105,13 +112,17 @@ export function RecordCollectionModal({
     return accountList.filter((a) => a.type === "INCOME" || !a.type);
   }, [accountList]);
 
-  // Filter categories by selected account (if account is selected)
+  // Filter categories by selected account or fund
   const filteredCategories = useMemo(() => {
-    if (!accountId) return categoryList;
-    return categoryList.filter(
-      (c) => !c.incomeAccountId || c.incomeAccountId === accountId
-    );
-  }, [categoryList, accountId]);
+    let list = categoryList;
+    if (fundId) {
+      list = list.filter((c) => !c.fundId || c.fundId === fundId);
+    }
+    if (accountId) {
+      list = list.filter((c) => !c.incomeAccountId || c.incomeAccountId === accountId);
+    }
+    return list;
+  }, [categoryList, accountId, fundId]);
 
   // Selected category object
   const selectedCategory = useMemo(() => {
@@ -122,25 +133,16 @@ export function RecordCollectionModal({
   const formConfig = selectedCategory?.formConfig;
 
   // Options for searchable selects
-  const accountOptions = useMemo(() => {
-    return incomeAccounts.map((a) => ({
-      value: a.id,
-      label: a.name,
-      subLabel: a.code ? a.code : undefined,
-      group: a.parentAccount?.name || (a.type === "INCOME" ? "Income / Fund Accounts" : "Accounts")
-    }));
-  }, [incomeAccounts]);
-
   const categoryOptions = useMemo(() => {
-    return filteredCategories.map((c) => ({
+    return categoryList.map((c) => ({
       value: c.id,
       label: c.name,
       subLabel: c.defaultAmount
         ? `₹${Number(c.defaultAmount).toLocaleString("en-IN")}`
         : undefined,
-      group: c.incomeAccount?.name || "General Collection Categories"
+      group: c.fund?.name || c.incomeAccount?.name || "General Collection Categories"
     }));
-  }, [filteredCategories]);
+  }, [categoryList]);
 
   const familyOptions = useMemo(() => {
     return familyList.map((f) => ({
@@ -181,9 +183,18 @@ export function RecordCollectionModal({
   }, [paymentMethods]);
 
   // Handlers
+  function handleFundChange(fId: string) {
+    setFundId(fId);
+    if (categoryId) {
+      const cat = categoryList.find((c) => c.id === categoryId);
+      if (cat?.fundId && fId && cat.fundId !== fId) {
+        setCategoryId("");
+      }
+    }
+  }
+
   function handleAccountChange(accId: string) {
     setAccountId(accId);
-    // If selected category does not belong to new account, clear category
     if (categoryId) {
       const cat = categoryList.find((c) => c.id === categoryId);
       if (cat?.incomeAccountId && accId && cat.incomeAccountId !== accId) {
@@ -196,6 +207,10 @@ export function RecordCollectionModal({
     setCategoryId(selectedId);
     const cat = categoryList.find((c) => c.id === selectedId);
     if (cat) {
+      // Auto-set fund if category has one
+      if (cat.fundId) {
+        setFundId(cat.fundId);
+      }
       // Auto-set parent account if not already selected
       if (cat.incomeAccountId && !accountId) {
         setAccountId(cat.incomeAccountId);
@@ -211,6 +226,16 @@ export function RecordCollectionModal({
       if (cat.targetType === "GENERAL" && !payerName) {
         setPayerName(cat.name);
       }
+      // Initialize default values for dynamic fields if any
+      const initialFields: Record<string, any> = {};
+      if (cat.formConfig?.fields) {
+        for (const f of cat.formConfig.fields) {
+          if (f.defaultValue !== undefined && f.defaultValue !== null) {
+            initialFields[f.id] = f.defaultValue;
+          }
+        }
+      }
+      setCustomFields(initialFields);
     }
   }
 
@@ -297,6 +322,7 @@ export function RecordCollectionModal({
 
       const payload = {
         type: derivedType,
+        fundId: fundId || selectedCategory?.fundId || undefined,
         categoryId: categoryId || undefined,
         familyId: familyId || undefined,
         memberId: memberId || undefined,
@@ -307,7 +333,8 @@ export function RecordCollectionModal({
         date: new Date(date).toISOString(),
         description: description || (period ? `${selectedCategory?.name || ""} (${period})` : undefined),
         notes: description || undefined,
-        attachmentUrl: attachmentUrl || undefined
+        attachmentUrl: attachmentUrl || undefined,
+        customFields: Object.keys(customFields).length > 0 ? customFields : undefined
       };
 
       const res = await apiClient.post<any>(`/tenants/${slug}/finance/collections`, payload);
@@ -370,88 +397,71 @@ export function RecordCollectionModal({
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4 pt-3">
-            {/* Account (Fund) & Category Linked Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-3.5 rounded-2xl border border-border/60">
-              {/* Fund Category */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-foreground">
-                    Fund / Income Account
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setQuickAccountOpen(true)}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline cursor-pointer"
-                  >
-                    <Plus className="h-3 w-3" />
-                    Quick Add
-                  </button>
-                </div>
-                <SearchableSelect
-                  options={accountOptions}
-                  value={accountId}
-                  onChange={handleAccountChange}
-                  placeholder={incomeAccounts.length === 0 ? "No accounts found" : "Select an account"}
-                  searchPlaceholder="Search"
-                  emptyMessage="No matching accounts"
-                  onAddNew={() => setQuickAccountOpen(true)}
-                  addNewLabel="New Account"
-                />
+            {/* Collection Category / Head Section */}
+            <div className="bg-muted/20 p-3.5 rounded-2xl border border-border/60">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  Collection Head / Category <span className="text-destructive">*</span>
+                </label>
               </div>
-
-              {/* Collection Category / Head */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-foreground">
-                    Collection Head / Category <span className="text-destructive">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setQuickCategoryOpen(true)}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline cursor-pointer"
-                  >
-                    <Plus className="h-3 w-3" />
-                    Quick Add
-                  </button>
-                </div>
-                <SearchableSelect
-                  options={categoryOptions}
-                  value={categoryId}
-                  onChange={handleCategoryChange}
-                  placeholder={
-                    filteredCategories.length === 0
-                      ? "No categories in this fund"
-                      : "Select a category"
-                  }
-                  searchPlaceholder="Search"
-                  emptyMessage="No categories found. Click + New Category to create one."
-                  onAddNew={() => setQuickCategoryOpen(true)}
-                  addNewLabel="New Category"
-                />
-              </div>
+              <SearchableSelect
+                options={categoryOptions}
+                value={categoryId}
+                onChange={handleCategoryChange}
+                placeholder={
+                  categoryList.length === 0
+                    ? "No categories found"
+                    : "Select a collection category..."
+                }
+                searchPlaceholder="Search category..."
+                emptyMessage="No categories found. Click + Quick Add to create one."
+                onAddNew={() => setQuickCategoryOpen(true)}
+                addNewLabel="New Category"
+              />
             </div>
 
-            {/* Scope / Category Info Banner */}
+            {/* Scope / Category & Posting Status Preview Banner */}
             {selectedCategory && (
-              <div className="text-xs px-3 py-2 rounded-xl bg-muted/40 border border-border/60 flex items-center justify-between">
-                <span className="text-muted-foreground">
-                  Target:{" "}
-                  <strong className="text-foreground">
-                    {selectedCategory.targetType === "GENERAL"
-                      ? "General / Public (Donations, Hundi, Juma)"
-                      : selectedCategory.targetType === "SPECIFIC_DIVISIONS"
-                        ? "Specific Divisions / Wards"
-                        : selectedCategory.targetType === "CATEGORY_BASED"
-                          ? `Economic Category: ${selectedCategory.targetEconomicCategory || "All"}`
-                          : "All Mahallu Families"}
-                  </strong>
-                </span>
-                {selectedCategory.isRecurring && (
-                  <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                    <RefreshCw className="h-3 w-3" />
-                    Recurring ({selectedCategory.recurrenceFrequency || "MONTHLY"})
+              <div className="p-3 rounded-xl bg-muted/40 border border-border/60 space-y-2 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-muted-foreground">
+                    Target:{" "}
+                    <strong className="text-foreground">
+                      {selectedCategory.targetType === "GENERAL" || selectedCategory.targetType === "NO_TARGET"
+                        ? "General Public / Open"
+                        : selectedCategory.targetType === "SPECIFIC_DIVISIONS" || selectedCategory.targetType === "DIVISION_BASED"
+                          ? "Specific Divisions / Wards"
+                          : selectedCategory.targetType === "CATEGORY_BASED" || selectedCategory.targetType === "MEMBER_BASED"
+                            ? `Member / Category: ${selectedCategory.targetEconomicCategory || "All"}`
+                            : "All Mahallu Families"}
+                    </strong>
                   </span>
-                )}
+
+                  {selectedCategory.isRecurring && (
+                    <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                      <RefreshCw className="h-3 w-3" />
+                      Recurring ({selectedCategory.recurrenceFrequency || "MONTHLY"})
+                    </span>
+                  )}
+                </div>
+
+                {/* Posting Status Preview */}
+                <div className="pt-2 border-t border-border/50 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-muted-foreground text-[11px]">Ledger Posting:</span>
+                  <div>
+                    {selectedCategory.incomeAccount ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                        <CheckCircle2 className="h-3 w-3" />
+                        COA: {selectedCategory.incomeAccount.name} (Auto-posted)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full" title="No Chart of Accounts mapping. Transaction will remain UNPOSTED.">
+                        <AlertCircle className="h-3 w-3" />
+                        COA: Unmapped (Recorded as UNPOSTED)
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -582,6 +592,221 @@ export function RecordCollectionModal({
                 </FormField>
               )}
             </div>
+
+            {/* Dynamic Form Custom Fields (Requirement 3: 12 field types) */}
+            {formConfig?.fields && formConfig.fields.filter((f) => f.enabled !== false).length > 0 && (
+              <div className="space-y-3 pt-3 pb-2 border-t border-dashed border-border/80">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <span>Category Custom Fields</span>
+                  <span className="text-[10px] lowercase font-normal">({formConfig.fields.filter((f) => f.enabled !== false).length} fields configured)</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {formConfig.fields
+                    .filter((f) => f.enabled !== false)
+                    .map((field) => {
+                      const fVal = customFields[field.id] ?? field.defaultValue ?? "";
+
+                      if (field.type === "checkbox") {
+                        return (
+                          <div key={field.id} className="flex items-center gap-2 pt-2 sm:col-span-2">
+                            <input
+                              type="checkbox"
+                              id={`dyn_${field.id}`}
+                              checked={Boolean(fVal)}
+                              onChange={(e) =>
+                                setCustomFields((prev) => ({ ...prev, [field.id]: e.target.checked }))
+                              }
+                              className="h-4 w-4 rounded border-border text-primary cursor-pointer"
+                            />
+                            <label htmlFor={`dyn_${field.id}`} className="text-xs font-medium cursor-pointer">
+                              {field.label} {field.required && <span className="text-destructive">*</span>}
+                            </label>
+                          </div>
+                        );
+                      }
+
+                      if (field.type === "radio") {
+                        return (
+                          <div key={field.id} className="sm:col-span-2 space-y-1.5">
+                            <label className="text-xs font-semibold text-foreground block">
+                              {field.label} {field.required && <span className="text-destructive">*</span>}
+                            </label>
+                            <div className="flex flex-wrap gap-4 pt-0.5">
+                              {(field.options || []).map((opt) => (
+                                <label key={opt} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={`dyn_${field.id}`}
+                                    value={opt}
+                                    checked={fVal === opt}
+                                    onChange={() => setCustomFields((prev) => ({ ...prev, [field.id]: opt }))}
+                                    className="cursor-pointer text-primary"
+                                  />
+                                  <span>{opt}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (field.type === "multiselect") {
+                        const currentArr = Array.isArray(fVal) ? fVal : [];
+                        return (
+                          <div key={field.id} className="sm:col-span-2 space-y-1.5">
+                            <label className="text-xs font-semibold text-foreground block">
+                              {field.label} {field.required && <span className="text-destructive">*</span>}
+                            </label>
+                            <div className="flex flex-wrap gap-1.5">
+                              {(field.options || []).map((opt) => {
+                                const isSel = currentArr.includes(opt);
+                                return (
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    onClick={() => {
+                                      const next = isSel
+                                        ? currentArr.filter((x: string) => x !== opt)
+                                        : [...currentArr, opt];
+                                      setCustomFields((prev) => ({ ...prev, [field.id]: next }));
+                                    }}
+                                    className={`px-2.5 py-1 rounded-lg text-xs border font-medium transition-all ${
+                                      isSel
+                                        ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                        : "bg-muted/40 text-foreground border-border hover:bg-muted/70"
+                                    }`}
+                                  >
+                                    {opt}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (field.type === "select") {
+                        return (
+                          <FormField key={field.id} label={field.label} required={field.required}>
+                            <Select
+                              value={String(fVal)}
+                              onChange={(e) =>
+                                setCustomFields((prev) => ({ ...prev, [field.id]: e.target.value }))
+                              }
+                              className="h-9 text-xs"
+                            >
+                              <option value="">{field.placeholder || "Select option..."}</option>
+                              {(field.options || []).map((opt) => (
+                                <option key={opt} value={opt}>
+                                  {opt}
+                                </option>
+                              ))}
+                            </Select>
+                          </FormField>
+                        );
+                      }
+
+                      if (field.type === "member") {
+                        return (
+                          <FormField key={field.id} label={field.label} required={field.required}>
+                            <SearchableSelect
+                              options={memberOptions}
+                              value={String(fVal)}
+                              onChange={(val) =>
+                                setCustomFields((prev) => ({ ...prev, [field.id]: val }))
+                              }
+                              placeholder={field.placeholder || "Select member..."}
+                              searchPlaceholder="Search member..."
+                            />
+                          </FormField>
+                        );
+                      }
+
+                      if (field.type === "family") {
+                        return (
+                          <FormField key={field.id} label={field.label} required={field.required}>
+                            <SearchableSelect
+                              options={familyOptions}
+                              value={String(fVal)}
+                              onChange={(val) =>
+                                setCustomFields((prev) => ({ ...prev, [field.id]: val }))
+                              }
+                              placeholder={field.placeholder || "Select family..."}
+                              searchPlaceholder="Search family..."
+                            />
+                          </FormField>
+                        );
+                      }
+
+                      if (field.type === "description") {
+                        return (
+                          <div key={field.id} className="sm:col-span-2">
+                            <FormField label={field.label} required={field.required}>
+                              <Textarea
+                                placeholder={field.placeholder || `Enter ${field.label}...`}
+                                value={String(fVal)}
+                                onChange={(e) =>
+                                  setCustomFields((prev) => ({ ...prev, [field.id]: e.target.value }))
+                                }
+                                rows={2}
+                                className="text-xs resize-none"
+                              />
+                            </FormField>
+                          </div>
+                        );
+                      }
+
+                      if (field.type === "date") {
+                        return (
+                          <FormField key={field.id} label={field.label} required={field.required}>
+                            <Input
+                              type="date"
+                              value={String(fVal)}
+                              onChange={(e) =>
+                                setCustomFields((prev) => ({ ...prev, [field.id]: e.target.value }))
+                              }
+                              className="h-9 text-xs"
+                            />
+                          </FormField>
+                        );
+                      }
+
+                      if (field.type === "number" || field.type === "amount") {
+                        return (
+                          <FormField key={field.id} label={field.label} required={field.required}>
+                            <Input
+                              type="number"
+                              step={field.type === "amount" ? "any" : "1"}
+                              placeholder={field.placeholder || (field.type === "amount" ? "0.00" : "0")}
+                              value={String(fVal)}
+                              onChange={(e) =>
+                                setCustomFields((prev) => ({ ...prev, [field.id]: e.target.value }))
+                              }
+                              className="h-9 text-xs font-mono"
+                            />
+                          </FormField>
+                        );
+                      }
+
+                      // Default to text / file
+                      return (
+                        <FormField key={field.id} label={field.label} required={field.required}>
+                          <Input
+                            type="text"
+                            placeholder={field.placeholder || `Enter ${field.label}`}
+                            value={String(fVal)}
+                            onChange={(e) =>
+                              setCustomFields((prev) => ({ ...prev, [field.id]: e.target.value }))
+                            }
+                            className="h-9 text-xs"
+                          />
+                        </FormField>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
 
             <FormField label="Description / Remarks (Optional)">
               <Textarea

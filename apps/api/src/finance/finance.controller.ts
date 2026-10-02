@@ -11,6 +11,7 @@ import type { MembershipWithRole } from "../memberships/memberships.service";
 import { PaginationQueryDto } from "../common/dto/pagination-query.dto";
 
 import { FinanceService } from "./finance.service";
+import { FundsService } from "./funds.service";
 import { AccountingService } from "./accounting.service";
 import { CollectionsService } from "./collections.service";
 import { ExpensesService } from "./expenses.service";
@@ -23,6 +24,9 @@ import { FinanceReportsService } from "./finance-reports.service";
 
 import { CreateAccountDto } from "./dto/create-account.dto";
 import { UpdateAccountDto } from "./dto/update-account.dto";
+import { CreateFinanceFundDto, UpdateFinanceFundDto } from "./dto/create-fund.dto";
+import { BulkUpdateCoaMappingDto } from "./dto/bulk-update-coa.dto";
+import { GenerateRecurringCollectionsDto } from "./dto/generate-recurring.dto";
 import { CreateVoucherDto } from "./dto/create-voucher.dto";
 import { UpdateVoucherDto } from "./dto/update-voucher.dto";
 import { CreateDueDto } from "./dto/create-due.dto";
@@ -58,6 +62,7 @@ function requestContext(req: Request) {
 export class FinanceController {
   constructor(
     private readonly financeService: FinanceService,
+    private readonly fundsService: FundsService,
     private readonly accountingService: AccountingService,
     private readonly collectionsService: CollectionsService,
     private readonly expensesService: ExpensesService,
@@ -103,7 +108,170 @@ export class FinanceController {
   }
 
   // =========================================================================
-  // 2. Chart of Accounts & Financial Years
+  // 1.1 Operational Finance Accounts / Funds (Requirement 1)
+  // =========================================================================
+
+  @Get("funds")
+  @RequirePermission("finance.view")
+  async listFunds(@CurrentMembership() membership: MembershipWithRole): Promise<any> {
+    return { funds: await this.fundsService.listFunds(membership.tenantId) };
+  }
+
+  @Get("settings/funds")
+  @RequirePermission("finance.settings.view")
+  async listSettingsFunds(@CurrentMembership() membership: MembershipWithRole): Promise<any> {
+    return { funds: await this.fundsService.listFunds(membership.tenantId) };
+  }
+
+  @Get("funds/:id")
+  @RequirePermission("finance.view")
+  async getFund(@CurrentMembership() membership: MembershipWithRole, @Param("id") id: string): Promise<any> {
+    return { fund: await this.fundsService.getFund(membership.tenantId, id) };
+  }
+
+  @Get("funds/:id/overview")
+  @RequirePermission("finance.view")
+  async getFundOverview(@CurrentMembership() membership: MembershipWithRole, @Param("id") id: string): Promise<any> {
+    return this.fundsService.getFundOverview(membership.tenantId, id);
+  }
+
+  @Post("funds")
+  @RequirePermission("finance.settings.update")
+  async createFund(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Body() dto: CreateFinanceFundDto,
+    @Req() req: Request
+  ): Promise<any> {
+    return {
+      fund: await this.fundsService.createFund(
+        { userId: membership.userId, tenantId: membership.tenantId },
+        dto,
+        requestContext(req)
+      )
+    };
+  }
+
+  @Post("settings/funds")
+  @RequirePermission("finance.settings.update")
+  async createSettingsFund(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Body() dto: CreateFinanceFundDto,
+    @Req() req: Request
+  ): Promise<any> {
+    return {
+      fund: await this.fundsService.createFund(
+        { userId: membership.userId, tenantId: membership.tenantId },
+        dto,
+        requestContext(req)
+      )
+    };
+  }
+
+  @Patch("funds/:id")
+  @RequirePermission("finance.settings.update")
+  async updateFund(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("id") id: string,
+    @Body() dto: UpdateFinanceFundDto,
+    @Req() req: Request
+  ): Promise<any> {
+    return {
+      fund: await this.fundsService.updateFund(
+        { userId: membership.userId, tenantId: membership.tenantId },
+        id,
+        dto,
+        requestContext(req)
+      )
+    };
+  }
+
+  @Patch("settings/funds/:id")
+  @RequirePermission("finance.settings.update")
+  async updateSettingsFund(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("id") id: string,
+    @Body() dto: UpdateFinanceFundDto,
+    @Req() req: Request
+  ): Promise<any> {
+    return {
+      fund: await this.fundsService.updateFund(
+        { userId: membership.userId, tenantId: membership.tenantId },
+        id,
+        dto,
+        requestContext(req)
+      )
+    };
+  }
+
+  @Delete("funds/:id")
+  @RequirePermission("finance.settings.update")
+  async removeFund(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("id") id: string,
+    @Req() req: Request
+  ): Promise<any> {
+    return this.fundsService.removeFund(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      id,
+      requestContext(req)
+    );
+  }
+
+  @Delete("settings/funds/:id")
+  @RequirePermission("finance.settings.update")
+  async removeSettingsFund(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("id") id: string,
+    @Req() req: Request
+  ): Promise<any> {
+    return this.fundsService.removeFund(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      id,
+      requestContext(req)
+    );
+  }
+
+  // =========================================================================
+  // Bulk Update for COA Mappings (Requirements 6 & 7)
+  // =========================================================================
+
+  @Post("bulk-update")
+  @RequirePermission("accounting.accounts.manage")
+  async bulkUpdate(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Body() dto: BulkUpdateCoaMappingDto,
+    @Req() req: Request
+  ): Promise<any> {
+    return this.accountingService.bulkUpdateCoaMappings(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      dto,
+      requestContext(req)
+    );
+  }
+
+  @Post("accounting/post-unposted")
+  @RequirePermission("accounting.journal.create")
+  async postUnposted(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Body() body: { categoryId: string; type: "INCOME" | "EXPENSE" },
+    @Req() req: Request
+  ): Promise<any> {
+    if (body.type === "EXPENSE") {
+      return this.accountingService.postUnpostedVouchersForCategory(
+        { userId: membership.userId, tenantId: membership.tenantId },
+        body.categoryId,
+        requestContext(req)
+      );
+    }
+    return this.accountingService.postUnpostedCollectionsForCategory(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      body.categoryId,
+      requestContext(req)
+    );
+  }
+
+  // =========================================================================
+  // 2. Chart of Accounts & Financial Years (Accounting Layer)
   // =========================================================================
 
   @Get("accounts")
@@ -151,6 +319,48 @@ export class FinanceController {
   async removeAccount(@CurrentMembership() membership: MembershipWithRole, @Param("id") id: string, @Req() req: Request): Promise<any> {
     await this.accountingService.removeAccount({ userId: membership.userId, tenantId: membership.tenantId }, id, requestContext(req));
     return { success: true };
+  }
+
+  @Post("bulk-update/coa-mappings")
+  @RequirePermission("accounting.accounts.manage")
+  async bulkUpdateCoaMappings(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Body() dto: BulkUpdateCoaMappingDto,
+    @Req() req: Request
+  ): Promise<any> {
+    return this.accountingService.bulkUpdateCoaMappings(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      dto,
+      requestContext(req)
+    );
+  }
+
+  @Post("accounting/post-unposted-collections/:categoryId")
+  @RequirePermission("accounting.accounts.manage")
+  async postUnpostedCollections(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("categoryId") categoryId: string,
+    @Req() req: Request
+  ): Promise<any> {
+    return this.accountingService.postUnpostedCollectionsForCategory(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      categoryId,
+      requestContext(req)
+    );
+  }
+
+  @Post("accounting/post-unposted-vouchers/:categoryId")
+  @RequirePermission("accounting.accounts.manage")
+  async postUnpostedVouchers(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Param("categoryId") categoryId: string,
+    @Req() req: Request
+  ): Promise<any> {
+    return this.accountingService.postUnpostedVouchersForCategory(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      categoryId,
+      requestContext(req)
+    );
   }
 
   @Get("financial-years")
@@ -391,6 +601,20 @@ export class FinanceController {
       requestContext(req)
     );
     return { collection };
+  }
+
+  @Post("collections/generate-recurring")
+  @RequirePermission("collections.create")
+  async generateRecurringCollections(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Body() dto: GenerateRecurringCollectionsDto,
+    @Req() req: Request
+  ): Promise<any> {
+    return this.collectionsService.generateRecurringCollections(
+      { userId: membership.userId, tenantId: membership.tenantId },
+      dto,
+      requestContext(req)
+    );
   }
 
   @Patch("collections/:id")
@@ -1001,8 +1225,11 @@ export class FinanceController {
 
   @Get("settings/collection-categories")
   @RequirePermission("finance.settings.view")
-  async listCollectionCategories(@CurrentMembership() membership: MembershipWithRole): Promise<any> {
-    return { categories: await this.settingsService.listCollectionCategories(membership.tenantId) };
+  async listCollectionCategories(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Query("fundId") fundId?: string
+  ): Promise<any> {
+    return { categories: await this.settingsService.listCollectionCategories(membership.tenantId, fundId) };
   }
 
   @Post("settings/collection-categories")
@@ -1048,8 +1275,11 @@ export class FinanceController {
 
   @Get("settings/expense-categories")
   @RequirePermission("finance.settings.view")
-  async listExpenseCategories(@CurrentMembership() membership: MembershipWithRole): Promise<any> {
-    return { categories: await this.settingsService.listExpenseCategories(membership.tenantId) };
+  async listExpenseCategories(
+    @CurrentMembership() membership: MembershipWithRole,
+    @Query("fundId") fundId?: string
+  ): Promise<any> {
+    return { categories: await this.settingsService.listExpenseCategories(membership.tenantId, fundId) };
   }
 
   @Post("settings/expense-categories")

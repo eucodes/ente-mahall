@@ -30,10 +30,12 @@ import {
   Pencil,
   Trash2,
   Settings,
+  CheckCircle2,
+  AlertCircle,
   useToast
 } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
-import type { Voucher, Account, ExpenseCategory, FinancePaymentMethod, FinanceBankAccount } from "@/lib/finance";
+import type { Voucher, Account, ExpenseCategory, FinancePaymentMethod, FinanceBankAccount, FinanceFund } from "@/lib/finance";
 import { QuickAddAccountModal } from "@/features/finance/quick-add-account-modal";
 import { QuickAddCategoryModal } from "@/features/finance/quick-add-category-modal";
 
@@ -41,6 +43,7 @@ interface Props {
   slug: string;
   initialVouchers: Voucher[];
   accounts: Account[];
+  funds?: FinanceFund[];
   expenseCategories: ExpenseCategory[];
   paymentMethods: FinancePaymentMethod[];
   bankAccounts: FinanceBankAccount[];
@@ -50,6 +53,7 @@ export function VouchersClient({
   slug,
   initialVouchers,
   accounts: initialAccounts,
+  funds = [],
   expenseCategories: initialExpenseCategories,
   paymentMethods,
   bankAccounts
@@ -89,6 +93,7 @@ export function VouchersClient({
   }, [accountList]);
 
   // Add Form State
+  const [fundId, setFundId] = useState("");
   const [accountId, setAccountId] = useState(expenseAccounts[0]?.id || "");
   const [expenseCategoryId, setExpenseCategoryId] = useState("");
   const [payeeName, setPayeeName] = useState("");
@@ -99,6 +104,7 @@ export function VouchersClient({
   const [description, setDescription] = useState("");
 
   // Edit Form State
+  const [editFundId, setEditFundId] = useState("");
   const [editAccountId, setEditAccountId] = useState("");
   const [editExpenseCategoryId, setEditExpenseCategoryId] = useState("");
   const [editPayeeName, setEditPayeeName] = useState("");
@@ -110,24 +116,19 @@ export function VouchersClient({
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
+  const [fundFilter, setFundFilter] = useState("ALL");
+  const [postingStatusFilter, setPostingStatusFilter] = useState<"ALL" | "POSTED" | "UNPOSTED">("ALL");
   const [accountFilter, setAccountFilter] = useState("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
 
-  // Filtered categories for Add modal
-  const filteredAddCategories = useMemo(() => {
-    if (!accountId) return categoryList;
-    return categoryList.filter(
-      (c) => !c.expenseAccountId || c.expenseAccountId === accountId
-    );
-  }, [categoryList, accountId]);
-
-  // Filtered categories for Edit modal
-  const filteredEditCategories = useMemo(() => {
-    if (!editAccountId) return categoryList;
-    return categoryList.filter(
-      (c) => !c.expenseAccountId || c.expenseAccountId === editAccountId
-    );
-  }, [categoryList, editAccountId]);
+  // Options for operational funds
+  const fundOptions = useMemo(() => {
+    return funds.map((f) => ({
+      value: f.id,
+      label: f.name,
+      subLabel: f.code || undefined
+    }));
+  }, [funds]);
 
   // Searchable select options
   const accountOptions = useMemo(() => {
@@ -140,22 +141,22 @@ export function VouchersClient({
   }, [expenseAccounts]);
 
   const addCategoryOptions = useMemo(() => {
-    return filteredAddCategories.map((c) => ({
+    return categoryList.map((c) => ({
       value: c.id,
       label: c.name,
       subLabel: undefined,
-      group: c.expenseAccount?.name || "General Expense Heads"
+      group: c.fund?.name || c.expenseAccount?.name || "General Expense Heads"
     }));
-  }, [filteredAddCategories]);
+  }, [categoryList]);
 
   const editCategoryOptions = useMemo(() => {
-    return filteredEditCategories.map((c) => ({
+    return categoryList.map((c) => ({
       value: c.id,
       label: c.name,
       subLabel: undefined,
-      group: c.expenseAccount?.name || "General Expense Heads"
+      group: c.fund?.name || c.expenseAccount?.name || "General Expense Heads"
     }));
-  }, [filteredEditCategories]);
+  }, [categoryList]);
 
   const paymentMethodOptions = useMemo(() => {
     if (paymentMethods.length > 0) {
@@ -184,6 +185,15 @@ export function VouchersClient({
   const filteredVouchers = initialVouchers.filter((v) => {
     const vCatId = v.expenseCategoryId || v.expenseCategory?.id;
     if (categoryFilter !== "ALL" && vCatId !== categoryFilter) return false;
+    if (fundFilter !== "ALL") {
+      const cat = categoryList.find((c) => c.id === vCatId);
+      const effectiveFundId = v.fundId || cat?.fundId;
+      if (effectiveFundId !== fundFilter) return false;
+    }
+    if (postingStatusFilter !== "ALL") {
+      const effectiveStatus = v.postingStatus || (v.journalEntryId ? "POSTED" : "UNPOSTED");
+      if (effectiveStatus !== postingStatusFilter) return false;
+    }
     if (accountFilter !== "ALL") {
       const vAccId = v.accountId || (v as any).expenseAccount?.id;
       const cat = categoryList.find((c) => c.id === vCatId);
@@ -234,6 +244,9 @@ export function VouchersClient({
   function handleCategoryChange(catId: string) {
     setExpenseCategoryId(catId);
     const cat = categoryList.find((c) => c.id === catId);
+    if (cat?.fundId) {
+      setFundId(cat.fundId);
+    }
     if (cat?.expenseAccountId && !accountId) {
       setAccountId(cat.expenseAccountId);
     }
@@ -253,6 +266,9 @@ export function VouchersClient({
   function handleEditCategoryChange(catId: string) {
     setEditExpenseCategoryId(catId);
     const cat = categoryList.find((c) => c.id === catId);
+    if (cat?.fundId) {
+      setEditFundId(cat.fundId);
+    }
     if (cat?.expenseAccountId && !editAccountId) {
       setEditAccountId(cat.expenseAccountId);
     }
@@ -274,6 +290,7 @@ export function VouchersClient({
     const vCatId = v.expenseCategoryId || v.expenseCategory?.id || "";
     setEditExpenseCategoryId(vCatId);
     const cat = categoryList.find((c) => c.id === vCatId);
+    setEditFundId(v.fundId || cat?.fundId || "");
     setEditAccountId(v.accountId || cat?.expenseAccountId || "");
     setEditPayeeName(v.payeeName || v.partyName || "");
     setEditAmount(String(v.amount || ""));
@@ -291,8 +308,8 @@ export function VouchersClient({
       return;
     }
 
-    if (!accountId) {
-      toast({ title: "Please select an expense account", variant: "destructive" });
+    if (!expenseCategoryId) {
+      toast({ title: "Please select an expense category", variant: "destructive" });
       return;
     }
 
@@ -302,14 +319,19 @@ export function VouchersClient({
       return;
     }
 
+    const cat = categoryList.find((c) => c.id === expenseCategoryId);
+    const resolvedAccountId = cat?.expenseAccountId || accountId || undefined;
+    const resolvedFundId = cat?.fundId || fundId || undefined;
+
     setIsSubmitting(true);
     try {
       await apiClient.post(`/tenants/${slug}/finance/vouchers`, {
         type: "PAYMENT",
         voucherSubtype: "EXPENSE",
         status: "PAID",
-        accountId,
-        expenseCategoryId: expenseCategoryId || undefined,
+        fundId: resolvedFundId,
+        accountId: resolvedAccountId,
+        expenseCategoryId,
         payeeName: payeeName.trim() || undefined,
         partyName: payeeName.trim() || undefined,
         amount: String(amount).trim(),
@@ -321,6 +343,7 @@ export function VouchersClient({
 
       toast({ title: "Expense recorded successfully", variant: "success" });
       setModalOpen(false);
+      setExpenseCategoryId("");
       setPayeeName("");
       setAmount("");
       setDescription("");
@@ -341,11 +364,21 @@ export function VouchersClient({
       return;
     }
 
+    if (!editExpenseCategoryId) {
+      toast({ title: "Please select an expense category", variant: "destructive" });
+      return;
+    }
+
+    const cat = categoryList.find((c) => c.id === editExpenseCategoryId);
+    const resolvedAccountId = cat?.expenseAccountId || editAccountId || undefined;
+    const resolvedFundId = cat?.fundId || editFundId || undefined;
+
     setIsUpdating(true);
     try {
       await apiClient.patch(`/tenants/${slug}/finance/vouchers/${editingVoucher.id}`, {
-        accountId: editAccountId || undefined,
-        expenseCategoryId: editExpenseCategoryId || undefined,
+        fundId: resolvedFundId,
+        accountId: resolvedAccountId,
+        expenseCategoryId: editExpenseCategoryId,
         payeeName: editPayeeName.trim() || undefined,
         amount: String(editAmount).trim(),
         date: editDate ? new Date(editDate).toISOString() : undefined,
@@ -410,6 +443,33 @@ export function VouchersClient({
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-64 h-9 text-xs"
           />
+
+          {/* Operational Fund Filter */}
+          {funds.length > 0 && (
+            <Select
+              value={fundFilter}
+              onChange={(e) => setFundFilter(e.target.value)}
+              className="w-40 h-9 text-xs"
+            >
+              <option value="ALL">All Operational Funds</option>
+              {funds.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </Select>
+          )}
+
+          {/* Posting Status Filter */}
+          <Select
+            value={postingStatusFilter}
+            onChange={(e) => setPostingStatusFilter(e.target.value as any)}
+            className="w-36 h-9 text-xs"
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="POSTED">Posted (COA)</option>
+            <option value="UNPOSTED">Unposted (Pending)</option>
+          </Select>
 
           {/* Account Filter */}
           {expenseAccounts.length > 0 && (
@@ -507,7 +567,8 @@ export function VouchersClient({
                     <TableHead>Date</TableHead>
                     <TableHead>Voucher #</TableHead>
                     <TableHead>Payee / Party</TableHead>
-                    <TableHead>Expense Head / Account</TableHead>
+                    <TableHead>Expense Head / Fund</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Payment Mode</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -520,6 +581,11 @@ export function VouchersClient({
                       (c) => c.id === (v.expenseCategoryId || v.expenseCategory?.id)
                     );
                     const accName = v.account?.name || matchedCat?.expenseAccount?.name;
+                    const operationalFund =
+                      funds.find((f) => f.id === (v.fundId || matchedCat?.fundId))?.name ||
+                      v.fund?.name ||
+                      matchedCat?.fund?.name;
+                    const effectiveStatus = v.postingStatus || (v.journalEntryId ? "POSTED" : "UNPOSTED");
 
                     return (
                       <TableRow key={v.id} className={isChecked ? "bg-muted/40" : undefined}>
@@ -550,12 +616,29 @@ export function VouchersClient({
                             <Badge variant="outline" className="text-[10px] w-fit">
                               {v.expenseCategory?.name || matchedCat?.name || "General Expense"}
                             </Badge>
-                            {accName && (
+                            {operationalFund ? (
+                              <span className="text-[10px] text-muted-foreground font-medium">
+                                Fund: {operationalFund}
+                              </span>
+                            ) : accName ? (
                               <span className="text-[10px] text-muted-foreground">
                                 Account: {accName}
                               </span>
-                            )}
+                            ) : null}
                           </div>
+                        </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">
+                          {effectiveStatus === "POSTED" ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Posted
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full" title="Pending Chart of Accounts mapping. No journal entry generated.">
+                              <AlertCircle className="h-3 w-3" />
+                              Unposted
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {v.paymentMethod || "Cash"}
@@ -625,66 +708,25 @@ export function VouchersClient({
           </DialogHeader>
 
           <form onSubmit={handleRecordExpense} className="space-y-4 pt-3">
-            {/* Account & Category Linked Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-3.5 rounded-2xl border border-border/60">
-              {/* Expense Account */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-foreground">
-                    Expense Account <span className="text-destructive">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setQuickAccountOpen(true)}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline cursor-pointer"
-                  >
-                    <Plus className="h-3 w-3" />
-                    Quick Add
-                  </button>
-                </div>
-                <SearchableSelect
-                  options={accountOptions}
-                  value={accountId}
-                  onChange={handleAccountChange}
-                  placeholder="Select an account"
-                  searchPlaceholder="Search"
-                  emptyMessage="No accounts found"
-                  onAddNew={() => setQuickAccountOpen(true)}
-                  addNewLabel="New Account"
-                />
+            {/* Expense Category / Head */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  Expense Head / Category <span className="text-destructive">*</span>
+                </label>
               </div>
-
-              {/* Expense Category / Head */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-foreground">
-                    Expense Head / Category
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setQuickCategoryOpen(true)}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline cursor-pointer"
-                  >
-                    <Plus className="h-3 w-3" />
-                    Quick Add
-                  </button>
-                </div>
-                <SearchableSelect
-                  options={addCategoryOptions}
-                  value={expenseCategoryId}
-                  onChange={handleCategoryChange}
-                  placeholder={
-                    filteredAddCategories.length === 0
-                      ? "No heads in this account"
-                      : "Select an expense category"
-                  }
-                  searchPlaceholder="Search"
-                  emptyMessage="No categories found. Click + New Category to create one."
-                  onAddNew={() => setQuickCategoryOpen(true)}
-                  addNewLabel="New Category"
-                />
-              </div>
+              <SearchableSelect
+                options={addCategoryOptions}
+                value={expenseCategoryId}
+                onChange={handleCategoryChange}
+                placeholder="Select an expense category"
+                searchPlaceholder="Search expense categories..."
+                emptyMessage="No categories found. Click + Quick Add to create one."
+                onAddNew={() => setQuickCategoryOpen(true)}
+                addNewLabel="New Category"
+              />
             </div>
+
 
             {/* Payee Name */}
             <FormField label="Payee / Vendor / Recipient Name" required>
@@ -799,30 +841,21 @@ export function VouchersClient({
           </DialogHeader>
 
           <form onSubmit={handleUpdateVoucher} className="space-y-4 pt-3">
-            {/* Account & Category Linked Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-3.5 rounded-2xl border border-border/60">
-              <FormField label="Expense Account" required>
-                <SearchableSelect
-                  options={accountOptions}
-                  value={editAccountId}
-                  onChange={handleEditAccountChange}
-                  placeholder="Select an account"
-                  searchPlaceholder="Search"
-                  emptyMessage="No accounts found"
-                />
-              </FormField>
-
-              <FormField label="Expense Head / Category">
-                <SearchableSelect
-                  options={editCategoryOptions}
-                  value={editExpenseCategoryId}
-                  onChange={handleEditCategoryChange}
-                  placeholder="Select expense category..."
-                  searchPlaceholder="Search"
-                  emptyMessage="No categories found"
-                />
-              </FormField>
+            {/* Expense Category / Head */}
+            <div>
+              <label className="text-xs font-semibold text-foreground block mb-1.5">
+                Expense Head / Category <span className="text-destructive">*</span>
+              </label>
+              <SearchableSelect
+                options={editCategoryOptions}
+                value={editExpenseCategoryId}
+                onChange={handleEditCategoryChange}
+                placeholder="Select expense category..."
+                searchPlaceholder="Search expense categories..."
+                emptyMessage="No categories found"
+              />
             </div>
+
 
             <FormField label="Payee / Vendor / Recipient Name" required>
               <Input

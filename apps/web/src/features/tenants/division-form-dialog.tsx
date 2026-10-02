@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, FormField, Input, Textarea, useToast } from "@mahalle/ui";
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Form, FormField, Input, Textarea, useToast } from "@mahalle/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
 import type { Division } from "@/lib/structure";
 
@@ -85,7 +85,7 @@ export function DivisionFormDialog({
         <DialogHeader className="p-5 pb-3 border-b border-border bg-muted/20 shrink-0">
           <DialogTitle>{editingDivision ? `Edit ${label}` : `Add a ${label}`}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1" noValidate>
+        <Form onSubmit={handleSubmit} className="flex flex-col flex-1" noValidate>
           <div className="p-5 space-y-4">
             <FormField label="Name" htmlFor="division-name" required error={error ?? undefined}>
               <Input
@@ -125,7 +125,7 @@ export function DivisionFormDialog({
               {editingDivision ? "Save Changes" : `Add ${label}`}
             </Button>
           </DialogFooter>
-        </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

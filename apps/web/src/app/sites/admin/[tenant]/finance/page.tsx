@@ -170,6 +170,85 @@ export default async function FinanceOverviewPage({
           </Card>
         </div>
 
+        {/* Operational Funds Breakdown (Requirement 1) */}
+        {overview.funds && overview.funds.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-primary" />
+                  Operational Funds
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Separate operational budgets and fund balances for organizational accounts
+                </p>
+              </div>
+              <Link
+                href={`/${slug}/settings/finance`}
+                className="text-xs text-primary font-medium hover:underline flex items-center gap-1"
+              >
+                <span>Manage Funds</span>
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {overview.funds.map((fund) => {
+                const bal = parseFloat(fund.balance || "0");
+                const isPositive = bal >= 0;
+                return (
+                  <Card key={fund.id} className="rounded-2xl border border-border/80 shadow-xs hover:border-border transition-all">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: fund.color || "#0284c7" }}
+                        />
+                        <CardTitle className="text-sm font-semibold">
+                          {fund.name}
+                        </CardTitle>
+                      </div>
+                      {fund.isDefault && (
+                        <Badge variant="outline" className="text-[10px] font-normal">
+                          Default
+                        </Badge>
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div>
+                        <div className="text-xs text-muted-foreground font-medium">Net Fund Balance</div>
+                        <div className={`text-xl font-bold font-mono ${isPositive ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                          ₹{bal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/60 text-xs">
+                        <div>
+                          <span className="text-muted-foreground block text-[11px]">Inflow</span>
+                          <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                            +₹{parseFloat(fund.income || "0").toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block text-[11px]">Outflow</span>
+                          <span className="font-mono font-semibold text-rose-600 dark:text-rose-400">
+                            -₹{parseFloat(fund.expense || "0").toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 text-[11px] text-muted-foreground">
+                        <span>{fund.categoriesCount} categories</span>
+                        <span>{fund.transactionsCount} entries</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* 6-Month Income vs Expense Trend */}
         <Card className="rounded-2xl border border-border/80 shadow-sm">
           <CardHeader>
